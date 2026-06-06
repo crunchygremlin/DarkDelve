@@ -1,0 +1,139 @@
+import tcod
+import random
+import numpy as np
+import threading
+import queue
+import urllib.request
+import json
+
+llm_request_queue = queue.Queue()
+llm_response_queue = queue.Queue()
+
+def local_llm_worker():
+    while True:
+        try:
+            prompt_data = llm_request_queue.get()
+            if prompt_data is None: break
+            url = "http://localhost:11434/api/generate"
+            payload = {
+                "model": "llama3.2:3b", 
+                "prompt": prompt_data["prompt"],
+                "stream": False,
+                "format": "json"
+            }
+            req = urllib.request.Request(
+                url, 
+                data=json.dumps(payload).encode("utf-8"), 
+                headers={"Content-Type": "application/json"}
+            )
+            with urllib.request.urlopen(req) as response:
+                result = json.loads(response.read().decode("utf-8"))
+                response_json = json.loads(result["response"])
+                llm_response_queue.put({
+                    "commander_id": prompt_data["commander_id"],
+                    "shout": response_json.get("commander_shout", "CHAAAARGE!"),
+                    "command": response_json.get("global_command", "DEFAULT_ATTACK")
+                })
+        except Exception as e:
+            llm_response_queue.put({
+                "commander_id": "SYSTEM", 
+                "shout": "The AI brain stumbles!", 
+                "command": "DEFAULT_ATTACK"
+            })
+        finally:
+            llm_request_queue.task_done()
+
+threading.Thread(target=local_llm_worker, daemon=True).start()
+
+class Entity:
+    def __init__(self, x, y, char, color, name, blocks=False, hp=10, power=3, defense=1, intel_tier=1, training="None"):
+        self.x = x
+        self.y = y
+        self.char = char
+        self.color = color
+        self.name = name
+        self.blocks = blocks
+        self.max_hp = hp
+        self.hp = hp
+        self.power = power
+        self.defense = defense
+        self.intel_tier = intel_tier
+        self.training = training
+        self.current_override = None
+
+    @property
+    def is_alive(self):
+        return self.hp > 0
+
+    def move_towards(self, target_x, target_y, dungeon_map, entities):
+        dx = target_x - self.x
+        dy = target_y - self.y
+        distance = max(abs(dx), abs(dy))
+        if distance > 0:
+            step_x = int(round(dx / distance))
+            step_y = int(round(dy / distance))
+            dest_x = self.x + step_x
+            dest_y = self.y + step_y
+            if 0 <= dest_x < dungeon_map.shape[0] and 0 <= dest_y < dungeon_map.shape[1]:
+                if dungeon_map[dest_x, dest_y]:
+                    if not any(e.blocks for e in entities if e.x == dest_x and e.y == dest_y):
+                        self.x = dest_x
+                        self.y = dest_y
+
+def tunnel_between(start, end):
+    x1, y1 = start
+    x2, y2 = end
+    if random.random() < 0.5:
+        for x in range(min(x1, x2), max(x1, x2) + 1): yield x, y1
+        for y in range(min(y1, y2), max(y1, y2) + 1): yield x2, y
+    else:
+        for y in range(min(y1, y2), max(y1, y2) + 1): yield x1, y
+        for x in range(min(x1, x2), max(x1, x2) + 1): yield x, y2
+
+def generate_dungeon(map_width, map_height, max_rooms, room_min_size, room_max_size, max_monsters_per_room):
+    dungeon_map = np.zeros((map_width, map_height), dtype=bool, order="F")
+    rooms = []
+    entities = []
+    for r in range(max_rooms):
+        w = random.randint(room_min_size, room_max_size)
+        h = random.randint(room_min_size, room_max_size)
+        x = random.randint(0, map_width - w - 1)
+        y = random.randint(0, map_height - h - 1)
+        x1, y1, x2, y2 = x, y, x + w, y + h
+        center_x = int((x1 + x2) / 2)
+        center_y = int((y1 + y2) / 2)
+        overlap = False
+        for rx1, ry1, rx2, ry2, _, _ in rooms:
+            if x1 < rx2 and x2 > rx1 and y1 < ry2 and y2 > ry1:
+                overlap = True
+                break
+        if overlap: continue
+        dungeon_map[x1+1:x2, y1+1:y2] = True
+        if len(rooms) == 0:
+            player = Entity(center_x, center_y, "@", (255, 255, 0), "Player", blocks=True, hp=30, power=5, defense=2)
+            entities.append(player)
+        else:
+            prev_room = rooms[-1]
+            prev_center = (prev_room[4], prev_room[5])
+            for tx, ty in tunnel_between(prev_center, (center_x, center_y)):
+                dungeon_map[tx, ty] = True
+            if len(rooms) == 1:
+                commander = Entity(center_x, center_y, "G", (255, 0, 0), "Goblin Warlord", blocks=True, hp=25, power=4, defense=2, intel_tier=3)
+                entities.append(commander)
+                for _ in range(12):
+                    mx = random.randint(x1 + 1, x2 - 1)
+                    my = random.randint(y1 + 1, y2 - 1)
+                    if not any(e.x == mx and e.y == my for e in entities):
+                        entities.append(Entity(mx, my, "z", (150, 75, 0), "Zombie", blocks=True, hp=8, power=2, defense=0, intel_tier=0, training="Shield Wall"))
+            else:
+                num_monsters = random.randint(0, max_monsters_per_room)
+                for _ in range(num_monsters):
+                    mx = random.randint(x1 + 1, x2 - 1)
+                    my = random.randint(y1 + 1, y2 - 1)
+                    if not any(e.x == mx and e.y == my for e in entities):
+                        if random.random() < 0.8:
+                            entities.append(Entity(mx, my, "o", (63, 127, 63), "Orc", blocks=True, hp=10, power=3, defense=0, intel_tier=2))
+                        else:
+                            entities.append(Entity(mx, my, "T", (0, 127, 0), "Troll", blocks=True, hp=16, power=4, defense=1, intel_tier=1))
+        rooms.append((x1, y1, x2, y2, center_x, center_y))
+    return dungeon_map, entities
