@@ -266,6 +266,92 @@ class TestTileRendering(unittest.TestCase):
             self.assertEqual(char, "#")
             self.assertEqual(color, (255, 255, 255))
     
+    def test_entity_character_rendering(self):
+        """Test that entity characters are rendered correctly on tiles"""
+        # Create a simple test map
+        dungeon_map = np.array([
+            [True, True, True],
+            [True, False, True],
+            [True, True, True]
+        ], dtype=bool)
+        
+        # Create FOV and explored arrays
+        fov = np.array([
+            [False, False, False],
+            [False, True, False],
+            [False, False, False]
+        ], dtype=bool)
+        
+        explored = np.array([
+            [True, True, True],
+            [True, True, True],
+            [True, True, True]
+        ], dtype=bool)
+        
+        # Mock entity with specific character
+        class MockEntity:
+            def __init__(self, x, y, char, color):
+                self.x = x
+                self.y = y
+                self.char = char
+                self.color = color
+        
+        # Create entities with different characters
+        entities = [
+            MockEntity(1, 1, "@", (255, 255, 0)),  # Player character
+            MockEntity(0, 0, "D", (255, 0, 0)),    # Dragon
+            MockEntity(2, 2, "g", (0, 255, 0)),    # Goblin
+        ]
+        
+        # Mock the colors
+        with patch('darkdelve.COLORS', {
+            'wall': (255, 255, 255),
+            'floor': (128, 128, 128)
+        }):
+            # First render the dungeon
+            self.ui.render_dungeon(dungeon_map, fov, explored)
+            
+            # Then render entities
+            self.ui.render_entities(entities, fov, entities[0])  # Pass player as first entity
+            
+            # Check console calls
+            # render_dungeon will render all explored tiles (9 tiles for 3x3 map)
+            # render_entities will render entities that are in FOV or the player
+            self.assertEqual(len(self.console_calls), 10)  # 9 explored tiles + 1 entity (only player is visible)
+            
+            # Separate dungeon calls from entity calls
+            dungeon_calls = []
+            entity_calls = []
+            
+            for call in self.console_calls:
+                x, y, char, color = call
+                # Entity calls have specific colors that match our entities
+                if color in [(255, 255, 0), (255, 0, 0), (0, 255, 0)]:
+                    entity_calls.append(call)
+                else:
+                    dungeon_calls.append(call)
+            
+            # Verify we have the right number of each type
+            self.assertEqual(len(dungeon_calls), 9)  # All explored tiles
+            self.assertEqual(len(entity_calls), 1)   # Only player is visible
+            
+            # Verify entity characters are rendered correctly
+            # Only the player should be visible (at position 1,1)
+            expected_entity = (1, 1, "@", (255, 255, 0))  # Player
+            
+            found = False
+            for call in entity_calls:
+                x, y, char, color = call
+                if x == expected_entity[0] and y == expected_entity[1]:
+                    self.assertEqual(char, expected_entity[2],
+                                   f"Expected character '{expected_entity[2]}' at ({x}, {y}) but got '{char}'")
+                    self.assertEqual(color, expected_entity[3],
+                                   f"Expected color {expected_entity[3]} at ({x}, {y}) but got {color}")
+                    found = True
+                    break
+            
+            self.assertTrue(found, f"Expected entity call at ({expected_entity[0]}, {expected_entity[1]}) not found")
+    
     def _convert_calls_to_text_grid(self, map_shape):
         """Convert console calls to a text grid for debugging"""
         height, width = map_shape
