@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+ #!/usr/bin/env python3
 """
 DarkDelve - A Traditional Roguelike with Local LLM Content Generation
 Single-file implementation with embedded Ollama management.

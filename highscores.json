@@ -2,6 +2,17 @@
   {
     "name": "Adventurer",
     "class": "warrior",
+    "score": 10076,
+    "depth": 1,
+    "kills": 0,
+    "turns": 111,
+    "cause": "Unknown",
+    "date": "2026-06-07 21:30",
+    "seed": 1521795956
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
     "score": 10070,
     "depth": 1,
     "kills": 0,
