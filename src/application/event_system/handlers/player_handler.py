@@ -2,8 +2,8 @@
 Player event handler for processing player-related events.
 """
 from typing import Dict, Any
-from .base_event import Event, EventCategory
-from .event_handler import EventHandler
+from ..base_event import Event, EventCategory
+from ..event_handler import EventHandler
 
 
 class PlayerEventHandler(EventHandler):

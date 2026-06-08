@@ -2,8 +2,8 @@
 Combat event handler for processing combat-related events.
 """
 from typing import Dict, Any
-from .base_event import Event, EventCategory
-from .event_handler import EventHandler
+from ..base_event import Event, EventCategory
+from ..event_handler import EventHandler
 
 
 class CombatEventHandler(EventHandler):
