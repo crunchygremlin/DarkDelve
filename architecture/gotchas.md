@@ -49,3 +49,137 @@ from src.domain.entities.player import Player
 - Use IDE features to auto-generate correct import paths
 - Regularly run tests to catch import issues early
 - Consider using `__init__.py` files to make imports more consistent
+
+## UI Object Player Attribute Error
+
+### Problem
+When running the game, you encounter an AttributeError:
+
+```
+AttributeError: 'UI' object has no attribute 'player'
+```
+
+This error occurs in the `render_entities` method at line 1517 when trying to access `self.player` on a UI object.
+
+### Root Cause
+The `render_entities` method in the UI class was trying to access `self.player`, but the UI object doesn't have a `player` attribute. The player object is owned by the Game class, not the UI class.
+
+### Solution
+Modify the `render_entities` method to accept the player as a parameter:
+
+1. **Update the method signature**:
+   ```python
+   def render_entities(self, entities: List[Entity], fov: np.ndarray, player=None):
+   ```
+
+2. **Update the method logic** to use the parameter instead of `self.player`:
+   ```python
+   if fov[entity.y, entity.x] or entity is player:
+   ```
+
+3. **Update the method call** in the `render` method to pass the player:
+   ```python
+   self.ui.render_entities(self.entities, self.fov, self.player)
+   ```
+
+### Affected Code
+- `darkdelve.py` line 1511: `render_entities` method signature
+- `darkdelve.py` line 1517: Logic using player parameter
+- `darkdelve.py` line 2060: Method call in `render`
+
+### Prevention
+- Be careful about object ownership and attribute access
+- Pass required parameters explicitly rather than assuming they exist as attributes
+- Test UI rendering functionality thoroughly after any changes
+
+## Tile Rendering Logic Error
+
+### Problem
+Tiles were rendered incorrectly - walls appeared as floors and floors appeared as walls.
+
+### Root Cause
+In the `render_dungeon` method, the logic for determining wall vs floor tiles was backwards. The code was checking:
+```python
+if dungeon_map[y, x]:
+    self.console.print(x, y, ".", COLORS['floor'])  # Wrong - floor character for wall
+else:
+    self.console.print(x, y, "#", COLORS['wall'])   # Wrong - wall character for floor
+```
+
+However, the dungeon generator uses boolean arrays where:
+- `True` = wall
+- `False` = floor
+
+### Solution
+Fixed the logic to correctly map tile values to characters:
+```python
+if dungeon_map[y, x]:  # True = wall
+    self.console.print(x, y, "#", COLORS['wall'])
+else:  # False = floor
+    self.console.print(x, y, ".", COLORS['floor'])
+```
+
+### Affected Code
+- `darkdelve.py` line 1492: `render_dungeon` method logic
+
+### Prevention
+- Understand the data format used by the dungeon generator
+- Test tile rendering with known input/output patterns
+- Create unit tests for rendering functionality
+- Use visual debugging when tile rendering looks wrong
+
+## Tile Rendering Debug Tools
+
+### Problem
+When debugging map tile rendering issues, it's difficult to see what tiles are actually being rendered and verify the correct symbols are being used.
+
+### Solution
+Use the comprehensive test suite in `tests/test_tile_rendering.py` and the debug script `debug_tiles.py` to visualize map tiles as text symbols.
+
+### Available Tools
+
+1. **Unit Tests** (`tests/test_tile_rendering.py`):
+   - `test_render_dungeon_floor_wall_logic`: Tests basic wall/floor rendering
+   - `test_render_dungeon_explored_areas`: Tests color rendering for explored areas
+   - `test_text_symbol_conversion`: Tests conversion to text grid format
+   - `test_debug_output_visualization`: Tests debug output generation
+   - `test_edge_cases`: Tests edge cases like empty maps
+
+2. **Debug Script** (`debug_tiles.py`):
+   - Generates visual text representation of the map
+   - Shows visible vs explored vs unexplored tiles
+   - Provides both detailed debug output and simplified text grid
+
+### Usage Examples
+
+**Run the test suite:**
+```bash
+python -m pytest tests/test_tile_rendering.py -v
+```
+
+**Use the debug script:**
+```bash
+python debug_tiles.py
+```
+
+### Debug Output Format
+
+The debug tools output maps with the following symbols:
+- `#` = Wall
+- `.` = Floor
+- `V` = Visible tile (uppercase in text grid)
+- `E` = Explored but not visible tile (lowercase in text grid)
+- `U` = Unexplored tile
+- `?` = Unknown/unrendered tile
+
+### How to Use for Debugging
+
+1. When tiles look wrong, run the debug script to see the actual text representation
+2. Check if the correct symbols are being used for walls vs floors
+3. Verify that visibility is working correctly (visible tiles should be uppercase)
+4. Use the unit tests to catch regressions when making changes
+
+### Affected Code
+- `tests/test_tile_rendering.py` - Comprehensive test suite
+- `debug_tiles.py` - Debug visualization script
+- `darkdelve.py` - `render_dungeon` method (tested by the suite)
