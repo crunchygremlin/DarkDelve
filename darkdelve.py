@@ -1684,8 +1684,8 @@ class Game:
         self.console = tcod.console.Console(self.screen_width, self.screen_height)
         
         self.context = tcod.context.new_terminal(
-            width=self.screen_width,
-            height=self.screen_height,
+            columns=self.screen_width,
+            rows=self.screen_height,
             tileset=tileset,
             title="DarkDelve",
             vsync=True,

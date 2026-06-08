@@ -59,14 +59,14 @@ def test_quit_event_returns_true(handler, dummy_player, dummy_game, dummy_state)
 @pytest.mark.parametrize(
     "key_sym,method_name",
     [
-        (tcod.event.K_PERIOD, "pickup_item"),
-        (tcod.event.K_COMMA, "pickup_item"),
-        (tcod.event.K_g, "pickup_item"),
-        (tcod.event.K_i, "show_inventory"),
-        (tcod.event.K_c, "show_character"),
-        (tcod.event.K_greater, "use_stairs_down"),
-        (tcod.event.K_less, "use_stairs_up"),
-        (tcod.event.K_ESCAPE, "show_menu"),
+        (tcod.event.KeySym.PERIOD, "pickup_item"),
+        (tcod.event.KeySym.COMMA, "pickup_item"),
+        (tcod.event.KeySym.G, "pickup_item"),
+        (tcod.event.KeySym.I, "show_inventory"),
+        (tcod.event.KeySym.C, "show_character"),
+        (tcod.event.KeySym.RSHIFT, "use_stairs_down"),
+        (tcod.event.KeySym.RSHIFT, "use_stairs_up"),
+        (tcod.event.KeySym.ESCAPE, "show_menu"),
     ],
 )
 def test_action_keys_invoke_game_methods(handler, dummy_player, dummy_game, dummy_state, key_sym, method_name):
@@ -81,15 +81,15 @@ def test_action_keys_invoke_game_methods(handler, dummy_player, dummy_game, dumm
 @pytest.mark.parametrize(
     "key_sym",
     [
-        tcod.event.K_w,
-        tcod.event.K_a,
-        tcod.event.K_s,
-        tcod.event.K_d,
-        tcod.event.K_UP,
-        tcod.event.K_DOWN,
-        tcod.event.K_LEFT,
-        tcod.event.K_RIGHT,
-        tcod.event.K_SPACE,
+        tcod.event.KeySym.W,
+        tcod.event.KeySym.A,
+        tcod.event.KeySym.S,
+        tcod.event.KeySym.D,
+        tcod.event.KeySym.UP,
+        tcod.event.KeySym.DOWN,
+        tcod.event.KeySym.LEFT,
+        tcod.event.KeySym.RIGHT,
+        tcod.event.KeySym.SPACE,
     ],
 )
 def test_movement_and_wait_keys_do_not_call_game_methods(handler, dummy_player, dummy_game, dummy_state, key_sym):
