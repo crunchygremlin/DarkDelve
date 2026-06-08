@@ -81,12 +81,15 @@ def test_game_rendering():
         
         # Check if player character is visible in the console
         player_char_found = False
+        player_char_positions = []
         for y in range(game.console.height):
             for x in range(game.console.width):
                 try:
-                    char = game.console.ch[x, y]
+                    # FIX: console.ch has shape (height, width), so access as [y, x]
+                    char = game.console.ch[y, x]
                     if char == ord(game.player.char):
                         player_char_found = True
+                        player_char_positions.append((x, y))
                         print(f"✓ Player character found at ({x}, {y})")
                         break
                 except:
@@ -96,13 +99,32 @@ def test_game_rendering():
         
         if not player_char_found:
             print("✗ Player character not found in console")
+            # Check if player is within the map bounds
+            print(f"Player position: ({game.player.x}, {game.player.y})")
+            print(f"Map dimensions: {game.dungeon_map.shape}")
+            print(f"FOV shape: {game.fov.shape}")
+            print(f"Explored shape: {game.explored.shape}")
+            
+            # Check if player position is within FOV
+            if (0 <= game.player.x < game.fov.shape[1] and
+                0 <= game.player.y < game.fov.shape[0]):
+                if game.fov[game.player.y, game.player.x]:
+                    print("✓ Player is in FOV")
+                else:
+                    print("✗ Player is not in FOV")
+            else:
+                print("✗ Player is out of FOV bounds")
+        
+        if not player_char_found:
+            print("✗ Player character not found in console")
         
         # Check if UI text is present
         ui_text_found = False
         for y in range(game.console.height):
             for x in range(game.console.width):
                 try:
-                    char = game.console.ch[x, y]
+                    # FIX: console.ch has shape (height, width), so access as [y, x]
+                    char = game.console.ch[y, x]
                     if char == ord('L'):  # First character of "LLM:"
                         ui_text_found = True
                         print(f"✓ UI text found at ({x}, {y})")

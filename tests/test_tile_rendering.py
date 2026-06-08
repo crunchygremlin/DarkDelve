@@ -181,7 +181,7 @@ class TestTileRendering(unittest.TestCase):
             for y in range(1, 4):
                 for x in range(1, 4):
                     self.assertEqual(text_grid[y][x], expected_grid[y][x],
-                                   f"Expected {expected_grid[y][x]} at ({x}, {y}) but got {text_grid[y][x]}")
+                                    f"Expected {expected_grid[y][x]} at ({x}, {y}) but got {text_grid[y][x]}")
     
     def test_debug_output_visualization(self):
         """Test that debug output can visualize the map state"""

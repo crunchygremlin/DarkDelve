@@ -209,3 +209,58 @@ Added `_render_text()` helper method that renders text character by character us
 - Always render text character by character in UI elements
 - Use helper methods for text rendering to ensure consistency
 - Test UI rendering with comprehensive test suites that check individual character rendering
+
+## Monster and Item Spawning in Walls
+### Problem
+Monsters and items were spawning in walls instead of floors, making them invisible and causing gameplay issues.
+
+### Root Cause
+The spawn condition was checking `if self.dungeon_map[x, y]` which is `True` for walls, but should be `False` for floors.
+
+### Solution
+Changed the spawn conditions to check for floors:
+- Monsters: `if not self.dungeon_map[x, y] and not any(e.x == x and e.y == y for e in self.entities)`
+- Items: `if not self.dungeon_map[x, y] and not any(e.x == x and e.y == y for e in self.entities)`
+
+### Affected Code
+- `generate_level()` method in `Game` class (lines 1780, 1801)
+
+### Prevention
+Always double-check the logic for dungeon map coordinates: `True` = wall, `False` = floor.
+
+## Player Movement Logic Error
+### Problem
+Player was getting blocked by objects they couldn't see due to incorrect movement logic.
+
+### Root Cause
+The `move_to()` method was checking `if dungeon_map[x, y]` which is `True` for walls, but should be checking for floors (`False`).
+
+### Solution
+Changed the movement condition to check for walkable floors:
+```python
+if not dungeon_map[x, y]:  # Check if it's a floor (False), not a wall (True)
+```
+
+### Affected Code
+- `move_to()` method in `Entity` class (line 661)
+
+### Prevention
+Always verify the logic for movement: players can move through floors (`False`) but not walls (`True`).
+
+## Console Coordinate System Issue
+### Problem
+Console character array access was using wrong coordinate system, causing text to appear at wrong positions and player character to not be found.
+
+### Root Cause
+tcod console character array has shape `(height, width)` but was being accessed as `console.ch[x, y]` instead of `console.ch[y, x]`.
+
+### Solution
+Fixed console character array access in tests to use correct coordinate system: `console.ch[y, x]`.
+
+### Affected Code
+- `test_game_rendering.py` - Fixed console character access in player character and UI text detection
+
+### Prevention
+- Always check console.ch.shape before accessing characters
+- Use `console.ch[y, x]` for coordinate access (not `console.ch[x, y]`)
+- Test coordinate system with simple debug scripts before complex tests

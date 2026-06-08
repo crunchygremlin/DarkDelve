@@ -658,7 +658,8 @@ class Entity:
     
     def move_to(self, x: int, y: int, dungeon_map: np.ndarray, entities: List['Entity']) -> bool:
         if 0 <= x < dungeon_map.shape[0] and 0 <= y < dungeon_map.shape[1]:
-            if dungeon_map[x, y]:
+            # FIX: Check if it's a floor (False), not a wall (True)
+            if not dungeon_map[x, y]:
                 if not any(e.blocks for e in entities if e.x == x and e.y == y and e is not self):
                     self.x = x
                     self.y = y
@@ -910,7 +911,8 @@ class FOVSystem:
         
         # FIX: Convert dungeon_map to a clean boolean 2D NumPy array for transparency.
         # True means light passes through (walkable/floor), False means it's blocked (walls).
-        transparency_array = dungeon_map.astype(bool)
+        # dungeon_map has True for walls, False for floors, so we need to invert it
+        transparency_array = ~dungeon_map
         
         # Ensure our player position integer lookups fit within the array dimensions
         height, width = dungeon_map.shape
@@ -1496,18 +1498,24 @@ class UI:
     
     def render_dungeon(self, dungeon_map: np.ndarray, fov: np.ndarray, explored: np.ndarray):
         # NumPy shapes are structured as (height, width) or (rows, columns)
-        height, width = dungeon_map.shape
+        # FIX: dungeon_map has shape (width, height), but we need (height, width) for rendering
+        height, width = dungeon_map.shape[1], dungeon_map.shape[0]
         
         for y in range(height):
             for x in range(width):
-                # FIX 1: Look up array values using row-major coordinate structure [y, x]
+                # Check bounds for fov and explored arrays
+                if y >= fov.shape[0] or x >= fov.shape[1]:
+                    continue
+                    
                 if fov[y, x]:
-                    if dungeon_map[y, x]:  # True = wall
+                    # dungeon_map has shape (width, height), so we access with [x, y]
+                    if dungeon_map[x, y]:  # True = wall
                         self.console.print(x, y, "#", COLORS['wall'])
                     else:  # False = floor
                         self.console.print(x, y, ".", COLORS['floor'])
                 elif explored[y, x]:
-                    if dungeon_map[y, x]:  # True = wall
+                    # dungeon_map has shape (width, height), so we access with [x, y]
+                    if dungeon_map[x, y]:  # True = wall
                         self.console.print(x, y, "#", (30, 30, 30))
                     else:  # False = floor
                         self.console.print(x, y, ".", (50, 50, 50))
@@ -1777,7 +1785,8 @@ class Game:
             for _ in range(50):
                 x = random.randint(1, self.dungeon_map.shape[0] - 2)
                 y = random.randint(1, self.dungeon_map.shape[1] - 2)
-                if self.dungeon_map[x, y] and not any(e.x == x and e.y == y for e in self.entities):
+                # FIX: Spawn monsters on floors (False), not walls (True)
+                if not self.dungeon_map[x, y] and not any(e.x == x and e.y == y for e in self.entities):
                     entity = Entity(
                         x=x, y=y,
                         char=template.symbol, color=template.color,
@@ -1798,7 +1807,8 @@ class Game:
             for _ in range(20):
                 x = random.randint(1, self.dungeon_map.shape[0] - 2)
                 y = random.randint(1, self.dungeon_map.shape[1] - 2)
-                if self.dungeon_map[x, y] and not any(e.x == x and e.y == y for e in self.entities):
+                # FIX: Spawn items on floors (False), not walls (True)
+                if not self.dungeon_map[x, y] and not any(e.x == x and e.y == y for e in self.entities):
                     entity = Entity(
                         x=x, y=y,
                         char=item.symbol, color=item.color if hasattr(item, 'color') else COLORS['item'],
