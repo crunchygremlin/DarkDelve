@@ -1,546 +1,283 @@
 # DarkDelve Module Design
 
-## Module Structure
+## SOLID Architecture Module Structure
 
 ```
 src/
 ├── __init__.py
 ├── main.py                 # Entry point
-├── config/
+├── application_factory.py # Application factory
+├── di_container.py        # Dependency injection container
+├── domain/               # ✅ COMPLETED
 │   ├── __init__.py
-│   └── config.py          # Configuration management
-├── core/
+│   ├── entities/         # Entity classes
+│   │   ├── __init__.py
+│   │   ├── entity.py     # Base entity
+│   │   ├── player.py     # Player entity
+│   │   └── mob.py        # Monster entity
+│   ├── components/       # Component system
+│   │   ├── __init__.py
+│   │   ├── component.py  # Base component
+│   │   ├── combat.py     # Combat component
+│   │   ├── movement.py   # Movement component
+│   │   ├── inventory.py  # Inventory component
+│   │   ├── ai.py         # AI component
+│   │   └── equipment.py  # Equipment component
+│   ├── value_objects/    # Immutable data
+│   │   ├── __init__.py
+│   │   ├── position.py   # Position coordinates
+│   │   ├── stats.py      # Character stats
+│   │   ├── combat_event.py # Combat events
+│   │   └── inventory_slot.py # Inventory slots
+│   ├── services/         # Domain services
+│   │   ├── __init__.py
+│   │   ├── combat_service.py
+│   │   ├── movement_service.py
+│   │   ├── inventory_service.py
+│   │   ├── ai_service.py
+│   │   └── survival_service.py
+│   └── __init__.py
+├── application/          # ✅ COMPLETED
 │   ├── __init__.py
-│   ├── game.py            # Main game controller
-│   ├── game_state.py      # Game state data structures
-│   └── game_loop.py       # Game loop management
-├── systems/
+│   ├── game_commands/    # Command pattern
+│   │   ├── __init__.py
+│   │   ├── base_command.py
+│   │   ├── move_command.py
+│   │   ├── attack_command.py
+│   │   ├── pickup_command.py
+│   │   ├── use_command.py
+│   │   ├── equip_command.py
+│   │   └── drop_command.py
+│   ├── game_queries/     # Query pattern
+│   │   ├── __init__.py
+│   │   ├── base_query.py
+│   │   ├── fov_query.py
+│   │   ├── combat_query.py
+│   │   ├── inventory_query.py
+│   │   ├── entity_query.py
+│   │   └── game_state_query.py
+│   ├── game_session/     # Session management
+│   │   ├── __init__.py
+│   │   ├── game_session.py
+│   │   └── game_session_factory.py
+│   ├── event_system/     # Event system
+│   │   ├── __init__.py
+│   │   ├── base_event.py
+│   │   ├── event_handler.py
+│   │   ├── event_bus.py
+│   │   └── handlers/
+│   │       ├── __init__.py
+│   │       ├── combat_handler.py
+│   │       ├── player_handler.py
+│   │       └── system_handler.py
+│   └── __init__.py
+├── infrastructure/       # 🔄 IN PROGRESS
 │   ├── __init__.py
-│   ├── dungeon.py         # Dungeon generation
-│   ├── fov.py             # Field of view calculations
-│   ├── combat.py          # Combat mechanics
-│   ├── energy.py          # Action point system
-│   ├── survival.py        # Survival mechanics
-│   └── identification.py  # Item identification
-├── content/
+│   ├── repositories/     # Data access
+│   │   ├── __init__.py
+│   │   ├── entity_repository.py
+│   │   ├── item_repository.py
+│   │   ├── game_repository.py
+│   │   └── cache_repository.py
+│   ├── external/         # External services
+│   │   ├── __init__.py
+│   │   ├── ollama_service.py
+│   │   ├── tcod_service.py
+│   │   ├── cache_service.py
+│   │   └── http_service.py
+│   ├── persistence/      # Persistence layer
+│   │   ├── __init__.py
+│   │   ├── save_system.py
+│   │   ├── highscore_system.py
+│   │   └── migration_system.py
+│   ├── configuration/    # Configuration
+│   │   ├── __init__.py
+│   │   ├── config_loader.py
+│   │   └── settings.py
+│   └── __init__.py
+├── presentation/        # ⏳ PENDING
 │   ├── __init__.py
-│   ├── ollama.py          # Ollama management
-│   ├── generator.py       # Content generation
-│   ├── cache.py           # Content caching
-│   └── mobs.py            # Monster generation
-├── data/
+│   ├── views/           # UI views
+│   │   ├── __init__.py
+│   │   ├── game_view.py
+│   │   ├── inventory_view.py
+│   │   ├── log_view.py
+│   │   └── menu_view.py
+│   ├── controllers/     # Input controllers
+│   │   ├── __init__.py
+│   │   ├── input_controller.py
+│   │   ├── ui_controller.py
+│   │   └── game_controller.py
+│   ├── renderers/      # Rendering system
+│   │   ├── __init__.py
+│   │   ├── tile_renderer.py
+│   │   ├── entity_renderer.py
+│   │   ├── ui_renderer.py
+│   │   └── fov_renderer.py
+│   └── __init__.py
+├── shared/              # ✅ COMPLETED
 │   ├── __init__.py
-│   ├── entity.py          # Entity system
-│   ├── item.py            # Item system
-│   ├── inventory.py       # Inventory management
-│   └── events.py          # Event system
-├── ui/
-│   ├── __init__.py
-│   ├── ui.py              # Main UI class
-│   ├── renderer.py        # Rendering system
-│   └── input.py           # Input handling
-├── persistence/
-│   ├── __init__.py
-│   ├── save.py            # Save system
-│   └── highscores.py      # High scores
-└── utils/
-    ├── __init__.py
-    ├── math.py            # Mathematical utilities
-    └── logger.py          # Logging system
+│   ├── interfaces/     # Abstract interfaces
+│   │   ├── __init__.py
+│   │   ├── repository.py
+│   │   ├── service.py
+│   │   └── renderer.py
+│   ├── exceptions/      # Exception hierarchy
+│   │   ├── __init__.py
+│   │   ├── domain_exceptions.py
+│   │   ├── application_exceptions.py
+│   │   └── infrastructure_exceptions.py
+│   ├── utils/          # Utility functions
+│   │   ├── __init__.py
+│   │   ├── math_utils.py
+│   │   ├── file_utils.py
+│   │   └── logging_utils.py
+│   ├── events/         # Event definitions
+│   │   ├── __init__.py
+│   │   ├── event.py
+│   │   ├── event_handler.py
+│   │   └── event_bus.py
+│   └── __init__.py
+└── tests/              # Test suite
+    ├── unit/           # Unit tests
+    ├── integration/    # Integration tests
+    └── system/         # System tests
 ```
+
+## Implementation Status
+
+✅ **Phase 1: Foundation Setup** - Completed
+✅ **Phase 2: Domain Layer** - Completed
+✅ **Phase 3: Application Layer** - Completed
+🔄 **Phase 4: Infrastructure Layer** - In Progress
+⏳ **Phase 5: Presentation Layer** - Pending
+⏳ **Phase 6: Integration and Testing** - Pending
+⏳ **Phase 7: Optimization and Documentation** - Pending
 
 ## Detailed Module Specifications
 
-### 1. Core Module
+### 1. Domain Layer ✅ COMPLETED
 
-#### `core/game.py`
-```python
-class Game:
-    """Main game controller"""
-    
-    def __init__(self, config: dict):
-        self.config = config
-        self.state = GameState()
-        self.systems = {}
-        self.content_gen = None
-        self.ui = None
-        self.input_handler = None
-        
-    def initialize(self):
-        """Initialize all game systems"""
-        
-    def run(self):
-        """Main game loop"""
-        
-    def shutdown(self):
-        """Clean shutdown"""
-```
+#### Entities
+- **`entity.py`**: Base entity class with component system
+- **`player.py`**: Player entity with combat, movement, and inventory
+- **`mob.py`**: Monster entity with AI and combat capabilities
 
-#### `core/game_state.py`
-```python
-@dataclass
-class GameState:
-    """Central game state data structure"""
-    
-    run_id: str
-    player: Entity
-    current_level: int
-    dungeon: np.ndarray
-    entities: List[Entity]
-    inventory: Inventory
-    combat_log: CombatLog
-    turn: int
-    energy: int
-    
-    def save_state(self) -> dict:
-        """Serialize game state"""
-        
-    def load_state(self, data: dict):
-        """Deserialize game state"""
-```
+#### Components
+- **`component.py`**: Base component class with lifecycle management
+- **`combat.py`**: Combat mechanics and damage calculation
+- **`movement.py`**: Movement and position management
+- **`inventory.py`**: Item management and equipment
+- **`ai.py`**: AI behavior and decision making
+- **`equipment.py`**: Equipment system and stat modifications
 
-#### `core/game_loop.py`
-```python
-class GameLoop:
-    """Game loop and timing management"""
-    
-    def __init__(self, config: dict):
-        self.config = config
-        self.last_tick = 0
-        self.accumulator = 0
-        
-    def update(self, delta_time: float):
-        """Update game state"""
-        
-    def should_render(self) -> bool:
-        """Check if render is needed"""
-```
+#### Value Objects
+- **`position.py`**: Immutable position coordinates
+- **`stats.py`**: Character statistics and attributes
+- **`combat_event.py`**: Combat event data structure
+- **`inventory_slot.py`**: Inventory slot management
 
-### 2. Systems Module
+#### Services
+- **`combat_service.py`**: Combat domain logic
+- **`movement_service.py`**: Movement domain logic
+- **`inventory_service.py`**: Inventory domain logic
+- **`ai_service.py`**: AI domain logic
+- **`survival_service.py`**: Survival mechanics domain logic
 
-#### `systems/dungeon.py`
-```python
-class DungeonGenerator:
-    """Procedural dungeon generation"""
-    
-    def __init__(self, config: dict):
-        self.config = config
-        self.themes = {}
-        
-    def generate_level(self, width: int, height: int, level: int) -> np.ndarray:
-        """Generate a new dungeon level"""
-        
-    def apply_theme(self, dungeon: np.ndarray, theme: LevelTheme) -> np.ndarray:
-        """Apply visual theme to dungeon"""
-```
+### 2. Application Layer ✅ COMPLETED
 
-#### `systems/fov.py`
-```python
-class FOVSystem:
-    """Field of view calculations"""
-    
-    def __init__(self, radius: int = 8):
-        self.radius = radius
-        
-    def calculate_fov(self, dungeon: np.ndarray, x: int, y: int) -> np.ndarray:
-        """Calculate field of view using raycasting"""
-        
-    def is_visible(self, x: int, y: int) -> bool:
-        """Check if position is visible"""
-```
+#### Commands
+- **`base_command.py`**: Abstract command class with undo/redo support
+- **`move_command.py`**: Player movement command
+- **`attack_command.py`**: Combat attack command
+- **`pickup_command.py`**: Item pickup command
+- **`use_command.py`**: Item usage command
+- **`equip_command.py`**: Equipment management command
+- **`drop_command.py`**: Item drop command
 
-#### `systems/combat.py`
-```python
-class CombatResolver:
-    """Combat mechanics and resolution"""
-    
-    @staticmethod
-    def resolve_attack(attacker: Entity, defender: Entity) -> CombatEvent:
-        """Resolve combat between entities"""
-        
-    @staticmethod
-    def calculate_damage(attacker: Entity, defender: Entity) -> int:
-        """Calculate damage dealt"""
-        
-    @staticmethod
-    def apply_damage(entity: Entity, damage: int) -> CombatEvent:
-        """Apply damage to entity"""
-```
+#### Queries
+- **`base_query.py`**: Abstract query class with caching
+- **`fov_query.py`**: Field of view calculations
+- **`combat_query.py`**: Combat information and statistics
+- **`inventory_query.py`**: Inventory management queries
+- **`entity_query.py`**: Entity information queries
+- **`game_state_query.py`**: Comprehensive game state queries
 
-#### `systems/energy.py`
-```python
-class EnergySystem:
-    """Action point system"""
-    
-    def __init__(self, config: dict):
-        self.config = config
-        self.max_energy = 100
-        self.energy_per_turn = 10
-        
-    def spend_energy(self, amount: int) -> bool:
-        """Spend energy points"""
-        
-    def regenerate_energy(self):
-        """Regenerate energy each turn"""
-```
+#### Game Session
+- **`game_session.py`**: Complete session management with state persistence
+- **`game_session_factory.py`**: Factory for creating different session types
 
-#### `systems/survival.py`
-```python
-class SurvivalSystem:
-    """Survival mechanics (hunger, health, etc.)"""
-    
-    def __init__(self, config: dict):
-        self.config = config
-        
-    def update_survival(self, player: Entity, turn: int):
-        """Update survival mechanics"""
-        
-    def apply_hunger(self, player: Entity):
-        """Apply hunger effects"""
-```
-
-#### `systems/identification.py`
-```python
-class IdentificationSystem:
-    """Item identification mechanics"""
-    
-    def __init__(self):
-        self.identification_chance = 0.1
-        
-    def identify_item(self, item: Item) -> bool:
-        """Attempt to identify an item"""
-        
-    def get_identification_status(self, item: Item) -> str:
-        """Get current identification status"""
-```
-
-### 3. Content Module
-
-#### `content/ollama.py`
-```python
-class EmbeddedOllama:
-    """Manages local Ollama instance"""
-    
-    def __init__(self, model: str = "qwen2.5-coder:7b-instruct"):
-        self.model = model
-        self.process = None
-        self.base_url = "http://127.0.0.1:11434"
-        
-    def start(self) -> bool:
-        """Start Ollama instance"""
-        
-    def stop(self):
-        """Stop Ollama instance"""
-        
-    def generate(self, prompt: str, **kwargs) -> str:
-        """Generate content using LLM"""
-```
-
-#### `content/generator.py`
-```python
-class ContentGenerator:
-    """LLM-based content generation"""
-    
-    def __init__(self, ollama: EmbeddedOllama, cache: ContentCache, config: dict):
-        self.ollama = ollama
-        self.cache = cache
-        self.config = config
-        
-    def generate_mob_name(self, tier: MobTier) -> str:
-        """Generate monster name"""
-        
-    def generate_item_description(self, item: Item) -> str:
-        """Generate item description"""
-        
-    def generate_level_theme(self, level: int) -> LevelTheme:
-        """Generate level theme"""
-```
-
-#### `content/cache.py`
-```python
-class ContentCache:
-    """SQLite-based content caching"""
-    
-    def __init__(self, db_path: Path):
-        self.db_path = db_path
-        
-    def get_cached_content(self, prompt_hash: str) -> Optional[str]:
-        """Get cached content"""
-        
-    def cache_content(self, prompt_hash: str, content: str):
-        """Cache content"""
-        
-    def clear_cache(self):
-        """Clear all cached content"""
-```
-
-#### `content/mobs.py`
-```python
-class MobRoster:
-    """Monster templates and generation"""
-    
-    def __init__(self, config: dict):
-        self.config = config
-        self.templates = {}
-        
-    def load_templates(self):
-        """Load monster templates"""
-        
-    def generate_mob(self, tier: MobTier, level: int) -> MobTemplate:
-        """Generate monster based on tier and level"""
-```
-
-### 4. Data Module
-
-#### `data/entity.py`
-```python
-@dataclass
-class Entity:
-    """Game entity (player, monsters, items)"""
-    
-    x: int
-    y: int
-    name: str
-    glyph: str
-    color: Tuple[int, int, int]
-    blocks: bool = False
-    fighter: Optional[Fighter] = None
-    ai: Optional[AI] = None
-    
-    def move(self, dx: int, dy: int, dungeon: np.ndarray) -> bool:
-        """Move entity"""
-        
-    def take_damage(self, damage: int) -> CombatEvent:
-        """Apply damage to entity"""
-```
-
-#### `data/item.py`
-```python
-@dataclass
-class Item:
-    """Game item"""
-    
-    id: str
-    name: str
-    description: str
-    glyph: str
-    color: Tuple[int, int, int]
-    item_type: ItemType
-    equipment_slot: Optional[EquipmentSlot] = None
-    identified: bool = False
-    effects: Dict[str, Any] = field(default_factory=dict)
-```
-
-#### `data/inventory.py`
-```python
-@dataclass
-class Inventory:
-    """Player inventory management"""
-    
-    items: List[Item] = field(default_factory=list)
-    capacity: int = 26
-    
-    def add_item(self, item: Item) -> bool:
-        """Add item to inventory"""
-        
-    def remove_item(self, item: Item) -> bool:
-        """Remove item from inventory"""
-        
-    def get_item(self, index: int) -> Optional[Item]:
-        """Get item by index"""
-```
-
-#### `data/events.py`
-```python
-@dataclass
-class CombatEvent:
-    """Combat event data"""
-    
-    turn: int
-    attacker: str
-    defender: str
-    damage: int
-    message: str
-    
-@dataclass
-class CombatLog:
-    """Combat event log"""
-    
-    events: List[CombatEvent] = field(default_factory=list)
-    
-    def add_event(self, event: CombatEvent):
-        """Add combat event"""
-        
-    def get_recent(self, count: int) -> List[CombatEvent]:
-        """Get recent events"""
-```
-
-### 5. UI Module
-
-#### `ui/ui.py`
-```python
-class UI:
-    """Main UI management"""
-    
-    def __init__(self, console: tcod.Console, config: dict):
-        self.console = console
-        self.config = config
-        self.renderer = None
-        self.input_handler = None
-        
-    def render_game(self, game_state: GameState):
-        """Render complete game state"""
-        
-    def handle_input(self) -> InputAction:
-        """Handle user input"""
-```
-
-#### `ui/renderer.py`
-```python
-class Renderer:
-    """Game rendering system"""
-    
-    def __init__(self, console: tcod.Console, config: dict):
-        self.console = console
-        self.config = config
-        
-    def render_dungeon(self, dungeon: np.ndarray, fov: np.ndarray):
-        """Render dungeon map"""
-        
-    def render_entities(self, entities: List[Entity], fov: np.ndarray):
-        """Render entities"""
-        
-    def render_ui(self, player: Entity, game_state: GameState):
-        """Render UI elements"""
-```
-
-#### `ui/input.py`
-```python
-class InputHandler:
-    """Input handling system"""
-    
-    def __init__(self, config: dict):
-        self.config = config
-        self.keymap = {}
-        
-    def handle_input(self) -> InputAction:
-        """Process input and return action"""
-        
-    def is_key_pressed(self, key: tcod.Key) -> bool:
-        """Check if key is pressed"""
-```
-
-### 6. Persistence Module
-
-#### `persistence/save.py`
-```python
-class SaveSystem:
-    """Game state persistence"""
-    
-    def __init__(self, save_path: Path):
-        self.save_path = save_path
-        
-    def save_game(self, game_state: GameState) -> bool:
-        """Save game state"""
-        
-    def load_game(self, save_file: str) -> Optional[GameState]:
-        """Load game state"""
-        
-    def list_saves(self) -> List[str]:
-        """List available saves"""
-```
-
-#### `persistence/highscores.py`
-```python
-class HighScores:
-    """High score management"""
-    
-    def __init__(self, score_path: Path):
-        self.score_path = score_path
-        
-    def add_score(self, player_name: str, score: int, level: int):
-        """Add high score"""
-        
-    def get_top_scores(self, limit: int = 10) -> List[dict]:
-        """Get top scores"""
-        
-    def save_scores(self):
-        """Save scores to file"""
-```
-
-### 7. Utils Module
-
-#### `utils/math.py`
-```python
-def clamp(value: int, min_val: int, max_val: int) -> int:
-    """Clamp value between min and max"""
-    
-def heuristic(a: Tuple[int, int], b: Tuple[int, int]) -> int:
-    """Manhattan distance heuristic"""
-    
-def random_chance(probability: float) -> bool:
-    """Check random chance"""
-```
-
-#### `utils/logger.py`
-```python
-import logging
-
-class GameLogger:
-    """Game logging system"""
-    
-    def __init__(self, log_path: Path):
-        self.setup_logging(log_path)
-        
-    def setup_logging(self, log_path: Path):
-        """Setup logging configuration"""
-        
-    def log_game_event(self, event: str, **kwargs):
-        """Log game event"""
-```
+#### Event System
+- **`base_event.py`**: Event class with categories and priorities
+- **`event_handler.py`**: Handler interfaces and implementations
+- **`event_bus.py`**: Event bus with async/sync processing
+- **`handlers/combat_handler.py`**: Combat event handling
+- **`handlers/player_handler.py`**: Player event handling
+- **`handlers/system_handler.py`**: System event handling
 
 ## Module Dependencies
 
+### SOLID Architecture Dependencies
+
 ```
 main.py
-├── config/config.py
-├── core/
-│   ├── game.py
-│   ├── game_state.py
-│   └── game_loop.py
-├── systems/
-│   ├── dungeon.py
-│   ├── fov.py
-│   ├── combat.py
-│   ├── energy.py
-│   ├── survival.py
-│   └── identification.py
-├── content/
-│   ├── ollama.py
-│   ├── generator.py
-│   ├── cache.py
-│   └── mobs.py
-├── data/
-│   ├── entity.py
-│   ├── item.py
-│   ├── inventory.py
-│   └── events.py
-├── ui/
-│   ├── ui.py
-│   ├── renderer.py
-│   └── input.py
-├── persistence/
-│   ├── save.py
-│   └── highscores.py
-└── utils/
-    ├── math.py
-    └── logger.py
+├── application_factory.py    # Application factory
+├── di_container.py           # Dependency injection container
+├── domain/                   # Domain layer (core business logic)
+│   ├── entities/             # Entity definitions
+│   ├── components/           # Component system
+│   ├── value_objects/        # Immutable data
+│   └── services/             # Domain services
+├── application/              # Application layer (use cases)
+│   ├── game_commands/        # Command pattern
+│   ├── game_queries/         # Query pattern
+│   ├── game_session/         # Session management
+│   └── event_system/         # Event handling
+├── infrastructure/           # Infrastructure layer (external concerns)
+│   ├── repositories/         # Data access
+│   ├── external/             # External services
+│   ├── persistence/          # Persistence
+│   └── configuration/        # Configuration
+├── presentation/             # Presentation layer (UI)
+│   ├── views/                # UI views
+│   ├── controllers/          # Input controllers
+│   └── renderers/           # Rendering system
+└── shared/                   # Shared utilities
+    ├── interfaces/           # Abstract interfaces
+    ├── exceptions/            # Exception hierarchy
+    ├── utils/                # Utility functions
+    └── events/               # Event definitions
 ```
 
-## Integration Points
+### Dependency Flow
 
-1. **Game System**: Core game controller that manages all systems
-2. **Content Integration**: Content generator provides dynamic content to game systems
-3. **UI Integration**: UI renders game state and handles input
-4. **Persistence Integration**: Save system persists game state
-5. **Configuration Integration**: All modules use shared configuration
+```
+Presentation Layer
+    ↓ (depends on)
+Application Layer
+    ↓ (depends on)
+Domain Layer
+    ↓ (depends on)
+Infrastructure Layer
+    ↓ (depends on)
+Shared Layer
+```
+
+### Integration Points
+
+1. **Command Processing**: Application layer processes user input through commands
+2. **Query Handling**: Application layer responds to data requests through queries
+3. **Event Communication**: Event system coordinates communication between layers
+4. **Repository Pattern**: Infrastructure layer provides data access through repositories
+5. **Dependency Injection**: DI container manages dependencies between layers
+6. **Interface Segregation**: Each layer depends on abstractions, not implementations
+7. **Session Management**: Game session coordinates state across all layers
+8. **Configuration Management**: Shared configuration provides consistent settings
+
+### Key Design Principles
+
+- **Single Responsibility**: Each layer has a single, well-defined responsibility
+- **Open/Closed**: Components are open for extension, closed for modification
+- **Liskov Substitution**: Base classes can be substituted with derived classes
+- **Interface Segregation**: Clients depend on specific interfaces, not general ones
+- **Dependency Inversion**: High-level modules depend on abstractions, not low-level modules
