@@ -14,43 +14,43 @@ def test_app_imports():
     
     # Test application imports with absolute imports
     try:
-        from application.game_commands.base_command import BaseCommand, CommandResult
+        from src.application.game_commands.base_command import BaseCommand, CommandResult
         print("✅ Game base commands imported successfully")
     except ImportError as e:
         print(f"❌ Game base commands import failed: {e}")
     
     try:
-        from application.game_commands.move_command import MoveCommand
+        from src.application.game_commands.move_command import MoveCommand
         print("✅ Move command imported successfully")
     except ImportError as e:
         print(f"❌ Move command import failed: {e}")
     
     try:
-        from application.game_commands.attack_command import AttackCommand
+        from src.application.game_commands.attack_command import AttackCommand
         print("✅ Attack command imported successfully")
     except ImportError as e:
         print(f"❌ Attack command import failed: {e}")
     
     try:
-        from application.game_commands.pickup_command import PickupCommand
+        from src.application.game_commands.pickup_command import PickupCommand
         print("✅ Pickup command imported successfully")
     except ImportError as e:
         print(f"❌ Pickup command import failed: {e}")
     
     try:
-        from application.game_commands.use_command import UseCommand
+        from src.application.game_commands.use_command import UseCommand
         print("✅ Use command imported successfully")
     except ImportError as e:
         print(f"❌ Use command import failed: {e}")
     
     try:
-        from application.game_commands.equip_command import EquipCommand
+        from src.application.game_commands.equip_command import EquipCommand
         print("✅ Equip command imported successfully")
     except ImportError as e:
         print(f"❌ Equip command import failed: {e}")
     
     try:
-        from application.game_commands.drop_command import DropCommand
+        from src.application.game_commands.drop_command import DropCommand
         print("✅ Drop command imported successfully")
     except ImportError as e:
         print(f"❌ Drop command import failed: {e}")

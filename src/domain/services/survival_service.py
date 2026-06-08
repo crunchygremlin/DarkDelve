@@ -530,7 +530,7 @@ class SurvivalService:
         if has_shelter:
             # Reduce environmental effects
             if player.id in self.survival_timers:
-                self.survival_timers[player_id]["fatigue"] = max(0, self.survival_timers[player_id]["fatigue"] - 20)
+                self.survival_timers[player.id]["fatigue"] = max(0, self.survival_timers[player.id]["fatigue"] - 20)
             
             # Record survival event
             event = {
