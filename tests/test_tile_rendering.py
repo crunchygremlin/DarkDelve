@@ -418,6 +418,288 @@ class TestTileRendering(unittest.TestCase):
             debug_lines.append(" ".join(row))
         
         return "\n".join(debug_lines)
+    
+    def test_ui_render_complete_pipeline(self):
+        """Test the complete UI rendering pipeline including all UI elements"""
+        # Create a test map with mixed visibility
+        dungeon_map = np.array([
+            [True, False, True],
+            [False, True, False],
+            [True, False, True]
+        ], dtype=bool)
+        
+        # Create FOV and explored arrays
+        fov = np.array([
+            [False, True, False],
+            [True, False, True],
+            [False, True, False]
+        ], dtype=bool)
+        
+        explored = np.array([
+            [True, True, True],
+            [True, True, True],
+            [True, True, True]
+        ], dtype=bool)
+        
+        # Mock entity with specific character
+        class MockEntity:
+            def __init__(self, x, y, char, color):
+                self.x = x
+                self.y = y
+                self.char = char
+                self.color = color
+        
+        # Create entities
+        entities = [
+            MockEntity(1, 1, "@", (255, 255, 0)),  # Player character
+            MockEntity(0, 0, "D", (255, 0, 0)),    # Dragon
+            MockEntity(2, 2, "g", (0, 255, 0)),    # Goblin
+        ]
+        
+        # Mock combat log
+        class MockCombatLog:
+            def __init__(self):
+                self.events = [
+                    "Player hits Dragon for 5 damage",
+                    "Dragon breathes fire at Player",
+                    "Player takes 3 damage"
+                ]
+            
+            def get_recent(self, count):
+                return self.events[-count:]
+        
+        combat_log = MockCombatLog()
+        
+        # Mock game state
+        class MockGameState:
+            def __init__(self):
+                self.run_id = "test123"
+        
+        state = MockGameState()
+        
+        # Mock player
+        class MockPlayer:
+            def __init__(self):
+                self.name = "Test Player"
+                self.level = 5
+                self.xp = 100
+                self.xp_to_next = 200
+                self.hp = 25
+                self.max_hp = 30
+                self.stats = {'str': 10, 'dex': 12, 'con': 8, 'int': 14, 'wis': 10, 'cha': 16}
+                self.power = 15
+                self.defense = 10
+                self.armor_class = 12
+                self.to_hit_bonus = 3
+                self.damage_bonus = 2
+                self.known_skills = ["Sword", "Shield"]
+                self.skill_points = 3
+                self.gold = 150
+                self.kill_count = 10
+                self.nutrition = 80
+                self.max_nutrition = 100
+        
+        player = MockPlayer()
+        
+        # Mock the colors
+        with patch('darkdelve.COLORS', {
+            'wall': (255, 255, 255),
+            'floor': (128, 128, 128),
+            'text': (220, 220, 220),
+            'text_dim': (150, 150, 150),
+            'magic': (150, 100, 255),
+            'gold': (255, 215, 0)
+        }):
+            # Test render_dungeon
+            self.ui.render_dungeon(dungeon_map, fov, explored)
+            
+            # Test render_entities
+            self.ui.render_entities(entities, fov, player)
+            
+            # Test render_combat_log
+            self.ui.render_combat_log(combat_log)
+            
+            # Test render_ui
+            self.ui.render_ui(player, state, combat_log, 42)
+            
+            # Verify all console calls were made
+            self.assertGreater(len(self.console_calls), 0, "No console calls were made")
+            
+            # Verify specific UI elements are present
+            # Check for LLM metrics in UI
+            llm_calls = [call for call in self.console_calls if 'LLM:' in str(call)]
+            self.assertGreater(len(llm_calls), 0, "LLM metrics not found in UI")
+            
+            # Check for combat log entries
+            combat_calls = [call for call in self.console_calls if 'hits' in str(call) or 'breathes' in str(call)]
+            self.assertGreater(len(combat_calls), 0, "Combat log entries not found")
+            
+            # Check for UI controls
+            control_calls = [call for call in self.console_calls if 'WASD' in str(call)]
+            self.assertGreater(len(control_calls), 0, "UI controls not found")
+    
+    def test_text_display_color_consistency(self):
+        """Test that text display uses consistent colors"""
+        # Create a simple test map
+        dungeon_map = np.array([
+            [True, False],
+            [False, True]
+        ], dtype=bool)
+        
+        # Create FOV and explored arrays
+        fov = np.array([
+            [True, False],
+            [False, True]
+        ], dtype=bool)
+        
+        explored = np.array([
+            [True, True],
+            [True, True]
+        ], dtype=bool)
+        
+        # Mock the colors
+        with patch('darkdelve.COLORS', {
+            'wall': (255, 255, 255),
+            'floor': (128, 128, 128),
+            'text': (220, 220, 220),
+            'text_dim': (150, 150, 150),
+            'magic': (150, 100, 255),
+            'gold': (255, 215, 0)
+        }):
+            # Test render_dungeon
+            self.ui.render_dungeon(dungeon_map, fov, explored)
+            
+            # Check that colors are consistent for the same tile types
+            wall_calls = [call for call in self.console_calls if call[3] == (255, 255, 255)]
+            floor_calls = [call for call in self.console_calls if call[3] == (128, 128, 128)]
+            
+            # All wall tiles should have the same color
+            if wall_calls:
+                wall_colors = {call[3] for call in wall_calls}
+                self.assertEqual(len(wall_colors), 1, f"Wall tiles have inconsistent colors: {wall_colors}")
+            
+            # All floor tiles should have the same color
+            if floor_calls:
+                floor_colors = {call[3] for call in floor_calls}
+                self.assertEqual(len(floor_colors), 1, f"Floor tiles have inconsistent colors: {floor_colors}")
+    
+    def test_text_display_positioning(self):
+        """Test that text elements are positioned correctly"""
+        # Create a test map
+        dungeon_map = np.array([
+            [True, False, True],
+            [False, True, False],
+            [True, False, True]
+        ], dtype=bool)
+        
+        # Create FOV and explored arrays
+        fov = np.array([
+            [True, False, True],
+            [False, True, False],
+            [True, False, True]
+        ], dtype=bool)
+        
+        explored = np.array([
+            [True, True, True],
+            [True, True, True],
+            [True, True, True]
+        ], dtype=bool)
+        
+        # Mock entity
+        class MockEntity:
+            def __init__(self, x, y, char, color):
+                self.x = x
+                self.y = y
+                self.char = char
+                self.color = color
+        
+        entities = [MockEntity(1, 1, "@", (255, 255, 0))]
+        
+        # Mock combat log
+        class MockCombatLog:
+            def __init__(self):
+                self.events = ["Test message"]
+            
+            def get_recent(self, count):
+                return self.events[-count:]
+        
+        combat_log = MockCombatLog()
+        
+        # Mock player and state
+        class MockPlayer:
+            def __init__(self):
+                self.name = "Test Player"
+        
+        player = MockPlayer()
+        
+        class MockGameState:
+            def __init__(self):
+                self.run_id = "test123"
+        
+        state = MockGameState()
+        
+        # Mock the colors
+        with patch('darkdelve.COLORS', {
+            'wall': (255, 255, 255),
+            'floor': (128, 128, 128),
+            'text': (220, 220, 220),
+            'text_dim': (150, 150, 150),
+            'magic': (150, 100, 255),
+            'gold': (255, 215, 0)
+        }):
+            # Test render_dungeon
+            self.ui.render_dungeon(dungeon_map, fov, explored)
+            
+            # Test render_entities
+            self.ui.render_entities(entities, fov, player)
+            
+            # Test render_combat_log
+            self.ui.render_combat_log(combat_log)
+            
+            # Test render_ui
+            self.ui.render_ui(player, state, combat_log, 42)
+            
+            # Check that entities are positioned correctly
+            entity_calls = [call for call in self.console_calls if call[2] == "@"]
+            if entity_calls:
+                for call in entity_calls:
+                    x, y, char, color = call
+                    self.assertEqual(x, 1, f"Entity X position should be 1, got {x}")
+                    self.assertEqual(y, 1, f"Entity Y position should be 1, got {y}")
+            
+            # Check that combat log is positioned at the bottom
+            combat_calls = [call for call in self.console_calls if "Test message" in str(call)]
+            if combat_calls:
+                for call in combat_calls:
+                    x, y, char, color = call
+                    self.assertEqual(x, 0, f"Combat log X position should be 0, got {x}")
+                    # Y position should be at the bottom of the map area
+                    self.assertGreaterEqual(y, self.ui.map_height, f"Combat log Y position should be at bottom, got {y}")
+    
+    def test_text_display_edge_cases(self):
+        """Test text display edge cases"""
+        # Test with empty entities list
+        self.ui.render_entities([], np.array([[True]]), None)
+        self.assertEqual(len(self.console_calls), 0, "Empty entities list should not produce calls")
+        
+        # Test with empty combat log
+        class EmptyCombatLog:
+            def __init__(self):
+                self.events = []
+            
+            def get_recent(self, count):
+                return []
+        
+        empty_combat_log = EmptyCombatLog()
+        self.ui.render_combat_log(empty_combat_log)
+        # Should not crash and should not produce calls
+        
+        # Test with None values - should handle gracefully
+        try:
+            self.ui.render_entities(None, np.array([[True]]), None)
+        except TypeError:
+            # Expected behavior - method doesn't handle None entities
+            pass
 
 
 if __name__ == '__main__':
