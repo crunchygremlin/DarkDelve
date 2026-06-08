@@ -1775,6 +1775,28 @@ class Game:
         
         # Spawn entities
         self.entities = [self.player]
+        
+        # Ensure player starts on a walkable position
+        if self.dungeon_map[player_start[0], player_start[1]]:
+            print(f"WARNING: Player start position {player_start} is a wall, finding walkable position...")
+            # Find the nearest walkable position
+            for radius in range(1, 20):
+                for dx in range(-radius, radius + 1):
+                    for dy in range(-radius, radius + 1):
+                        new_x, new_y = player_start[0] + dx, player_start[1] + dy
+                        if (0 <= new_x < self.dungeon_map.shape[0] and
+                            0 <= new_y < self.dungeon_map.shape[1] and
+                            not self.dungeon_map[new_x, new_y]):
+                            player_start = (new_x, new_y)
+                            print(f"Found walkable position: {player_start}")
+                            break
+                    else:
+                        continue
+                    break
+                else:
+                    continue
+                break
+        
         self.player.x, self.player.y = player_start
         self.player.home_position = player_start
         

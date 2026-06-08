@@ -264,3 +264,26 @@ Fixed console character array access in tests to use correct coordinate system: 
 - Always check console.ch.shape before accessing characters
 - Use `console.ch[y, x]` for coordinate access (not `console.ch[x, y]`)
 - Test coordinate system with simple debug scripts before complex tests
+
+## Player Spawning in Walls
+### Problem
+Player was spawning in walls instead of walkable floors, making them unable to move.
+
+### Root Cause
+The dungeon generator was returning player start positions that were walls (True values) instead of floors (False values).
+
+### Solution
+Added validation in `generate_level()` method to check if the player start position is walkable, and if not, find the nearest walkable position.
+
+### Affected Code
+- `generate_level()` method in `Game` class (lines 1777-1795)
+
+### Changes Made
+1. Added check for `self.dungeon_map[player_start[0], player_start[1]]`
+2. If position is a wall, search for nearest walkable position
+3. Update player position to walkable location
+
+### Prevention
+- Always validate player start positions after dungeon generation
+- Ensure players spawn on floors (False values), not walls (True values)
+- Add fallback logic to find walkable positions if spawn location is invalid
