@@ -53,5 +53,16 @@
     "cause": "Unknown",
     "date": "2026-06-08 03:29",
     "seed": 2318767726
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
+    "score": 10046,
+    "depth": 1,
+    "kills": 0,
+    "turns": 241,
+    "cause": "Unknown",
+    "date": "2026-06-08 10:39",
+    "seed": 881816327
   }
 ]

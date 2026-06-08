@@ -1487,7 +1487,7 @@ class UI:
         self.display_config = config['display']
         self.map_width = config['dungeon']['width']
         self.map_height = config['dungeon']['height']
-        self.ui_y = self.map_height + 1
+        self.ui_y = self.map_height + 2  # Add extra spacing to ensure UI doesn't overlap with map
     
     def _render_text(self, x: int, y: int, text: str, color):
         """Render text character by character to avoid tile rendering issues"""
