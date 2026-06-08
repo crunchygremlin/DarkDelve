@@ -1481,7 +1481,7 @@ def get_llm_metrics() -> Dict:
 # =============================================================================
 
 class UI:
-    def __init__(self, console: tcod.Console, config: dict):
+    def __init__(self, console: tcod.console.Console, config: dict):
         self.console = console
         self.config = config
         self.display_config = config['display']
@@ -1549,39 +1549,39 @@ class InputHandler:
             
             # Movement
             dx, dy = 0, 0
-            if key == tcod.event.K_w: dy = -1
-            elif key == tcod.event.K_s: dy = 1
-            elif key == tcod.event.K_a: dx = -1
-            elif key == tcod.event.K_d: dx = 1
-            elif key == tcod.event.K_UP: dy = -1
-            elif key == tcod.event.K_DOWN: dy = 1
-            elif key == tcod.event.K_LEFT: dx = -1
-            elif key == tcod.event.K_RIGHT: dx = 1
-            elif key == tcod.event.K_PERIOD:  # Pickup
+            if key == tcod.event.KeySym.W: dy = -1
+            elif key == tcod.event.KeySym.S: dy = 1
+            elif key == tcod.event.KeySym.A: dx = -1
+            elif key == tcod.event.KeySym.D: dx = 1
+            elif key == tcod.event.KeySym.UP: dy = -1
+            elif key == tcod.event.KeySym.DOWN: dy = 1
+            elif key == tcod.event.KeySym.LEFT: dx = -1
+            elif key == tcod.event.KeySym.RIGHT: dx = 1
+            elif key == tcod.event.KeySym.PERIOD:  # Pickup
                 game.pickup_item()
                 return False
-            elif key == tcod.event.K_COMMA:  # Pickup (alternative)
+            elif key == tcod.event.KeySym.COMMA:  # Pickup (alternative)
                 game.pickup_item()
                 return False
-            elif key == tcod.event.K_g:  # Pickup
+            elif key == tcod.event.KeySym.G:  # Pickup
                 game.pickup_item()
                 return False
-            elif key == tcod.event.K_i:  # Inventory
+            elif key == tcod.event.KeySym.I:  # Inventory
                 game.show_inventory()
                 return False
-            elif key == tcod.event.K_c:  # Character
+            elif key == tcod.event.KeySym.C:  # Character
                 game.show_character()
                 return False
-            elif key == tcod.event.K_greater:  # Stairs down
+            elif key == tcod.event.KeySym.GREATER:  # Stairs down
                 game.use_stairs_down()
                 return False
-            elif key == tcod.event.K_less:  # Stairs up
+            elif key == tcod.event.KeySym.LESS:  # Stairs up
                 game.use_stairs_up()
                 return False
-            elif key == tcod.event.K_ESCAPE:  # Menu
+            elif key == tcod.event.KeySym.ESCAPE:  # Menu
                 game.show_menu()
                 return False
-            elif key == tcod.event.K_SPACE:  # Wait
+            elif key == tcod.event.KeySym.SPACE:  # Wait
                 dx, dy = 0, 0
             else:
                 return False
@@ -1640,7 +1640,7 @@ class Game:
         self.turn = 0
         self.screen_width = self.config['display']['width']
         self.screen_height = self.config['display']['height']
-        self.console: Optional[tcod.Console] = None
+        self.console: Optional[tcod.console.Console] = None
         self.context: Optional[tcod.context.Context] = None
         self.ui: Optional[UI] = None
         self.input_handler: Optional[InputHandler] = None
@@ -1672,13 +1672,20 @@ class Game:
         
         # Initialize tcod
         tileset_path = ASSETS_PATH / "tilesets" / self.config['display']['tileset']
-        tileset = tcod.tileset.load_tilesheet(str(tileset_path), 32, 8, tcod.tileset.CHARMAP_TCOD)
+        if not tileset_path.exists():
+            raise FileNotFoundError(f"Tileset not found: {tileset_path}")
         
-        self.console = tcod.Console(self.screen_width, self.screen_height, order="F")
+        try:
+            # For DejaVu 10x10 bitmap font (320x80), try with 16 columns and 8 rows
+            tileset = tcod.tileset.load_tilesheet(str(tileset_path), 16, 8, tcod.tileset.CHARMAP_TCOD)
+        except Exception as e:
+            raise RuntimeError(f"Failed to load tileset {tileset_path}: {e}")
+        
+        self.console = tcod.console.Console(self.screen_width, self.screen_height)
         
         self.context = tcod.context.new_terminal(
-            self.screen_width,
-            self.screen_height,
+            width=self.screen_width,
+            height=self.screen_height,
             tileset=tileset,
             title="DarkDelve",
             vsync=True,
@@ -1975,13 +1982,13 @@ class Game:
             self.render_inventory()
             for event in tcod.event.wait():
                 if isinstance(event, tcod.event.KeyDown):
-                    if event.sym in (tcod.event.K_ESCAPE, tcod.event.K_i):
+                    if event.sym in (tcod.event.KeySym.ESCAPE, tcod.event.KeySym.I):
                         self.showing_inventory = False
-                    elif event.sym == tcod.event.K_UP:
+                    elif event.sym == tcod.event.KeySym.UP:
                         pass  # Scroll up
-                    elif event.sym == tcod.event.K_DOWN:
+                    elif event.sym == tcod.event.KeySym.DOWN:
                         pass  # Scroll down
-                    elif event.sym in (tcod.event.K_RETURN, tcod.event.K_KP_ENTER):
+                    elif event.sym in (tcod.event.KeySym.RETURN, tcod.event.KeySym.KP_ENTER):
                         pass  # Use/equip item
     
     def show_character(self):
@@ -1990,7 +1997,7 @@ class Game:
             self.render_character()
             for event in tcod.event.wait():
                 if isinstance(event, tcod.event.KeyDown):
-                    if event.sym in (tcod.event.K_ESCAPE, tcod.event.K_c):
+                    if event.sym in (tcod.event.KeySym.ESCAPE, tcod.event.KeySym.C):
                         self.showing_character = False
     
     def show_menu(self):
@@ -2002,13 +2009,13 @@ class Game:
             self.render_menu(menu_options)
             for event in tcod.event.wait():
                 if isinstance(event, tcod.event.KeyDown):
-                    if event.sym == tcod.event.K_ESCAPE:
+                    if event.sym == tcod.event.KeySym.ESCAPE:
                         self.showing_menu = False
-                    elif event.sym == tcod.event.K_UP:
+                    elif event.sym == tcod.event.KeySym.UP:
                         self.menu_selection = (self.menu_selection - 1) % len(menu_options)
-                    elif event.sym == tcod.event.K_DOWN:
+                    elif event.sym == tcod.event.KeySym.DOWN:
                         self.menu_selection = (self.menu_selection + 1) % len(menu_options)
-                    elif event.sym in (tcod.event.K_RETURN, tcod.event.K_KP_ENTER):
+                    elif event.sym in (tcod.event.KeySym.RETURN, tcod.event.KeySym.KP_ENTER):
                         if self.menu_selection == 0:
                             self.showing_menu = False
                         elif self.menu_selection == 1:
