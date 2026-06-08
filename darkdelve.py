@@ -1512,29 +1512,22 @@ class UI:
         for entity in entities:
             # Prevent crashes if entity position goes out of bounds
             height, width = fov.shape
-            if 0  0 else 0
-        hp_color = COLORS['hp_high'] if hp_pct > 0.5 else COLORS['hp_med'] if hp_pct > 0.25 else COLORS['hp_low']
-        hp_bar = "█" * int(hp_pct * 20) + "░" * (20 - int(hp_pct * 20))
-        self.console.print(0, self.ui_y + 1, f"HP: {hp_bar} {player.hp}/{player.max_hp}", hp_color)
-        
-        # Stats
-        self.console.print(0, self.ui_y + 2, f"Lvl: {player.level}  XP: {player.xp}/{player.xp_to_next}  Str: {player.stats['str']}  Dex: {player.stats['dex']}  Con: {player.stats['con']}", COLORS['text_dim'])
-        
-        # Nutrition
-        if self.config['gameplay'].get('hunger_enabled', True):
-            nut_pct = player.nutrition / player.max_nutrition if player.max_nutrition > 0 else 0
-            nut_color = COLORS['hp_high'] if nut_pct > 0.5 else COLORS['hp_med'] if nut_pct > 0.25 else COLORS['hp_low']
-            self.console.print(0, self.ui_y + 3, f"Food: {player.nutrition}/{player.max_nutrition}", nut_color)
-        
-        # LLM Metrics
-        metrics = get_llm_metrics()
-        self.console.print(0, self.ui_y + 4, f"LLM: {metrics['responses']}/{metrics['requests']}  Avg: {metrics['avg_latency_ms']:.0f}ms", COLORS['magic'])
-        
-        # Combat log
+            if 0 <= entity.x < width and 0 <= entity.y < height:
+                # Render entity code should go here
+                pass  # Placeholder for entity rendering logic
+    
+    def render_combat_log(self, combat_log):
         if combat_log.events:
             recent = combat_log.get_recent(3)
             for i, event in enumerate(recent):
                 self.console.print(0, self.ui_y + 5 + i, f"  {event}", COLORS['text'])
+    
+    def render_ui(self, player, state, combat_log, turn):
+        metrics = get_llm_metrics()
+        self.console.print(0, self.ui_y + 4, f"LLM: {metrics['responses']}/{metrics['requests']}  Avg: {metrics['avg_latency_ms']:.0f}ms", COLORS['magic'])
+        
+        # Combat log
+        self.render_combat_log(combat_log)
         
         # Controls
         self.console.print(0, self.ui_y + 8, "WASD=Move  I=Inv  C=Char  ,=Pickup  >=Down  <=Up  ESC=Menu", COLORS['text_dim'])
