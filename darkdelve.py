@@ -1513,8 +1513,9 @@ class UI:
             # Prevent crashes if entity position goes out of bounds
             height, width = fov.shape
             if 0 <= entity.x < width and 0 <= entity.y < height:
-                # Render entity code should go here
-                pass  # Placeholder for entity rendering logic
+                # Only render entities in field of view or the player
+                if fov[entity.y, entity.x] or entity is self.player:
+                    self.console.print(entity.x, entity.y, entity.char, entity.color)
     
     def render_combat_log(self, combat_log):
         if combat_log.events:
