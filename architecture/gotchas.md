@@ -183,3 +183,29 @@ The debug tools output maps with the following symbols:
 - `tests/test_tile_rendering.py` - Comprehensive test suite
 - `debug_tiles.py` - Debug visualization script
 - `darkdelve.py` - `render_dungeon` method (tested by the suite)
+
+## UI Text Rendering Issue
+
+### Problem
+UI text was rendering as full strings instead of individual characters, causing text to appear as "map tiles in place of text" instead of readable text.
+
+### Root Cause
+The UI rendering methods were using `console.print()` with full text strings, which were being treated as single characters rather than being rendered as individual characters.
+
+### Solution
+Added `_render_text()` helper method that renders text character by character using `console.print()` for each character individually.
+
+### Affected Code
+- `darkdelve.py` - UI rendering methods
+- `tests/test_tile_rendering.py` - UI rendering tests
+
+### Changes Made
+1. Added `_render_text(x, y, text, color)` method to UI class
+2. Updated `render_ui()` to use `_render_text()` instead of direct `console.print()` calls
+3. Updated `render_combat_log()` to use `_render_text()` instead of direct `console.print()` calls
+4. Updated tests to properly check for individual characters in console calls
+
+### Prevention
+- Always render text character by character in UI elements
+- Use helper methods for text rendering to ensure consistency
+- Test UI rendering with comprehensive test suites that check individual character rendering

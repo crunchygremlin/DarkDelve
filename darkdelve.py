@@ -1489,6 +1489,11 @@ class UI:
         self.map_height = config['dungeon']['height']
         self.ui_y = self.map_height + 1
     
+    def _render_text(self, x: int, y: int, text: str, color):
+        """Render text character by character to avoid tile rendering issues"""
+        for i, char in enumerate(text):
+            self.console.print(x + i, y, char, color)
+    
     def render_dungeon(self, dungeon_map: np.ndarray, fov: np.ndarray, explored: np.ndarray):
         # NumPy shapes are structured as (height, width) or (rows, columns)
         height, width = dungeon_map.shape
@@ -1497,41 +1502,40 @@ class UI:
             for x in range(width):
                 # FIX 1: Look up array values using row-major coordinate structure [y, x]
                 if fov[y, x]:
-                    if dungeon_map[y, x]:
-                        # Print to screen console using normal column/row coordinates (x, y)
-                        self.console.print(x, y, ".", COLORS['floor'])
-                    else:
+                    if dungeon_map[y, x]:  # True = wall
                         self.console.print(x, y, "#", COLORS['wall'])
+                    else:  # False = floor
+                        self.console.print(x, y, ".", COLORS['floor'])
                 elif explored[y, x]:
-                    if dungeon_map[y, x]:
-                        self.console.print(x, y, ".", (50, 50, 50))
-                    else:
+                    if dungeon_map[y, x]:  # True = wall
                         self.console.print(x, y, "#", (30, 30, 30))
+                    else:  # False = floor
+                        self.console.print(x, y, ".", (50, 50, 50))
     
-    def render_entities(self, entities: List[Entity], fov: np.ndarray):
+    def render_entities(self, entities: List[Entity], fov: np.ndarray, player=None):
         for entity in entities:
             # Prevent crashes if entity position goes out of bounds
             height, width = fov.shape
             if 0 <= entity.x < width and 0 <= entity.y < height:
                 # Only render entities in field of view or the player
-                if fov[entity.y, entity.x] or entity is self.player:
+                if fov[entity.y, entity.x] or entity is player:
                     self.console.print(entity.x, entity.y, entity.char, entity.color)
     
     def render_combat_log(self, combat_log):
         if combat_log.events:
             recent = combat_log.get_recent(3)
             for i, event in enumerate(recent):
-                self.console.print(0, self.ui_y + 5 + i, f"  {event}", COLORS['text'])
+                self._render_text(0, self.ui_y + 5 + i, f"  {event}", COLORS['text'])
     
     def render_ui(self, player, state, combat_log, turn):
         metrics = get_llm_metrics()
-        self.console.print(0, self.ui_y + 4, f"LLM: {metrics['responses']}/{metrics['requests']}  Avg: {metrics['avg_latency_ms']:.0f}ms", COLORS['magic'])
+        self._render_text(0, self.ui_y + 4, f"LLM: {metrics['responses']}/{metrics['requests']}  Avg: {metrics['avg_latency_ms']:.0f}ms", COLORS['magic'])
         
         # Combat log
         self.render_combat_log(combat_log)
         
         # Controls
-        self.console.print(0, self.ui_y + 8, "WASD=Move  I=Inv  C=Char  ,=Pickup  >=Down  <=Up  ESC=Menu", COLORS['text_dim'])
+        self._render_text(0, self.ui_y + 8, "WASD=Move  I=Inv  C=Char  ,=Pickup  >=Down  <=Up  ESC=Menu", COLORS['text_dim'])
 
 # =============================================================================
 # INPUT HANDLING
@@ -2057,7 +2061,7 @@ class Game:
     def render(self):
         self.console.clear()
         self.ui.render_dungeon(self.dungeon_map, self.fov, self.explored)
-        self.ui.render_entities(self.entities, self.fov)
+        self.ui.render_entities(self.entities, self.fov, self.player)
         self.ui.render_ui(self.player, self.state, self.combat_log, self.turn)
         self.context.present(self.console)
     
