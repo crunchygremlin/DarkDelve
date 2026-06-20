@@ -953,22 +953,22 @@ class FOVSystem:
         if self.explored is None or self.explored.shape != dungeon_map.shape:
             self.explored = np.zeros(dungeon_map.shape, dtype=bool)
         
-        # FIX: Convert dungeon_map to a clean boolean 2D NumPy array for transparency.
-        # True means light passes through (walkable/floor), False means it's blocked (walls).
-        # dungeon_map has True for walls, False for floors, so we need to invert it
+        # DarkDelve dungeon maps are indexed as dungeon_map[x, y].
+        # True means blocked/wall, False means walkable/floor. tcod expects
+        # transparency arrays in the same [x, y] order, so invert the map directly.
         transparency_array = ~dungeon_map
         
-        # Ensure our player position integer lookups fit within the array dimensions
+        # Ensure our player position integer lookups fit within the array dimensions.
         height, width = dungeon_map.shape
         safe_x = max(0, min(int(player_x), width - 1))
         safe_y = max(0, min(int(player_y), height - 1))
         
-        # Modern tcod expects the 2D boolean array directly as the first argument.
-        # IMPORTANT: Since dungeon_map is row-major (y, x), we must pass the pov as (y, x)
+        # tcod's pov argument is (row, column). Because our row is the dungeon x
+        # coordinate and our column is the dungeon y coordinate, pass (x, y).
         fov = tcod.map.compute_fov(
             transparency=transparency_array,
-            pov=(safe_y, safe_x), 
-            radius=self.radius, 
+            pov=(safe_x, safe_y),
+            radius=self.radius,
             algorithm=tcod.constants.FOV_BASIC
         )
         

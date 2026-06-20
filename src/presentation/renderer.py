@@ -53,8 +53,8 @@ class ConsoleRenderer(Renderer):
             self._console.print(x, y, text)
     
     def present(self) -> None:
-        """For console rendering, present means printing to stdout."""
-        print(self._console)
+        """Keep the offscreen console ready without writing a full-frame refresh."""
+        pass
 
 
 class GraphicalRenderer(Renderer):

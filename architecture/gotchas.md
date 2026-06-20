@@ -287,3 +287,104 @@ Added validation in `generate_level()` method to check if the player start posit
 - Always validate player start positions after dungeon generation
 - Ensure players spawn on floors (False values), not walls (True values)
 - Add fallback logic to find walkable positions if spawn location is invalid
+
+## Tileset Character Rendering Issues
+### Problem
+Player character and other ASCII symbols render as incorrect visual artifacts (e.g., yellow square with dot instead of '@' symbol).
+
+### Root Cause
+The default tileset `dejavu10x10_gs_tc.png` does not have proper glyphs for certain ASCII characters, particularly the '@' symbol used for the player character.
+
+### Solution
+1. Create a custom ASCII tileset with proper character glyphs
+2. Update the game configuration to use the new tileset
+3. Test character rendering with the new tileset
+
+### Affected Code
+- `config/game.yaml`: Tileset configuration
+- `generate_custom_tileset.py`: Custom tileset generation script
+- `test_new_tileset.py`: Tileset testing script
+
+### Changes Made
+1. Created `generate_custom_tileset.py` to generate a custom ASCII tileset
+2. Updated `config/game.yaml` to use `custom_ascii_tileset.png` instead of `dejavu10x10_gs_tc.png`
+3. Created `test_new_tileset.py` to verify the fix works correctly
+
+### Prevention
+- Use custom tilesets designed for ASCII game characters
+- Test all game characters with the chosen tileset
+- Create character mapping documentation for tilesets
+- Ensure player character is positioned within FOV bounds for testing
+
+## Tileset Character Rendering Issues - RESOLVED
+### Problem
+Player character and other ASCII symbols render as incorrect visual artifacts (e.g., yellow square with dot instead of '@' symbol).
+
+### Root Cause
+The default tileset `dejavu10x10_gs_tc.png` does not have proper glyphs for certain ASCII characters, particularly the '@' symbol used for the player character.
+
+### Solution
+1. Create a proper ASCII tileset with correct character mappings
+2. Update the game configuration to use the new tileset
+3. Test character rendering with proper player positioning
+
+### Affected Code
+- `config/game.yaml`: Updated to use `proper_ascii_tileset.png`
+- `generate_proper_tileset.py`: Custom tileset generation script
+- `test_player_visibility.py`: Player visibility testing script
+
+### Changes Made
+1. Created `generate_proper_tileset.py` to generate a proper ASCII tileset
+2. Updated `config/game.yaml` to use `proper_ascii_tileset.png` instead of `dejavu10x10_gs_tc.png`
+3. Created `test_player_visibility.py` to verify the fix works correctly with proper player positioning
+4. Created `test_tileset_directly.py` to analyze tileset content directly
+
+### Resolution
+✅ **Tileset successfully created** - `assets/tilesets/proper_ascii_tileset.png`
+✅ **Player character correctly rendered** - '@' symbol displays properly
+✅ **Console data confirmed** - Character code 64 ('@') is being rendered
+✅ **Color correct** - Yellow color (255, 255, 0) is applied correctly
+✅ **Player positioning fixed** - Players are now positioned within FOV bounds
+
+### Prevention
+- Use custom tilesets designed for ASCII game characters
+- Test all game characters with the chosen tileset
+- Create character mapping documentation for tilesets
+- Ensure player character is positioned within FOV bounds for testing
++
++## FOV and Console Refresh Artifacts
++
++### Problem
++The map can visibly refresh every frame and appear spatially wrong, especially when the player is not on an `x == y` diagonal.
++
++### Root Cause
++DarkDelve dungeon arrays are indexed as `[x, y]`, but tcod's `compute_fov()` expects its `pov` argument as `(row, column)`. Passing `(safe_y, safe_x)` centers FOV on the swapped coordinate when the player is off-diagonal.
++
++The old `ConsoleRenderer.present()` also printed the whole tcod console to stdout on every render, which created visible terminal refresh artifacts.
++
++### Solution
++Pass FOV as `(safe_x, safe_y)` and keep console presentation offscreen:
++
++```python
++fov = tcod.map.compute_fov(
++    transparency=~dungeon_map,
++    pov=(safe_x, safe_y),
++    radius=self.radius,
++    algorithm=tcod.constants.FOV_BASIC,
++)
++```
++
++```python
++def present(self) -> None:
++    pass
++```
++
++### Affected Code
++- [`darkdelve.py`](darkdelve.py:946) - `FOVSystem.compute()`
++- [`src/presentation/renderer.py`](src/presentation/renderer.py:55) - `ConsoleRenderer.present()`
++- [`tests/test_map_rendering.py`](tests/test_map_rendering.py:1) - FOV and screenshot regression tests
++
++### Prevention
++- Keep all rendering code consistent on DarkDelve's `[x, y]` dungeon coordinate system.
++- Do not dump full console frames to stdout during gameplay.
++- Add off-diagonal player FOV tests and headless Linux screenshot tests for visual regressions.
