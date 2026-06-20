@@ -15,7 +15,7 @@ class TestTileRendering(unittest.TestCase):
     
     def setUp(self):
         """Set up test fixtures"""
-        self.ui = UI(console=MagicMock(), config={
+        self.ui = UI(renderer=MagicMock(), config={
             'display': {
                 'screen_width': 80,
                 'screen_height': 24,
@@ -36,7 +36,7 @@ class TestTileRendering(unittest.TestCase):
         def mock_print(x, y, char, color):
             self.console_calls.append((x, y, char, color))
         
-        self.ui.console.print = mock_print
+        self.ui.renderer.print = mock_print
         
     def test_render_dungeon_floor_wall_logic(self):
         """Test that floor and wall tiles are rendered correctly"""

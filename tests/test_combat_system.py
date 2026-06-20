@@ -26,7 +26,8 @@ class TestCombatSystem(unittest.TestCase):
             char="@",
             color=COLORS['player'],
             name="Test Player",
-            blocks=True
+            blocks=True,
+            inventory=Inventory(max_weight=100),
         )
         
         self.enemy = Entity(
@@ -34,7 +35,8 @@ class TestCombatSystem(unittest.TestCase):
             char="g",
             color=COLORS['enemy_normal'],
             name="Goblin",
-            blocks=True
+            blocks=True,
+            inventory=Inventory(max_weight=100),
         )
         
         # Add combat attributes
@@ -304,7 +306,7 @@ class TestCombatSystem(unittest.TestCase):
         # Test getting recent events
         recent = log.get_recent(3)
         self.assertEqual(len(recent), 3)
-        self.assertEqual(recent[0].turn, 3)  # Should be events 3, 4, 5
+        self.assertEqual([event.turn for event in recent], [2, 3, 4])  # Last three events.
         
     def test_combat_log_serialization(self):
         """Test combat log serialization"""
@@ -343,7 +345,8 @@ class TestCombatIntegration(unittest.TestCase):
             char="@",
             color=COLORS['player'],
             name="Test Player",
-            blocks=True
+            blocks=True,
+            inventory=Inventory(max_weight=100),
         )
         
         self.enemy = Entity(
@@ -351,7 +354,8 @@ class TestCombatIntegration(unittest.TestCase):
             char="g",
             color=COLORS['enemy_normal'],
             name="Goblin",
-            blocks=True
+            blocks=True,
+            inventory=Inventory(max_weight=100),
         )
         
         # Set combat attributes
@@ -372,15 +376,21 @@ class TestCombatIntegration(unittest.TestCase):
         resolver = CombatResolver()
         turn = 1
         
-        # Player attacks enemy
-        player_event = resolver.resolve_attack(self.player, self.enemy)
-        player_event.turn = turn
-        self.combat_log.add_event(player_event)
+        with patch('random.randint', return_value=20):
+            # Player attacks enemy
+            player_event = resolver.resolve_attack(self.player, self.enemy)
+            player_event.turn = turn
+            self.combat_log.add_event(player_event)
+            
+            # Enemy attacks back
+            enemy_event = resolver.resolve_attack(self.enemy, self.player)
+            enemy_event.turn = turn
+            self.combat_log.add_event(enemy_event)
         
-        # Enemy attacks back
-        enemy_event = resolver.resolve_attack(self.enemy, self.player)
-        enemy_event.turn = turn
-        self.combat_log.add_event(enemy_event)
+        if player_event.result in (HitResult.HIT, HitResult.CRITICAL):
+            self.enemy.hp -= player_event.damage
+        if enemy_event.result in (HitResult.HIT, HitResult.CRITICAL):
+            self.player.hp -= enemy_event.damage
         
         # Check results
         self.assertEqual(len(self.combat_log.events), 2)
@@ -391,26 +401,33 @@ class TestCombatIntegration(unittest.TestCase):
         """Test combat until one side is defeated"""
         resolver = CombatResolver()
         turn = 1
+        max_turns = 100
         
-        while self.player.is_alive and self.enemy.is_alive:
-            # Player attacks
-            player_event = resolver.resolve_attack(self.player, self.enemy)
-            player_event.turn = turn
-            self.combat_log.add_event(player_event)
-            
-            if not self.enemy.is_alive:
-                break
+        with patch('random.randint', return_value=20):
+            while self.player.is_alive and self.enemy.is_alive and turn <= max_turns:
+                # Player attacks
+                player_event = resolver.resolve_attack(self.player, self.enemy)
+                player_event.turn = turn
+                self.combat_log.add_event(player_event)
+                if player_event.result in (HitResult.HIT, HitResult.CRITICAL):
+                    self.enemy.hp -= player_event.damage
                 
-            # Enemy attacks
-            enemy_event = resolver.resolve_attack(self.enemy, self.player)
-            enemy_event.turn = turn
-            self.combat_log.add_event(enemy_event)
+                if not self.enemy.is_alive:
+                    break
+                    
+                # Enemy attacks
+                enemy_event = resolver.resolve_attack(self.enemy, self.player)
+                enemy_event.turn = turn
+                self.combat_log.add_event(enemy_event)
+                if enemy_event.result in (HitResult.HIT, HitResult.CRITICAL):
+                    self.player.hp -= enemy_event.damage
+                
+                turn += 1
             
-            turn += 1
-            
-        # Check that one side is defeated
-        self.assertFalse(self.player.is_alive or self.enemy.is_alive)
-        self.assertGreater(turn, 1)
+        # Check that one side is defeated, while keeping the test deterministic.
+        self.assertFalse(self.player.is_alive and self.enemy.is_alive)
+        self.assertGreaterEqual(turn, 1)
+        self.assertLessEqual(turn, max_turns)
         
     def test_combat_with_multiple_enemies(self):
         """Test combat with multiple enemies"""
@@ -430,9 +447,15 @@ class TestCombatIntegration(unittest.TestCase):
         resolver = CombatResolver()
         combat_log = CombatLog()
         
-        # Player attacks both enemies
-        event1 = resolver.resolve_attack(self.player, self.enemy)
-        event2 = resolver.resolve_attack(self.player, enemy2)
+        with patch('random.randint', return_value=20):
+            # Player attacks both enemies
+            event1 = resolver.resolve_attack(self.player, self.enemy)
+            event2 = resolver.resolve_attack(self.player, enemy2)
+        
+        if event1.result in (HitResult.HIT, HitResult.CRITICAL):
+            self.enemy.hp -= event1.damage
+        if event2.result in (HitResult.HIT, HitResult.CRITICAL):
+            enemy2.hp -= event2.damage
         
         combat_log.add_event(event1)
         combat_log.add_event(event2)

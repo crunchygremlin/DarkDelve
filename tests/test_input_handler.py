@@ -47,7 +47,11 @@ def handler():
 
 def make_key_event(key_sym):
     """Utility to create a tcod KeyDown event for a given key symbol."""
-    return tcod.event.KeyDown(key_sym)
+    return tcod.event.KeyDown(
+        sym=key_sym,
+        scancode=tcod.event.Scancode(key_sym),
+        mod=tcod.event.Modifier.NONE,
+    )
 
 
 def test_quit_event_returns_true(handler, dummy_player, dummy_game, dummy_state):
@@ -64,8 +68,8 @@ def test_quit_event_returns_true(handler, dummy_player, dummy_game, dummy_state)
         (tcod.event.KeySym.G, "pickup_item"),
         (tcod.event.KeySym.I, "show_inventory"),
         (tcod.event.KeySym.C, "show_character"),
-        (tcod.event.KeySym.RSHIFT, "use_stairs_down"),
-        (tcod.event.KeySym.RSHIFT, "use_stairs_up"),
+        (tcod.event.KeySym.GREATER, "use_stairs_down"),
+        (tcod.event.KeySym.LESS, "use_stairs_up"),
         (tcod.event.KeySym.ESCAPE, "show_menu"),
     ],
 )

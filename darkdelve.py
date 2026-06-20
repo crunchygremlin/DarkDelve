@@ -27,6 +27,9 @@ import numpy as np
 import yaml
 import requests
 
+# Import renderer classes
+from src.presentation.renderer import create_renderer
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -297,12 +300,14 @@ class ItemType(Enum):
     ARMOR = "armor"
     POTION = "potion"
     SCROLL = "scroll"
+    CONSUMABLE = "potion"
     FOOD = "food"
     MISC = "misc"
 
 class EquipmentSlot(Enum):
     HEAD = "head"
     CHEST = "chest"
+    BODY = "chest"
     HANDS = "hands"
     LEGS = "legs"
     FEET = "feet"
@@ -351,7 +356,8 @@ class CombatLog:
     turn_counter: int = 0
     
     def add_event(self, event: CombatEvent):
-        event.turn = self.turn_counter
+        if event.turn == 0:
+            event.turn = self.turn_counter
         self.events.append(event)
         if len(self.events) > self.max_history:
             self.events.pop(0)
@@ -367,9 +373,9 @@ class Item:
     id: str
     name: str
     item_type: ItemType
-    symbol: str
-    weight: int
-    value: int
+    symbol: str = "?"
+    weight: int = 1
+    value: int = 0
     damage_bonus: int = 0
     defense_bonus: int = 0
     to_hit_bonus: int = 0
@@ -381,6 +387,16 @@ class Item:
     equipped_slot: Optional[EquipmentSlot] = None
     identified: bool = False
     appearance: str = ""  # Unidentified appearance
+    effects: Dict[str, int] = field(default_factory=dict)
+    glyph: Optional[str] = None
+    color: Tuple[int, int, int] = (255, 255, 255)
+    equipment_slot: Optional[EquipmentSlot] = None
+    
+    def __post_init__(self):
+        if self.glyph is not None:
+            self.symbol = self.glyph
+        if self.equipment_slot is not None:
+            self.equipped_slot = self.equipment_slot
     
     def get_stat_string(self) -> str:
         stats = []
@@ -404,12 +420,15 @@ class Inventory:
     items: List[Item] = field(default_factory=list)
     max_weight: int = 100
     equipment: Dict[EquipmentSlot, Optional[Item]] = field(default_factory=dict)
+    capacity: int = 26
     
     def __post_init__(self):
         if not self.equipment:
             self.equipment = {slot: None for slot in EquipmentSlot}
     
     def add_item(self, item: Item) -> bool:
+        if len(self.items) >= self.capacity:
+            return False
         if self.get_total_weight() + item.weight > self.max_weight:
             return False
         self.items.append(item)
@@ -417,9 +436,9 @@ class Inventory:
     
     def remove_item(self, item_id: str) -> bool:
         for i, item in enumerate(self.items):
-            if item.id == item_id:
+            if isinstance(item_id, Item) and item is item_id or not isinstance(item_id, Item) and item.id == item_id:
                 if item.equipped:
-                    self.unequip(item_id)
+                    self.unequip(item.id)
                 self.items.pop(i)
                 return True
         return False
@@ -428,6 +447,11 @@ class Inventory:
         for item in self.items:
             if item.id == item_id:
                 return item
+        return None
+    
+    def get_item(self, index: int) -> Optional[Item]:
+        if 0 <= index < len(self.items):
+            return self.items[index]
         return None
     
     def equip(self, item_id: str, slot: EquipmentSlot) -> bool:
@@ -479,7 +503,7 @@ class Inventory:
         return []
     
     def get_total_weight(self) -> int:
-        return sum(item.weight for item in self.items)
+        return sum(item.effects.get("weight", item.weight) for item in self.items)
     
     def get_defense_bonus(self) -> int:
         return sum(item.defense_bonus for item in self.equipment.values() if item and item.equipped)
@@ -595,11 +619,11 @@ class LevelTheme:
 
 @dataclass
 class Entity:
-    x: int
-    y: int
-    char: str
-    color: Tuple[int, int, int]
-    name: str
+    x: int = 0
+    y: int = 0
+    char: str = "@"
+    color: Tuple[int, int, int] = (255, 255, 255)
+    name: str = "Unknown"
     blocks: bool = True
     hp: int = 10
     max_hp: int = 10
@@ -611,6 +635,7 @@ class Entity:
     home_position: Tuple[int, int] = (0, 0)
     current_command: Optional[Dict] = None
     pending_command: bool = False
+    item: Optional["Item"] = None
     
     # Player-specific
     inventory: Optional[Inventory] = None
@@ -631,6 +656,7 @@ class Entity:
     
     # Status effects
     effects: Dict[str, int] = field(default_factory=dict)  # effect -> duration
+    components: Dict[str, Any] = field(default_factory=dict)
     
     @property
     def is_alive(self) -> bool:
@@ -665,6 +691,24 @@ class Entity:
                     self.y = y
                     return True
         return False
+    
+    def move(self, dx: int, dy: int, dungeon_map: np.ndarray, entities: List['Entity'] = None) -> bool:
+        """Legacy delta-movement helper used by older tests and callers."""
+        target_x = min(max(self.x + dx, 0), dungeon_map.shape[0] - 1)
+        target_y = min(max(self.y + dy, 0), dungeon_map.shape[1] - 1)
+        return self.move_to(target_x, target_y, dungeon_map, entities or [])
+    
+    def distance_to(self, other: 'Entity') -> int:
+        return abs(self.x - other.x) + abs(self.y - other.y)
+    
+    def add_component(self, component: Any, name: str) -> None:
+        self.components[name] = component
+    
+    def get_component(self, name: str) -> Optional[Any]:
+        return self.components.get(name)
+    
+    def remove_component(self, name: str) -> bool:
+        return self.components.pop(name, None) is not None
     
     def move_towards(self, target_x: int, target_y: int, dungeon_map: np.ndarray, entities: List['Entity']):
         dx = target_x - self.x
@@ -1483,8 +1527,8 @@ def get_llm_metrics() -> Dict:
 # =============================================================================
 
 class UI:
-    def __init__(self, console: tcod.console.Console, config: dict):
-        self.console = console
+    def __init__(self, renderer, config: dict):
+        self.renderer = renderer
         self.config = config
         self.display_config = config['display']
         self.map_width = config['dungeon']['width']
@@ -1494,40 +1538,48 @@ class UI:
     def _render_text(self, x: int, y: int, text: str, color):
         """Render text character by character to avoid tile rendering issues"""
         for i, char in enumerate(text):
-            self.console.print(x + i, y, char, color)
+            self.renderer.print(x + i, y, char, color)
     
     def render_dungeon(self, dungeon_map: np.ndarray, fov: np.ndarray, explored: np.ndarray):
-        # NumPy shapes are structured as (height, width) or (rows, columns)
-        # FIX: dungeon_map has shape (width, height), but we need (height, width) for rendering
-        height, width = dungeon_map.shape[1], dungeon_map.shape[0]
+        # DarkDelve's generated maps are indexed as dungeon_map[x, y].
+        width, height = dungeon_map.shape
         
         for y in range(height):
             for x in range(width):
-                # Check bounds for fov and explored arrays
-                if y >= fov.shape[0] or x >= fov.shape[1]:
+                # Keep rendering safe if a caller passes differently shaped arrays.
+                if y >= fov.shape[1] or x >= fov.shape[0]:
+                    continue
+                if y >= explored.shape[1] or x >= explored.shape[0]:
                     continue
                     
-                if fov[y, x]:
-                    # dungeon_map has shape (width, height), so we access with [x, y]
+                if fov[x, y]:
                     if dungeon_map[x, y]:  # True = wall
-                        self.console.print(x, y, "#", COLORS['wall'])
+                        self.renderer.print(x, y, "#", COLORS['wall'])
                     else:  # False = floor
-                        self.console.print(x, y, ".", COLORS['floor'])
-                elif explored[y, x]:
-                    # dungeon_map has shape (width, height), so we access with [x, y]
+                        self.renderer.print(x, y, ".", COLORS['floor'])
+                elif explored[x, y]:
                     if dungeon_map[x, y]:  # True = wall
-                        self.console.print(x, y, "#", (30, 30, 30))
+                        self.renderer.print(x, y, "#", (30, 30, 30))
                     else:  # False = floor
-                        self.console.print(x, y, ".", (50, 50, 50))
+                        self.renderer.print(x, y, ".", (50, 50, 50))
     
     def render_entities(self, entities: List[Entity], fov: np.ndarray, player=None):
         for entity in entities:
-            # Prevent crashes if entity position goes out of bounds
-            height, width = fov.shape
+            # DarkDelve's FOV arrays are indexed as fov[x, y].
+            height, width = fov.shape[1], fov.shape[0]
             if 0 <= entity.x < width and 0 <= entity.y < height:
-                # Only render entities in field of view or the player
-                if fov[entity.y, entity.x] or entity is player:
-                    self.console.print(entity.x, entity.y, entity.char, entity.color)
+                # Only render entities in field of view, the player, or entities sharing the player's tile.
+                player_x = getattr(player, "x", None)
+                player_y = getattr(player, "y", None)
+                at_player_position = (
+                    player is not None
+                    and player_x is not None
+                    and player_y is not None
+                    and entity.x == player_x
+                    and entity.y == player_y
+                )
+                if fov[entity.x, entity.y] or entity is player or at_player_position:
+                    self.renderer.print(entity.x, entity.y, entity.char, entity.color)
     
     def render_combat_log(self, combat_log):
         if combat_log.events:
@@ -1614,7 +1666,7 @@ class InputHandler:
                 if target_entity:
                     # Attack
                     game.attack(player, target_entity)
-                else:
+                elif dungeon_map is not None:
                     # Move
                     player.move_to(new_x, new_y, dungeon_map, entities)
             
@@ -1653,8 +1705,8 @@ class Game:
         self.turn = 0
         self.screen_width = self.config['display']['width']
         self.screen_height = self.config['display']['height']
-        self.console: Optional[tcod.console.Console] = None
         self.context: Optional[tcod.context.Context] = None
+        self.renderer: Optional[Renderer] = None
         self.ui: Optional[UI] = None
         self.input_handler: Optional[InputHandler] = None
         self.llm_thread: Optional[threading.Thread] = None
@@ -1664,7 +1716,31 @@ class Game:
         self.menu_selection = 0
         self.message_log: List[str] = []
     
+    @property
+    def console(self):
+        """Backward-compatible access to the underlying tcod console."""
+        if self.renderer is not None and hasattr(self.renderer, '_console'):
+            return self.renderer._console
+        return None
+    
     def initialize(self):
+        # Keep display dimensions in sync when tests or callers override config.
+        self.config['display'].setdefault('width', CONFIG['display']['width'])
+        self.config['display'].setdefault('height', CONFIG['display']['height'])
+        self.config['display'].setdefault('renderer', CONFIG['display']['renderer'])
+        self.config['display'].setdefault('tileset', CONFIG['display']['tileset'])
+        self.config['dungeon'].setdefault('width', CONFIG['dungeon']['width'])
+        self.config['dungeon'].setdefault('height', CONFIG['dungeon']['height'])
+        self.config['dungeon'].setdefault('max_rooms', CONFIG['dungeon']['max_rooms'])
+        self.config['dungeon'].setdefault('room_min_size', CONFIG['dungeon']['room_min_size'])
+        self.config['dungeon'].setdefault('room_max_size', CONFIG['dungeon']['room_max_size'])
+        self.screen_width = self.config['display']['width']
+        self.screen_height = self.config['display']['height']
+        
+        # Rebuild the dungeon generator after config overrides so tests and callers
+        # that construct Game() then replace game.config do not use stale defaults.
+        self.dungeon_generator = DungeonGenerator(self.config)
+        
         # Initialize Ollama
         self.ollama = EmbeddedOllama(self.config['llm']['model'])
         if not self.ollama.start():
@@ -1688,23 +1764,16 @@ class Game:
         if not tileset_path.exists():
             raise FileNotFoundError(f"Tileset not found: {tileset_path}")
         
-        try:
-            # For DejaVu 10x10 bitmap font (320x80), try with 16 columns and 8 rows
-            tileset = tcod.tileset.load_tilesheet(str(tileset_path), 16, 8, tcod.tileset.CHARMAP_TCOD)
-        except Exception as e:
-            raise RuntimeError(f"Failed to load tileset {tileset_path}: {e}")
+        # Create appropriate renderer based on config.
+        self.renderer = create_renderer(self.config, self.config['display']['renderer'])
         
-        self.console = tcod.console.Console(self.screen_width, self.screen_height)
+        # Keep context for compatibility with other parts of the code
+        if hasattr(self.renderer, '_context'):
+            self.context = self.renderer._context
+        else:
+            self.context = None
         
-        self.context = tcod.context.new_terminal(
-            columns=self.screen_width,
-            rows=self.screen_height,
-            tileset=tileset,
-            title="DarkDelve",
-            vsync=True,
-        )
-        
-        self.ui = UI(self.console, self.config)
+        self.ui = UI(self.renderer, self.config)
         self.input_handler = InputHandler(self.config)
         
         # New game or load
@@ -2091,14 +2160,16 @@ class Game:
         self.running = False
     
     def render(self):
-        self.console.clear()
+        self.renderer.clear()
         self.ui.render_dungeon(self.dungeon_map, self.fov, self.explored)
         self.ui.render_entities(self.entities, self.fov, self.player)
         self.ui.render_ui(self.player, self.state, self.combat_log, self.turn)
-        self.context.present(self.console)
+        
+        # Only present if using graphical rendering
+        self.renderer.present()
     
     def render_inventory(self):
-        self.console.clear()
+        self.renderer.clear()
         lines = [f"═ INVENTORY (Weight: {self.player.inventory.get_total_weight()}/{self.player.inventory.max_weight}) ═", ""]
         lines.append("▼ EQUIPPED:")
         for slot in EquipmentSlot:
@@ -2117,12 +2188,13 @@ class Game:
             lines.append("  (empty)")
         
         for i, line in enumerate(lines):
-            self.console.print(2, 2 + i, line, COLORS['text'])
+            self.renderer.print(2, 2 + i, line, COLORS['text'])
         
-        self.context.present(self.console)
+        # Only present if using graphical rendering
+        self.renderer.present()
     
     def render_character(self):
-        self.console.clear()
+        self.renderer.clear()
         lines = [
             f"═ CHARACTER ═",
             f"Name: {self.player.name}",
@@ -2146,18 +2218,21 @@ class Game:
         ]
         
         for i, line in enumerate(lines):
-            self.console.print(2, 2 + i, line, COLORS['text'])
+            self.renderer.print(2, 2 + i, line, COLORS['text'])
         
-        self.context.present(self.console)
+        # Present using the renderer
+        self.renderer.present()
     
     def render_menu(self, options: List[str]):
-        self.console.clear()
-        self.console.print(self.screen_width // 2 - 10, self.screen_height // 2 - 3, "═ MENU ═", COLORS['gold'])
+        self.renderer.clear()
+        self.renderer.print(self.screen_width // 2 - 10, self.screen_height // 2 - 3, "═ MENU ═", COLORS['gold'])
         for i, option in enumerate(options):
             color = COLORS['gold'] if i == self.menu_selection else COLORS['text']
             prefix = "> " if i == self.menu_selection else "  "
-            self.console.print(self.screen_width // 2 - 10, self.screen_height // 2 - 1 + i, f"{prefix}{option}", color)
-        self.context.present(self.console)
+            self.renderer.print(self.screen_width // 2 - 10, self.screen_height // 2 - 1 + i, f"{prefix}{option}", color)
+        
+        # Only present if using graphical rendering
+        self.renderer.present()
     
     def add_message(self, msg: str):
         self.message_log.append(msg)

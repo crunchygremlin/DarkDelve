@@ -3,6 +3,7 @@
 Test script to verify the actual game rendering works correctly
 """
 
+import copy
 import sys
 import numpy as np
 from pathlib import Path
@@ -10,8 +11,7 @@ from pathlib import Path
 # Add the current directory to the path to import darkdelve
 sys.path.insert(0, str(Path(__file__).parent))
 
-import tcod
-from darkdelve import Game, COLORS, Entity
+from darkdelve import CONFIG, Game, COLORS, Entity
 
 def test_game_rendering():
     """Test the actual game rendering process"""
@@ -19,30 +19,19 @@ def test_game_rendering():
     # Create a minimal game instance
     game = Game()
     
-    # Initialize with minimal config
-    game.config = {
-        'llm': {'model': 'qwen2.5-coder:7b-instruct'},
-        'display': {'tileset': 'new_tileset.png'},
-        'dungeon': {'width': 20, 'height': 15},
-        'classes': {
-            'warrior': {
-                'hp_per_level': 10,
-                'stats': {'str': 16, 'dex': 12, 'con': 14, 'int': 10, 'wis': 10, 'cha': 10},
-                'start_gear': ['sword', 'shield']
-            }
-        },
-        'gameplay': {'max_nutrition': 100}
-    }
+    game.config = copy.deepcopy(CONFIG)
+    game.config['display'].update({
+        'tileset': 'proper_ascii_tileset.png',
+        'renderer': 'console',
+        'width': 80,
+        'height': 30,
+    })
+    game.config['dungeon'].update({'width': 40, 'height': 20})
     
-    # Initialize game components
-    game.initialize()
-    
-    # Create a player
     game.state = type('GameState', (), {'run_id': 'test123', 'player_class': 'warrior', 'player_name': 'Test Player'})()
-    game.create_player()
     
-    # Generate a test level
-    game.generate_level(1, "main")
+    # Initialize game components and start a new game.
+    game.initialize()
     
     # Create some test entities
     game.entities = [
@@ -72,30 +61,42 @@ def test_game_rendering():
     print(f"Player character: '{game.player.char}'")
     print(f"Player color: {game.player.color}")
     print(f"UI Y position: {game.ui.ui_y}")
-    print(f"Console dimensions: {game.console.width}x{game.console.height}")
+    
+    # Check console dimensions if available
+    if hasattr(game.renderer, '_console'):
+        console = game.renderer._console
+        print(f"Console dimensions: {console.width}x{console.height}")
+    else:
+        print("Console not available in current renderer")
     
     # Test rendering
     try:
+        print("DEBUG: About to render game...")
         game.render()
         print("✓ Rendering completed successfully")
         
         # Check if player character is visible in the console
         player_char_found = False
         player_char_positions = []
-        for y in range(game.console.height):
-            for x in range(game.console.width):
-                try:
-                    # FIX: console.ch has shape (height, width), so access as [y, x]
-                    char = game.console.ch[y, x]
-                    if char == ord(game.player.char):
-                        player_char_found = True
-                        player_char_positions.append((x, y))
-                        print(f"✓ Player character found at ({x}, {y})")
-                        break
-                except:
-                    pass
-            if player_char_found:
-                break
+        print(f"DEBUG: Searching for player character '{game.player.char}' (code: {ord(game.player.char)}) in console...")
+        
+        if hasattr(game.renderer, '_console'):
+            console = game.renderer._console
+            print(f"DEBUG: Console dimensions: {console.width}x{console.height}")
+            print(f"DEBUG: Player expected position: ({game.player.x}, {game.player.y})")
+
+            for y in range(console.height):
+                for x in range(console.width):
+                    try:
+                        # FIX: console.ch has shape (height, width), so access as [y, x]
+                        char = console.ch[y, x]
+                        if char == ord(game.player.char):
+                            player_char_found = True
+                            player_char_positions.append((x, y))
+                            print(f"✓ Player character found at ({x}, {y})")
+                    except Exception as e:
+                        print(f"DEBUG: Error accessing console.ch[{y}, {x}]: {e}")
+                        pass
         
         if not player_char_found:
             print("✗ Player character not found in console")
@@ -106,8 +107,8 @@ def test_game_rendering():
             print(f"Explored shape: {game.explored.shape}")
             
             # Check if player position is within FOV
-            if (0 <= game.player.x < game.fov.shape[1] and
-                0 <= game.player.y < game.fov.shape[0]):
+            if (0 <= game.player.x < game.fov.shape[0] and
+                0 <= game.player.y < game.fov.shape[1]):
                 if game.fov[game.player.y, game.player.x]:
                     print("✓ Player is in FOV")
                 else:
@@ -143,7 +144,7 @@ def test_game_rendering():
             line = ""
             for x in range(min(game.console.width, 40)):
                 try:
-                    char = game.console.ch[x, y]
+                    char = game.console.ch[y, x]
                     if char == 0:
                         line += " "
                     else:
@@ -157,7 +158,7 @@ def test_game_rendering():
             line = ""
             for x in range(min(game.console.width, 40)):
                 try:
-                    char = game.console.ch[x, y]
+                    char = game.console.ch[y, x]
                     if char == 0:
                         line += " "
                     else:
@@ -170,6 +171,10 @@ def test_game_rendering():
         print(f"✗ Rendering failed: {e}")
         import traceback
         traceback.print_exc()
+        raise
+    
+    assert player_char_found, "Player character was not rendered to the console"
+    assert ui_text_found, "UI text was not rendered to the console"
 
 if __name__ == "__main__":
     test_game_rendering()
