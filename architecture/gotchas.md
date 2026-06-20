@@ -414,3 +414,28 @@ self.energy_system.add_entity(entity, initial_energy=initial_energy)
 - New levels should always let the player act before fast enemies close distance.
 - Add energy-system tests for turn-order edge cases.
 - Simulate generated startup states when a player can die before input.
++
++## Console Renderer Input
++
++### Problem
++In console renderer mode, `tcod.event.wait()` can return an empty event iterator when SDL has not been initialized for a visible context. The game loop then continues without waiting for the player, allowing monsters to act repeatedly before input.
++
++### Root Cause
++The console renderer only owns an offscreen `tcod.console.Console`, not a tcod context/window. Event polling depends on SDL input initialization, so console mode needs its own blocking input path.
++
++### Solution
++Detect console-only renderers and read one terminal key directly, then convert it into a `tcod.event.KeyDown` for the existing input handler:
++
++```python
++events = self._wait_for_console_input() if self._uses_console_renderer() else tcod.event.wait()
++```
++
++### Affected Code
++- [`darkdelve.py`](darkdelve.py:1953) - player input selection in `main_loop()`
++- [`darkdelve.py`](darkdelve.py:2004) - console renderer detection and key conversion helpers
++- [`tests/test_console_input.py`](tests/test_console_input.py:6) - console key mapping regression test
++
++### Prevention
++- Console mode must block for player input before monsters can continue acting.
++- Keep console input conversion covered by tests.
++- Verify non-interactive runs exit instead of simulating unattended monster turns.

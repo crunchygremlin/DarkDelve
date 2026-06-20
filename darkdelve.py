@@ -1950,7 +1950,8 @@ class Game:
             self.render()
             
             # Handle input
-            for event in tcod.event.wait():
+            events = self._wait_for_console_input() if self._uses_console_renderer() else tcod.event.wait()
+            for event in events:
                 if self.input_handler.handle_event(event, self.player, self.dungeon_map, self.entities, self.state, self):
                     self.running = False
                     break
@@ -2000,7 +2001,56 @@ class Game:
         # Check win/lose
         if not self.player.is_alive:
             self.game_over()
-    
+
+    def _uses_console_renderer(self) -> bool:
+        return hasattr(self.renderer, "_console") and not hasattr(self.renderer, "_context")
+
+    def _console_key_to_event(self, key: str) -> Optional[tcod.event.KeyDown]:
+        keymap = {
+            "w": (tcod.event.Scancode.W, tcod.event.KeySym.W),
+            "a": (tcod.event.Scancode.A, tcod.event.KeySym.A),
+            "s": (tcod.event.Scancode.S, tcod.event.KeySym.S),
+            "d": (tcod.event.Scancode.D, tcod.event.KeySym.D),
+            "i": (tcod.event.Scancode.I, tcod.event.KeySym.I),
+            "c": (tcod.event.Scancode.C, tcod.event.KeySym.C),
+            "g": (tcod.event.Scancode.G, tcod.event.KeySym.G),
+            ",": (tcod.event.Scancode.COMMA, tcod.event.KeySym.COMMA),
+            ".": (tcod.event.Scancode.PERIOD, tcod.event.KeySym.PERIOD),
+            ">": (tcod.event.Scancode.PERIOD, tcod.event.KeySym.GREATER),
+            "<": (tcod.event.Scancode.COMMA, tcod.event.KeySym.LESS),
+            " ": (tcod.event.Scancode.SPACE, tcod.event.KeySym.SPACE),
+            "\r": (tcod.event.Scancode.RETURN, tcod.event.KeySym.RETURN),
+            "\n": (tcod.event.Scancode.RETURN, tcod.event.KeySym.RETURN),
+            "\x1b": (tcod.event.Scancode.ESCAPE, tcod.event.KeySym.ESCAPE),
+        }
+        if key not in keymap:
+            return None
+        scancode, sym = keymap[key]
+        return tcod.event.KeyDown(scancode=scancode, sym=sym, mod=tcod.event.Modifier.NONE)
+
+    def _wait_for_console_input(self) -> List[Any]:
+        if sys.stdin.isatty():
+            import termios
+            import tty
+
+            fd = sys.stdin.fileno()
+            old_settings = termios.tcgetattr(fd)
+            try:
+                tty.setraw(fd)
+                key = sys.stdin.read(1)
+            finally:
+                termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
+        else:
+            key = sys.stdin.readline()
+            if not key:
+                return [tcod.event.Quit()]
+
+        if key in ("\x03", "\x04"):
+            return [tcod.event.Quit()]
+
+        event = self._console_key_to_event(key)
+        return [event] if event else []
+
     def monster_turn(self, entity: Entity):
         if not entity.is_alive:
             return
