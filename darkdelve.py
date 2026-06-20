@@ -791,10 +791,10 @@ class EnergySystem:
         self.entities: List[Dict] = []  # {entity, energy, speed}
         self.turn_count = 0
     
-    def add_entity(self, entity: Entity, speed: int = None):
+    def add_entity(self, entity: Entity, speed: int = None, initial_energy: int = 0):
         if speed is None:
             speed = entity.speed
-        self.entities.append({"entity": entity, "energy": 0, "speed": speed})
+        self.entities.append({"entity": entity, "energy": initial_energy, "speed": speed})
     
     def remove_entity(self, entity: Entity):
         self.entities = [e for e in self.entities if e["entity"] is not entity]
@@ -1914,7 +1914,8 @@ class Game:
         # Initialize energy system
         self.energy_system = EnergySystem()
         for entity in self.entities:
-            self.energy_system.add_entity(entity)
+            initial_energy = 100 if entity is self.player else 0
+            self.energy_system.add_entity(entity, initial_energy=initial_energy)
         
         # Initialize FOV
         self.fov = self.fov_system.compute(self.dungeon_map, self.player.x, self.player.y)

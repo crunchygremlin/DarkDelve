@@ -351,40 +351,66 @@ The default tileset `dejavu10x10_gs_tc.png` does not have proper glyphs for cert
 - Test all game characters with the chosen tileset
 - Create character mapping documentation for tilesets
 - Ensure player character is positioned within FOV bounds for testing
-+
-+## FOV and Console Refresh Artifacts
-+
-+### Problem
-+The map can visibly refresh every frame and appear spatially wrong, especially when the player is not on an `x == y` diagonal.
-+
-+### Root Cause
-+DarkDelve dungeon arrays are indexed as `[x, y]`, but tcod's `compute_fov()` expects its `pov` argument as `(row, column)`. Passing `(safe_y, safe_x)` centers FOV on the swapped coordinate when the player is off-diagonal.
-+
-+The old `ConsoleRenderer.present()` also printed the whole tcod console to stdout on every render, which created visible terminal refresh artifacts.
-+
-+### Solution
-+Pass FOV as `(safe_x, safe_y)` and keep console presentation offscreen:
-+
-+```python
-+fov = tcod.map.compute_fov(
-+    transparency=~dungeon_map,
-+    pov=(safe_x, safe_y),
-+    radius=self.radius,
-+    algorithm=tcod.constants.FOV_BASIC,
-+)
-+```
-+
-+```python
-+def present(self) -> None:
-+    pass
-+```
-+
-+### Affected Code
-+- [`darkdelve.py`](darkdelve.py:946) - `FOVSystem.compute()`
-+- [`src/presentation/renderer.py`](src/presentation/renderer.py:55) - `ConsoleRenderer.present()`
-+- [`tests/test_map_rendering.py`](tests/test_map_rendering.py:1) - FOV and screenshot regression tests
-+
-+### Prevention
-+- Keep all rendering code consistent on DarkDelve's `[x, y]` dungeon coordinate system.
-+- Do not dump full console frames to stdout during gameplay.
-+- Add off-diagonal player FOV tests and headless Linux screenshot tests for visual regressions.
+
+## FOV and Console Refresh Artifacts
+
+### Problem
+The map can visibly refresh every frame and appear spatially wrong, especially when the player is not on an `x == y` diagonal.
+
+### Root Cause
+DarkDelve dungeon arrays are indexed as `[x, y]`, but tcod's `compute_fov()` expects its `pov` argument as `(row, column)`. Passing `(safe_y, safe_x)` centers FOV on the swapped coordinate when the player is off-diagonal.
+
+The old `ConsoleRenderer.present()` also printed the whole tcod console to stdout on every render, which created visible terminal refresh artifacts.
+
+### Solution
+Pass FOV as `(safe_x, safe_y)` and keep console presentation offscreen:
+
+```python
+fov = tcod.map.compute_fov(
+    transparency=~dungeon_map,
+    pov=(safe_x, safe_y),
+    radius=self.radius,
+    algorithm=tcod.constants.FOV_BASIC,
+)
+```
+
+```python
+def present(self) -> None:
+    pass
+```
+
+### Affected Code
+- [`darkdelve.py`](darkdelve.py:946) - `FOVSystem.compute()`
+- [`src/presentation/renderer.py`](src/presentation/renderer.py:55) - `ConsoleRenderer.present()`
+- [`tests/test_map_rendering.py`](tests/test_map_rendering.py:1) - FOV and screenshot regression tests
+
+### Prevention
+- Keep all rendering code consistent on DarkDelve's `[x, y]` dungeon coordinate system.
+- Do not dump full console frames to stdout during gameplay.
+- Add off-diagonal player FOV tests and headless Linux screenshot tests for visual regressions.
+
+## Startup Monster Initiative
+
+### Problem
+On some generated levels, fast monsters can take multiple turns before the player gets their first input, which can kill the player immediately after startup.
+
+### Root Cause
+The energy system selects the actor with the highest accumulated energy. A level 1 monster with speed 120 reaches the 100-energy action threshold before the player at speed 100, so a fast scout can close distance and attack before the player acts.
+
+### Solution
+Give the player a one-turn startup priority when initializing a new level:
+
+```python
+initial_energy = 100 if entity is self.player else 0
+self.energy_system.add_entity(entity, initial_energy=initial_energy)
+```
+
+### Affected Code
+- [`darkdelve.py`](darkdelve.py:794) - `EnergySystem.add_entity()`
+- [`darkdelve.py`](darkdelve.py:1914) - level energy initialization
+- [`tests/test_energy_system.py`](tests/test_energy_system.py:6) - startup initiative regression test
+
+### Prevention
+- New levels should always let the player act before fast enemies close distance.
+- Add energy-system tests for turn-order edge cases.
+- Simulate generated startup states when a player can die before input.
