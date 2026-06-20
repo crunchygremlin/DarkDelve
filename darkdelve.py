@@ -1950,7 +1950,7 @@ class Game:
             self.render()
             
             # Handle input
-            events = self._wait_for_console_input() if self._uses_console_renderer() else tcod.event.wait()
+            events = self._wait_for_events()
             for event in events:
                 if self.input_handler.handle_event(event, self.player, self.dungeon_map, self.entities, self.state, self):
                     self.running = False
@@ -2005,6 +2005,12 @@ class Game:
     def _uses_console_renderer(self) -> bool:
         return hasattr(self.renderer, "_console") and not hasattr(self.renderer, "_context")
 
+    def _wait_for_events(self) -> List[Any]:
+        """Return blocking input events for the active renderer backend."""
+        if self._uses_console_renderer():
+            return self._wait_for_console_input()
+        return tcod.event.wait()
+
     def _console_key_to_event(self, key: str) -> Optional[tcod.event.KeyDown]:
         keymap = {
             "w": (tcod.event.Scancode.W, tcod.event.KeySym.W),
@@ -2041,7 +2047,7 @@ class Game:
             finally:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
         else:
-            key = sys.stdin.readline()
+            key = sys.stdin.readline().rstrip("\r\n")
             if not key:
                 return [tcod.event.Quit()]
 
@@ -2137,7 +2143,7 @@ class Game:
         self.showing_inventory = True
         while self.showing_inventory:
             self.render_inventory()
-            for event in tcod.event.wait():
+            for event in self._wait_for_events():
                 if isinstance(event, tcod.event.KeyDown):
                     if event.sym in (tcod.event.KeySym.ESCAPE, tcod.event.KeySym.I):
                         self.showing_inventory = False
@@ -2152,7 +2158,7 @@ class Game:
         self.showing_character = True
         while self.showing_character:
             self.render_character()
-            for event in tcod.event.wait():
+            for event in self._wait_for_events():
                 if isinstance(event, tcod.event.KeyDown):
                     if event.sym in (tcod.event.KeySym.ESCAPE, tcod.event.KeySym.C):
                         self.showing_character = False
@@ -2164,7 +2170,7 @@ class Game:
         
         while self.showing_menu:
             self.render_menu(menu_options)
-            for event in tcod.event.wait():
+            for event in self._wait_for_events():
                 if isinstance(event, tcod.event.KeyDown):
                     if event.sym == tcod.event.KeySym.ESCAPE:
                         self.showing_menu = False
