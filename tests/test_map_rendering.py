@@ -23,14 +23,22 @@ def test_fov_uses_dungeon_x_y_coordinates_for_off_diagonal_player():
     assert not fov[0, 0]
 
 
-def test_console_renderer_present_does_not_print_a_full_frame():
-    """The console renderer should not visibly refresh by dumping the console."""
-    renderer = ConsoleRenderer(tcod.console.Console(5, 3))
+def test_console_renderer_present_writes_terminal_frame_without_print():
+    """The console renderer should draw a stable terminal frame without print()."""
+    console = tcod.console.Console(5, 3)
+    console.print(2, 1, "@")
+    renderer = ConsoleRenderer(console)
 
-    with patch("builtins.print") as mocked_print:
+    with patch("builtins.print") as mocked_print, patch("sys.stdout.write") as mocked_write, patch("sys.stdout.flush") as mocked_flush:
         renderer.present()
 
     mocked_print.assert_not_called()
+    mocked_write.assert_called_once()
+    mocked_flush.assert_called_once()
+    output = mocked_write.call_args.args[0]
+    assert "\033[H\033[2J" in output
+    assert "\033[0m\n" in output
+    assert "@" in output
 
 
 def test_rendered_map_screenshot_keeps_off_diagonal_player_visible(tmp_path):

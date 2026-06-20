@@ -360,10 +360,8 @@ The map can visibly refresh every frame and appear spatially wrong, especially w
 ### Root Cause
 DarkDelve dungeon arrays are indexed as `[x, y]`, but tcod's `compute_fov()` expects its `pov` argument as `(row, column)`. Passing `(safe_y, safe_x)` centers FOV on the swapped coordinate when the player is off-diagonal.
 
-The old `ConsoleRenderer.present()` also printed the whole tcod console to stdout on every render, which created visible terminal refresh artifacts.
-
 ### Solution
-Pass FOV as `(safe_x, safe_y)` and keep console presentation offscreen:
+Pass FOV as `(safe_x, safe_y)` and draw console output with terminal cursor positioning instead of `print(self._console)`:
 
 ```python
 fov = tcod.map.compute_fov(
@@ -376,7 +374,7 @@ fov = tcod.map.compute_fov(
 
 ```python
 def present(self) -> None:
-    pass
+    sys.stdout.write("\033[H\033[2J" + frame + "\033[0m\n")
 ```
 
 ### Affected Code
@@ -386,7 +384,7 @@ def present(self) -> None:
 
 ### Prevention
 - Keep all rendering code consistent on DarkDelve's `[x, y]` dungeon coordinate system.
-- Do not dump full console frames to stdout during gameplay.
+- Do not use `print(self._console)`; use a stable terminal redraw path during gameplay.
 - Add off-diagonal player FOV tests and headless Linux screenshot tests for visual regressions.
 
 ## Startup Monster Initiative
