@@ -1533,7 +1533,12 @@ class UI:
         self.display_config = config['display']
         self.map_width = config['dungeon']['width']
         self.map_height = config['dungeon']['height']
-        self.ui_y = self.map_height + 3  # Add even more spacing to ensure UI doesn't overlap with map
+        self.console_width = self.display_config.get("width", self.display_config.get("screen_width", self.map_width))
+        self.console_height = self.display_config.get("height", self.display_config.get("screen_height", self.map_height))
+        if self.console_height > self.map_height + 5:
+            self.ui_y = self.map_height + 1
+        else:
+            self.ui_y = self.map_height
     
     def _render_text(self, x: int, y: int, text: str, color):
         """Render text character by character to avoid tile rendering issues"""
@@ -1582,20 +1587,42 @@ class UI:
                     self.renderer.print(entity.x, entity.y, entity.char, entity.color)
     
     def render_combat_log(self, combat_log):
-        if combat_log.events:
-            recent = combat_log.get_recent(3)
+        events = getattr(combat_log, "events", [])
+        if events:
+            recent = combat_log.get_recent(2)
             for i, event in enumerate(recent):
-                self._render_text(0, self.ui_y + 5 + i, f"  {event}", COLORS['text'])
-    
-    def render_ui(self, player, state, combat_log, turn):
+                self._render_text(0, self.ui_y + 4 + i, f"  {event}", COLORS['text'])
+
+    def render_messages(self, game):
+        messages = getattr(game, "message_log", [])[-1:]
+        for i, message in enumerate(messages):
+            self._render_text(0, self.ui_y + 2 + i, message[:self.console_width], COLORS['text'])
+
+    def render_ui(self, player, state, combat_log, turn, game=None):
         metrics = get_llm_metrics()
-        self._render_text(0, self.ui_y + 4, f"LLM: {metrics['responses']}/{metrics['requests']}  Avg: {metrics['avg_latency_ms']:.0f}ms", COLORS['magic'])
-        
+        hp = getattr(player, "hp", "?")
+        max_hp = getattr(player, "max_hp", "?")
+        level = getattr(player, "level", "?")
+        depth = getattr(state, "depth", "?")
+        try:
+            armor_class = player.armor_class
+        except AttributeError:
+            armor_class = getattr(player, "armor_class", "?")
+        status = (
+            f"HP {hp}/{max_hp}  AC {armor_class}  "
+            f"Level {level}  Depth {depth}  Turn {turn}  "
+            f"Gold {getattr(player, 'gold', 0)}  Nutrition {getattr(player, 'nutrition', 0)}/{getattr(player, 'max_nutrition', 0)}"
+        )
+        self._render_text(0, self.ui_y, status[:self.console_width], COLORS['text'])
+        self._render_text(0, self.ui_y + 1, "WASD=Move  I=Inv  C=Char  ,=Pickup  >=Down  <=Up  ESC=Menu", COLORS['text_dim'])
+
+        if game is not None:
+            self.render_messages(game)
+
+        self._render_text(0, self.ui_y + 3, f"LLM: {metrics['responses']}/{metrics['requests']}  Avg: {metrics['avg_latency_ms']:.0f}ms", COLORS['magic'])
+
         # Combat log
         self.render_combat_log(combat_log)
-        
-        # Controls
-        self._render_text(0, self.ui_y + 8, "WASD=Move  I=Inv  C=Char  ,=Pickup  >=Down  <=Up  ESC=Menu", COLORS['text_dim'])
 
 # =============================================================================
 # INPUT HANDLING
@@ -2027,6 +2054,10 @@ class Game:
             " ": (tcod.event.Scancode.SPACE, tcod.event.KeySym.SPACE),
             "\r": (tcod.event.Scancode.RETURN, tcod.event.KeySym.RETURN),
             "\n": (tcod.event.Scancode.RETURN, tcod.event.KeySym.RETURN),
+            "\x1b[A": (tcod.event.Scancode.UP, tcod.event.KeySym.UP),
+            "\x1b[B": (tcod.event.Scancode.DOWN, tcod.event.KeySym.DOWN),
+            "\x1b[C": (tcod.event.Scancode.RIGHT, tcod.event.KeySym.RIGHT),
+            "\x1b[D": (tcod.event.Scancode.LEFT, tcod.event.KeySym.LEFT),
             "\x1b": (tcod.event.Scancode.ESCAPE, tcod.event.KeySym.ESCAPE),
         }
         if key not in keymap:
@@ -2034,8 +2065,9 @@ class Game:
         scancode, sym = keymap[key]
         return tcod.event.KeyDown(scancode=scancode, sym=sym, mod=tcod.event.Modifier.NONE)
 
-    def _wait_for_console_input(self) -> List[Any]:
+    def _read_console_key(self) -> str:
         if sys.stdin.isatty():
+            import select
             import termios
             import tty
 
@@ -2044,12 +2076,20 @@ class Game:
             try:
                 tty.setraw(fd)
                 key = sys.stdin.read(1)
+                if key == "\x1b":
+                    while select.select([sys.stdin], [], [], 0.05)[0]:
+                        key += sys.stdin.read(1)
             finally:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
-        else:
-            key = sys.stdin.readline().rstrip("\r\n")
-            if not key:
-                return [tcod.event.Quit()]
+            return key
+
+        key = sys.stdin.readline().rstrip("\r\n")
+        if not key:
+            return "\x04"
+        return key
+
+    def _wait_for_console_input(self) -> List[Any]:
+        key = self._read_console_key()
 
         if key in ("\x03", "\x04"):
             return [tcod.event.Quit()]
@@ -2224,9 +2264,8 @@ class Game:
         self.renderer.clear()
         self.ui.render_dungeon(self.dungeon_map, self.fov, self.explored)
         self.ui.render_entities(self.entities, self.fov, self.player)
-        self.ui.render_ui(self.player, self.state, self.combat_log, self.turn)
+        self.ui.render_ui(self.player, self.state, self.combat_log, self.turn, self)
         
-        # Only present if using graphical rendering
         self.renderer.present()
     
     def render_inventory(self):

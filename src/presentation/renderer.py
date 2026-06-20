@@ -7,6 +7,7 @@ It allows for different rendering backends (console, graphical) to be used inter
 
 from abc import ABC, abstractmethod
 from pathlib import Path
+import shutil
 import sys
 import tcod
 import numpy as np
@@ -55,9 +56,18 @@ class ConsoleRenderer(Renderer):
 
     def present(self) -> None:
         """Draw the offscreen console into the terminal without scrolling."""
+        display_config = self.config.get("display", {}) if self.config else {}
+        fallback_width = display_config.get("width", self._console.width)
+        fallback_height = display_config.get("height", self._console.height)
+        terminal_width, terminal_height = shutil.get_terminal_size(
+            fallback=(fallback_width, fallback_height)
+        )
+
+        visible_width = min(self._console.width, max(1, terminal_width))
+        visible_height = min(self._console.height, max(1, terminal_height))
         frame = "\n".join(
-            "".join(chr(int(ch)) if int(ch) else " " for ch in row)
-            for row in self._console.ch
+            "".join(chr(int(ch)) if int(ch) else " " for ch in row[:visible_width])
+            for row in self._console.ch[:visible_height]
         )
         sys.stdout.write(f"\033[H\033[2J{frame}\033[0m\n")
         sys.stdout.flush()

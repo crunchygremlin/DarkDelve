@@ -2,12 +2,13 @@
 
 import os
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import numpy as np
 import tcod
 
-from darkdelve import COLORS, Entity, FOVSystem, UI
+from darkdelve import COLORS, CombatLog, Entity, FOVSystem, GameState, UI
 from src.presentation.renderer import ConsoleRenderer
 
 
@@ -39,6 +40,56 @@ def test_console_renderer_present_writes_terminal_frame_without_print():
     assert "\033[H\033[2J" in output
     assert "\033[0m\n" in output
     assert "@" in output
+
+
+def test_console_renderer_present_clips_to_terminal_size(monkeypatch):
+    """Console output must not exceed terminal size, or wide terminals will wrap."""
+    console = tcod.console.Console(10, 4)
+    console.print(9, 3, "@")
+    renderer = ConsoleRenderer(console, {"display": {"width": 10, "height": 4}})
+    monkeypatch.setattr("shutil.get_terminal_size", lambda fallback: (5, 2))
+
+    with patch("sys.stdout.write") as mocked_write, patch("sys.stdout.flush") as mocked_flush:
+        renderer.present()
+
+    mocked_flush.assert_called_once()
+    output = mocked_write.call_args.args[0]
+    frame = output.split("\033[H\033[2J", 1)[1].split("\033[0m\n", 1)[0]
+    lines = frame.splitlines()
+
+    assert len(lines) == 2
+    assert all(len(line) == 5 for line in lines)
+    assert "@" not in frame
+
+
+def test_ui_status_panel_fits_below_map():
+    """Status and controls should render inside the configured console height."""
+    console = tcod.console.Console(80, 50)
+
+    class ConsoleLikeRenderer:
+        def print(self, x, y, text, color=None):
+            console.print(x, y, text, fg=color)
+
+    config = {
+        "display": {"width": 80, "height": 50},
+        "dungeon": {"width": 80, "height": 43},
+    }
+    ui = UI(renderer=ConsoleLikeRenderer(), config=config)
+    player = Entity(hp=7, max_hp=10, level=2, gold=5, nutrition=10, max_nutrition=20)
+    state = GameState(depth=3)
+    game = SimpleNamespace(message_log=["Welcome to DarkDelve!"])
+
+    ui.render_ui(player, state, CombatLog(), turn=12, game=game)
+
+    assert ui.ui_y == 44
+    status = "".join(chr(int(ch)) if int(ch) else " " for ch in console.ch[ui.ui_y]).rstrip()
+    controls = "".join(chr(int(ch)) if int(ch) else " " for ch in console.ch[ui.ui_y + 1]).rstrip()
+    messages = "".join(chr(int(ch)) if int(ch) else " " for ch in console.ch[ui.ui_y + 2]).rstrip()
+
+    assert "HP 7/10" in status
+    assert "Depth 3" in status
+    assert "WASD=Move" in controls
+    assert "Welcome to DarkDelve!" in messages
 
 
 def test_rendered_map_screenshot_keeps_off_diagonal_player_visible(tmp_path):

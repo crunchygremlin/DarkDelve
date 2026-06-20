@@ -415,6 +415,37 @@ if not picked_up:
 - Removing floor items must keep entity and energy-system state consistent.
 - Console mode needs explicit tests for comma and period key conversion.
 
+
+## Console UI Layout and Menu Input
+
+### Problem
+Console output can wrap or clip when the offscreen console is wider than the terminal, and the status panel can render below the configured console height. Arrow keys in raw terminal mode can also arrive as escape sequences and be mistaken for the menu escape key.
+
+### Root Cause
+The console renderer presented the full configured console width and height without checking terminal size. The UI panel was placed at `map_height + 3`, which is below the 50-row console used by the default config. Raw terminal arrow keys begin with `\x1b`, so the previous console key mapper treated them as `ESCAPE`.
+
+### Solution
+Clip console presentation to [`shutil.get_terminal_size()`](src/presentation/renderer.py:56), reserve UI rows inside the configured console height, render status/messages/controls within those rows, and map full arrow escape sequences to directional keys:
+
+```python
+"\x1b[A": (tcod.event.Scancode.UP, tcod.event.KeySym.UP)
+```
+
+### Affected Code
+- [`darkdelve.py`](darkdelve.py:1530) - `UI` status-panel layout
+- [`darkdelve.py`](darkdelve.py:1598) - `UI.render_ui()`
+- [`darkdelve.py`](darkdelve.py:2030) - console arrow escape-sequence mapping
+- [`darkdelve.py`](darkdelve.py:2054) - console escape-sequence reading
+- [`src/presentation/renderer.py`](src/presentation/renderer.py:56) - terminal-size clipping in `ConsoleRenderer.present()`
+- [`tests/test_console_input.py`](tests/test_console_input.py:24) - console key and menu regression tests
+- [`tests/test_map_rendering.py`](tests/test_map_rendering.py:45) - terminal clipping and status-panel tests
+
+### Prevention
+- Console presentation must never exceed the active terminal size.
+- UI rows must fit inside the configured console height.
+- Arrow keys should navigate menus, not close them.
+- Unknown menu keys should be ignored until Escape or Enter is pressed.
+
 ## Startup Monster Initiative
 
 ### Problem
