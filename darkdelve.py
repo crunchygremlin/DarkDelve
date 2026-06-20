@@ -2116,10 +2116,14 @@ class Game:
                 if self.player.inventory.add_item(entity.item):
                     self.add_message(f"Picked up {entity.item.name}.")
                     self.entities.remove(entity)
+                    self.energy_system.remove_entity(entity)
+                    return True
                 else:
                     self.add_message("Inventory full!")
-                break
-    
+                    return False
+        self.add_message("There is nothing here to pick up.")
+        return False
+
     def drop_item(self, item: Item, x: int, y: int):
         entity = Entity(x=x, y=y, char=item.symbol, color=COLORS['item'], name=item.name, blocks=False, hp=1, max_hp=1)
         entity.item = item

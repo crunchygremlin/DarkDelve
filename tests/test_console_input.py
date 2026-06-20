@@ -3,6 +3,7 @@
 import sys
 import warnings
 
+import pytest
 import tcod
 
 from darkdelve import Game
@@ -28,6 +29,22 @@ def test_console_key_mapping_creates_tcod_key_events():
     assert event is not None
     assert event.sym == tcod.event.KeySym.W
     assert event.scancode == tcod.event.Scancode.W
+
+
+@pytest.mark.parametrize(
+    ("key", "expected_sym"),
+    [
+        (",", tcod.event.KeySym.COMMA),
+        (".", tcod.event.KeySym.PERIOD),
+    ],
+)
+def test_console_key_mapping_creates_pickup_events(key, expected_sym):
+    game = Game()
+
+    event = game._console_key_to_event(key)
+
+    assert event is not None
+    assert event.sym == expected_sym
 
 
 def test_console_event_wait_does_not_poll_sdl_events(monkeypatch):

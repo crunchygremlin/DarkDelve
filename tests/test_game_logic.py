@@ -5,6 +5,7 @@ Test suite for DarkDelve game logic
 
 import unittest
 import numpy as np
+import tcod
 from unittest.mock import patch, MagicMock
 import sys
 import os
@@ -12,7 +13,7 @@ import os
 # Add the parent directory to the path to import darkdelve
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from darkdelve import Game, Entity, Item, Inventory, GameState, CONFIG, COLORS, ItemType, EquipmentSlot
+from darkdelve import Game, Entity, Item, Inventory, GameState, CONFIG, COLORS, ItemType, EquipmentSlot, EnergySystem, FOVSystem
 
 
 class TestGameLogic(unittest.TestCase):
@@ -132,15 +133,66 @@ class TestGameLogic(unittest.TestCase):
         )
         
         self.game.entities.append(item_entity)
+        self.game.energy_system.add_entity(item_entity, speed=0)
         
         # Pick up item
-        self.game.pickup_item()
+        picked_up = self.game.pickup_item()
         
         # Check that item was picked up
+        self.assertTrue(picked_up)
         self.assertEqual(len(self.game.player.inventory.items), 1)
         self.assertEqual(self.game.player.inventory.items[0], item)
         self.assertNotIn(item_entity, self.game.entities)
-        
+        self.assertNotIn(item_entity, [entry["entity"] for entry in self.game.energy_system.entities])
+
+    def test_pickup_item_reports_when_no_item_is_present(self):
+        """Test item pickup feedback when the current tile has no item."""
+        self.game.create_player()
+        self.game.generate_level(1, "main")
+
+        picked_up = self.game.pickup_item()
+
+        self.assertFalse(picked_up)
+        self.assertEqual(self.game.message_log[-1], "There is nothing here to pick up.")
+
+    def test_main_loop_updates_fov_after_player_movement(self):
+        """Player movement must recompute FOV before the next render."""
+        game = Game()
+        game.create_player()
+        game.player.x = 3
+        game.player.y = 3
+        game.dungeon_map = np.zeros((7, 7), dtype=bool)
+        game.entities = [game.player]
+        game.energy_system = EnergySystem()
+        game.energy_system.add_entity(game.player, initial_energy=100)
+        game.fov_system = FOVSystem(radius=2)
+        game.fov = game.fov_system.compute(game.dungeon_map, game.player.x, game.player.y)
+        game.explored = game.fov_system.explored.copy()
+        game.renderer = MagicMock()
+        game.ui = MagicMock()
+        game.combat_log = MagicMock()
+        game.survival = MagicMock()
+
+        def handle_event(event, player, dungeon_map, entities, state, game_instance):
+            player.move_to(player.x + 1, player.y, dungeon_map, entities)
+            return False
+
+        game.input_handler = MagicMock()
+        game.input_handler.handle_event.side_effect = handle_event
+        game._wait_for_events = lambda: [
+            tcod.event.KeyDown(
+                scancode=tcod.event.Scancode.W,
+                sym=tcod.event.KeySym.W,
+                mod=tcod.event.Modifier.NONE,
+            )
+        ]
+
+        game.main_loop()
+
+        self.assertEqual(game.player.x, 4)
+        self.assertTrue(game.fov[4, 3])
+        self.assertTrue(game.explored[4, 3])
+
     def test_use_stairs_down(self):
         """Test using stairs down"""
         self.game.create_player()

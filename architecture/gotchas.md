@@ -387,6 +387,34 @@ def present(self) -> None:
 - Do not use `print(self._console)`; use a stable terminal redraw path during gameplay.
 - Add off-diagonal player FOV tests and headless Linux screenshot tests for visual regressions.
 
+## Item Pickup Feedback
+
+### Problem
+Players can step onto item entities but receive no feedback if they press the pickup key while no item is on the current tile. Successful pickups also need to remove the item from both the entity list and the energy scheduler.
+
+### Root Cause
+`Game.pickup_item()` only emitted messages when an item was found and successfully added to inventory. It returned `None`, so input handling had no explicit success/failure signal, and tests did not verify scheduler cleanup.
+
+### Solution
+Return a boolean from [`Game.pickup_item()`](darkdelve.py:2113), remove picked-up item entities from [`EnergySystem`](darkdelve.py:802), and report when the current tile has no pickup target.
+
+```python
+picked_up = self.pickup_item()
+if not picked_up:
+    self.add_message("There is nothing here to pick up.")
+```
+
+### Affected Code
+- [`darkdelve.py`](darkdelve.py:2113) - `Game.pickup_item()`
+- [`darkdelve.py`](darkdelve.py:1625) - pickup key handling in `InputHandler`
+- [`tests/test_game_logic.py`](tests/test_game_logic.py:108) - item pickup and feedback regression tests
+- [`tests/test_console_input.py`](tests/test_console_input.py:31) - console comma/period key mapping
+
+### Prevention
+- Pickup keys should produce user feedback on both success and failure.
+- Removing floor items must keep entity and energy-system state consistent.
+- Console mode needs explicit tests for comma and period key conversion.
+
 ## Startup Monster Initiative
 
 ### Problem
