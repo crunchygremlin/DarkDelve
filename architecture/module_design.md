@@ -154,6 +154,35 @@ src/
 ⏳ **Phase 6: Integration and Testing** - Pending
 ⏳ **Phase 7: Optimization and Documentation** - Pending
 
+## Local Ollama Playtest Subsystem
+
+The local playtest subsystem is root-level tooling rather than core game code so
+it can be added, tested, and removed without refactoring [`darkdelve.py`](../darkdelve.py:1).
+
+```
+player_agent.py
+├── OllamaConfig                 # endpoint/model/temperature/top_p/num_predict/timeout/retries
+├── PlayerDecision               # validated macro_goal/reasoning/action/telemetry_notes
+├── PlayerAgent
+│   ├── build_system_prompt()    # Survive & Explore baseline + persona + JSON schema
+│   ├── build_user_prompt()      # frame, stats, and recent 5-turn history
+│   ├── request_ollama()         # POST /api/generate with "format": "json"
+│   ├── sanitize_json_response() # fence extraction, object extraction, Python literal fallback
+│   ├── validate_response()      # string fields and action in w/a/s/d/e/i
+│   └── record_turn()            # keep only the last five decisions
+
+ollama_playtester.py
+├── PlaytestConfig               # YAML/CLI runtime settings
+├── ConsoleFrameParser           # split \033[H\033[2J frames and extract stats
+├── TelemetryStore               # atomic JSON append to playtest/playtest_telemetry.json
+└── OllamaPlaytester             # Popen loop, action injection, crash logging
+```
+
+Built-in personas are `Default`, `Aggressive Stress-Tester`, and `Boundary
+Pushing Explorer`. Invalid or malformed model responses must never be injected
+as arbitrary text: validate, log the issue in telemetry, and fall back to the
+safe wait action `e`.
+
 ## Detailed Module Specifications
 
 ### 1. Domain Layer ✅ COMPLETED
@@ -169,7 +198,7 @@ src/
 - **`movement.py`**: Movement and position management
 - **`inventory.py`**: Item management and equipment
 - **`ai.py`**: AI behavior and decision making
-- **`equipment.py`**: Equipment system and stat modifications
+- **`equipment.py`**: Equipment management and stat modifications
 
 #### Value Objects
 - **`position.py`**: Immutable position coordinates
@@ -180,7 +209,7 @@ src/
 #### Services
 - **`combat_service.py`**: Combat domain logic
 - **`movement_service.py`**: Movement domain logic
-- **`inventory_service.py`**: Inventory domain logic
+- **`inventory_service.py`**: Inventory management logic
 - **`ai_service.py`**: AI domain logic
 - **`survival_service.py`**: Survival mechanics domain logic
 

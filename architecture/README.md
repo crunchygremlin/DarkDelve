@@ -15,7 +15,19 @@ architecture/
 ├── module_design.md            # Detailed module specifications
 ├── implementation_guide.md      # Step-by-step refactoring guide
 ├── coding_standards.md         # Coding standards and patterns
-└── api_interfaces.md           # Module interfaces and contracts
+├── api_interfaces.md           # Module interfaces and contracts
+└── gotchas.md                  # Repeated development pitfalls and fixes
+```
+
+The root also contains the local Ollama playtesting subsystem:
+
+```
+player_agent.py                 # Prompt builder, Ollama JSON contract, validation
+ollama_playtester.py            # Subprocess console scraper and action injector
+playtest/
+├── README.md                   # Usage and telemetry format
+├── playtest_config.yaml        # Default endpoint/model/persona settings
+└── telemetry/                  # Runtime telemetry directory
 ```
 
 ## Target Environment

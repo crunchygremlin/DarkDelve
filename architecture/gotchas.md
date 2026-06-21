@@ -544,3 +544,58 @@ if player_entity is not None:
 - Treat generated data as untrusted and normalize numeric fields before math.
 - Keep pickup covered by tests, including generated-content edge cases.
 - Always render the player after non-player entities that can share a tile.
+
+## Ollama Player AI JSON Protocol
+
+### Problem
+The local playtester drives the game with an LLM through console stdin/stdout. If
+Ollama returns non-JSON text, extra markdown, a missing `action`, or an invalid
+action, arbitrary text can be injected into the game process or the playtester
+can lose telemetry context for why a fallback happened.
+
+### Root Cause
+LLM output is untrusted even when the Ollama endpoint is asked for JSON. Local
+models can omit fields, wrap JSON in markdown fences, append prose, or choose an
+action outside the console action set.
+
+### Solution
+Keep the validation boundary in [`player_agent.py`](../player_agent.py:1):
+
+```python
+"format": "json"
+```
+
+must be present in every `/api/generate` payload. Validate the response schema:
+
+```json
+{
+  "macro_goal": "string",
+  "reasoning": "string",
+  "action": "w|a|s|d|e|i",
+  "telemetry_notes": "string"
+}
+```
+
+Sanitize where possible, append issues to `telemetry_notes`, and fall back to the
+safe wait action `e` when the action is missing or invalid. [`ollama_playtester.py`](../ollama_playtester.py:1)
+must append the final map frame and stderr tail to telemetry when the game exits
+non-zero or crashes.
+
+### Affected Code
+- [`player_agent.py`](../player_agent.py:1) - prompt construction, JSON parsing,
+  response validation, and safe-action fallback
+- [`ollama_playtester.py`](../ollama_playtester.py:1) - subprocess loop, frame
+  parsing, action injection, and crash telemetry
+- [`tests/test_player_agent.py`](../tests/test_player_agent.py:1) - prompt,
+  validation, sanitization, and history regression tests
+- [`tests/test_ollama_playtester.py`](../tests/test_ollama_playtester.py:1) -
+  frame parsing, stats extraction, and telemetry append tests
+
+### Prevention
+- Never inject raw model text into game stdin.
+- Always include `"format": "json"` in Ollama payloads.
+- Keep the five-turn history buffer small and deterministic.
+- Log invalid JSON, missing fields, invalid actions, and fallback decisions in
+  telemetry.
+- Preserve console frame parsing around `\033[H\033[2J` because the console
+  renderer clears each frame with that exact escape sequence.

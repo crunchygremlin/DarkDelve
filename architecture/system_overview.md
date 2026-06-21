@@ -77,6 +77,26 @@ DarkDelve follows a SOLID layered architecture with clear separation of concerns
 7. **Query Processing**: Application layer responds to data requests
 8. **Presentation Update**: UI layer updates based on state changes
 
+## Local Ollama Player AI Playtest Data Flow
+
+The local playtesting subsystem is intentionally isolated from core game logic.
+It treats [`darkdelve.py`](../darkdelve.py:1) as a console application and drives
+it through the same stdin/stdout contract used by a human playtester.
+
+```
+ollama_playtester.py
+├── Popen launches darkdelve.py with piped stdin/stdout/stderr
+├── ConsoleFrameParser scrapes \033[H\033[2J ASCII frames
+├── PlayerAgent builds Survive & Explore prompt + persona + 5-turn history
+├── Ollama /api/generate payload includes "format": "json"
+├── JSON response is validated against macro_goal/reasoning/action/telemetry_notes
+├── action is injected as one line into game stdin
+└── TelemetryStore.append() writes every turn to playtest/playtest_telemetry.json
+```
+
+Crash and non-zero-exit records include the final parsed map frame and stderr
+tail so local LLM experiments remain debuggable without modifying the game loop.
+
 ## Key Design Patterns
 
 ### SOLID Architecture Patterns

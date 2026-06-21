@@ -226,6 +226,32 @@ touch src/utils/__init__.py
 3. Test performance with LLM calls
 4. Test edge cases and error conditions
 
+## Local Ollama Player AI Playtest Implementation Notes
+
+The local playtester is intentionally isolated from the core game loop. Implement
+it as root-level tooling that drives [`darkdelve.py`](../darkdelve.py:1) through
+the console stdin/stdout contract:
+
+1. Create `player_agent.py` with `OllamaConfig`, `PlayerDecision`, and
+   `PlayerAgent`.
+2. Build a `Survive & Explore` system prompt, add an optional persona modifier,
+   and include the three built-in personas: `Default`, `Aggressive Stress-Tester`,
+   and `Boundary Pushing Explorer`.
+3. Keep a five-turn history buffer and include it in each user prompt.
+4. Every `/api/generate` request must include `"format": "json"`.
+5. Validate the model response schema:
+   `macro_goal`, `reasoning`, `action`, and `telemetry_notes`.
+6. Accept only `w`, `a`, `s`, `d`, `e`, or `i` as the action. Malformed JSON,
+   missing fields, or invalid actions must be logged in telemetry and fall back
+   to the safe wait action `e`.
+7. Create `ollama_playtester.py` with `Popen`, stdout frame parsing, action
+   injection, telemetry append, and crash/non-zero-exit logging.
+8. Add focused tests for prompt generation, persona injection, response
+   validation, JSON sanitization, five-turn history, frame parsing, stats
+   extraction, and telemetry append behavior.
+9. Document usage and telemetry format in `playtest/README.md` and defaults in
+   `playtest/playtest_config.yaml`.
+
 ## Common Pitfalls to Avoid
 
 1. **Circular Dependencies**: Ensure proper module ordering and imports

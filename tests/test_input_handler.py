@@ -94,6 +94,7 @@ def test_action_keys_invoke_game_methods(handler, dummy_player, dummy_game, dumm
         tcod.event.KeySym.LEFT,
         tcod.event.KeySym.RIGHT,
         tcod.event.KeySym.SPACE,
+        tcod.event.KeySym.E,
     ],
 )
 def test_movement_and_wait_keys_do_not_call_game_methods(handler, dummy_player, dummy_game, dummy_state, key_sym):

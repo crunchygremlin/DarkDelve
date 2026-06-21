@@ -31,14 +31,25 @@ def test_console_key_mapping_creates_tcod_key_events():
     assert event.scancode == tcod.event.Scancode.W
 
 
+def test_console_key_mapping_creates_wait_event_for_e():
+    game = Game()
+
+    event = game._console_key_to_event("e")
+
+    assert event is not None
+    assert event.sym == tcod.event.KeySym.E
+    assert event.scancode == tcod.event.Scancode.E
+
+
 @pytest.mark.parametrize(
     ("key", "expected_sym"),
     [
         (",", tcod.event.KeySym.COMMA),
         (".", tcod.event.KeySym.PERIOD),
+        ("e", tcod.event.KeySym.E),
     ],
 )
-def test_console_key_mapping_creates_pickup_events(key, expected_sym):
+def test_console_key_mapping_creates_action_events(key, expected_sym):
     game = Game()
 
     event = game._console_key_to_event(key)

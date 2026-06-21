@@ -1637,7 +1637,7 @@ class UI:
             f"Gold {getattr(player, 'gold', 0)}  Nutrition {getattr(player, 'nutrition', 0)}/{getattr(player, 'max_nutrition', 0)}"
         )
         self._render_text(0, self.ui_y, status[:self.console_width], COLORS['text'])
-        self._render_text(0, self.ui_y + 1, "WASD=Move  I=Inv  C=Char  ,=Pickup  >=Down  <=Up  ESC=Menu", COLORS['text_dim'])
+        self._render_text(0, self.ui_y + 1, "WASD=Move  E=Wait  I=Inv  C=Char  ,=Pickup  >=Down  <=Up  ESC=Menu", COLORS['text_dim'])
 
         if game is not None:
             self.render_messages(game)
@@ -1696,7 +1696,7 @@ class InputHandler:
             elif key == tcod.event.KeySym.ESCAPE:  # Menu
                 game.show_menu()
                 return False
-            elif key == tcod.event.KeySym.SPACE:  # Wait
+            elif key in (tcod.event.KeySym.SPACE, tcod.event.KeySym.E):  # Wait
                 dx, dy = 0, 0
             else:
                 return False
@@ -2067,6 +2067,7 @@ class Game:
             "a": (tcod.event.Scancode.A, tcod.event.KeySym.A),
             "s": (tcod.event.Scancode.S, tcod.event.KeySym.S),
             "d": (tcod.event.Scancode.D, tcod.event.KeySym.D),
+            "e": (tcod.event.Scancode.E, tcod.event.KeySym.E),
             "i": (tcod.event.Scancode.I, tcod.event.KeySym.I),
             "c": (tcod.event.Scancode.C, tcod.event.KeySym.C),
             "g": (tcod.event.Scancode.G, tcod.event.KeySym.G),
