@@ -1,12 +1,17 @@
 """Tests for console frame parsing and telemetry behavior."""
 
 import json
+from argparse import Namespace
+from types import SimpleNamespace
 
 from ollama_playtester import (
     ConsoleFrameParser,
+    OllamaPlaytester,
     PlaytestConfig,
     TelemetryStore,
+    apply_cli_overrides,
     extract_stats,
+    load_config,
     strip_ansi,
 )
 
@@ -90,28 +95,28 @@ def test_telemetry_store_rejects_non_list_existing_file(tmp_path):
 def test_playtest_config_loads_yaml_defaults_and_paths(tmp_path):
     config_path = tmp_path / "playtest_config.yaml"
     config_path.write_text(
-        "endpoint: http://localhost:11434\n"
-        "model: qwen2.5-coder:7b-instruct\n"
+        "endpoint: https://openrouter.ai/api/v1\n"
+        "model: nvidia/nemotron-3-super-120b-a12b:free\n"
         "persona: Boundary Pushing Explorer\n"
         "testing_persona: probe edges\n"
         "max_turns: 7\n"
         "telemetry_path: playtest/custom_telemetry.json\n"
+        "instruction_path: playtest/custom_instructions.json\n"
         "game_command:\n"
         "  - python\n"
         "  - darkdelve.py\n",
         encoding="utf-8",
     )
 
-    from ollama_playtester import load_config
-
     config = load_config(config_path)
 
-    assert config.endpoint == "http://localhost:11434"
-    assert config.model == "qwen2.5-coder:7b-instruct"
+    assert config.endpoint == "https://openrouter.ai/api/v1"
+    assert config.model == "nvidia/nemotron-3-super-120b-a12b:free"
     assert config.persona == "Boundary Pushing Explorer"
     assert config.testing_persona == "probe edges"
     assert config.max_turns == 7
     assert config.telemetry_path.name == "custom_telemetry.json"
+    assert config.instruction_path.name == "custom_instructions.json"
     assert config.game_command == ["python", "darkdelve.py"]
 
 
@@ -120,3 +125,90 @@ def test_playtest_config_from_dict_ignores_unrelated_keys():
 
     assert config.model == "test-model"
     assert not hasattr(config, "ignored")
+
+
+def test_apply_cli_overrides_instruction_path(tmp_path):
+    config = PlaytestConfig()
+    args = Namespace(
+        endpoint="",
+        model="",
+        persona="",
+        testing_persona="",
+        max_turns=None,
+        telemetry="",
+        instructions=str(tmp_path / "live_instructions.json"),
+        game_command=None,
+    )
+
+    apply_cli_overrides(config, args)
+
+    assert config.instruction_path == tmp_path / "live_instructions.json"
+
+
+def test_apply_cli_overrides_keeps_existing_instruction_path_without_override(tmp_path):
+    config = PlaytestConfig(instruction_path=tmp_path / "existing.json")
+    args = SimpleNamespace(
+        endpoint="",
+        model="",
+        persona="",
+        testing_persona="",
+        max_turns=None,
+        telemetry="",
+        instructions="",
+        game_command=None,
+    )
+
+    apply_cli_overrides(config, args)
+
+    assert config.instruction_path == tmp_path / "existing.json"
+
+
+def test_apply_cli_overrides_instruction_path_with_relative_path():
+    config = PlaytestConfig()
+    args = SimpleNamespace(
+        endpoint="",
+        model="",
+        persona="",
+        testing_persona="",
+        max_turns=None,
+        telemetry="",
+        instructions="playtest/custom_instructions.json",
+        game_command=None,
+    )
+
+    apply_cli_overrides(config, args)
+
+    assert config.instruction_path.name == "custom_instructions.json"
+    assert config.instruction_path.parent.name == "playtest"
+
+
+def test_ollama_playtester_accepts_custom_instruction_bus(tmp_path):
+    from playtest.instruction_bus import InstructionBus
+
+    bus = InstructionBus(tmp_path / "custom.json")
+    playtester = OllamaPlaytester(instruction_bus=bus)
+
+    assert playtester.instruction_bus is bus
+
+
+def test_turn_entry_records_active_instructions():
+    from ollama_playtester import ConsoleFrame
+    from player_agent import PlayerDecision
+
+    playtester = OllamaPlaytester()
+    frame = ConsoleFrame(frame="frame", rows=("frame",), stats={"hp": 10})
+    decision = PlayerDecision("Explore", "safe", "e", "notes", [], False)
+
+    entry = playtester._turn_entry(1, frame, decision, "", "Setup instructions:\nExplore carefully.")
+
+    assert entry["active_instructions"] == "Setup instructions:\nExplore carefully."
+
+
+def test_load_config_uses_default_instruction_path_when_missing(tmp_path):
+    config_path = tmp_path / "empty.yaml"
+    config_path.write_text("", encoding="utf-8")
+
+    config = load_config(config_path)
+
+    assert config.instruction_path.name == "instructions.json"
+    assert config.instruction_path.parent.name == "playtest"

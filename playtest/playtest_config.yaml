@@ -1,6 +1,6 @@
 # Default local Ollama Player AI playtest configuration.
-endpoint: http://127.0.0.1:11434
-model: qwen2.5-coder:7b-instruct
+endpoint: https://openrouter.ai
+model: nvidia/nemotron-3-super-120b-a12b:free
 persona: Default
 # Optional custom modifier appended to the selected built-in persona.
 testing_persona: ""
@@ -14,3 +14,4 @@ game_command:
   - python
   - darkdelve.py
 telemetry_path: playtest/playtest_telemetry.json
+instruction_path: playtest/instructions.json

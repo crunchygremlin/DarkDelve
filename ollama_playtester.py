@@ -15,6 +15,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence, Tuple
 
 import yaml
 
+from playtest.instruction_bus import DEFAULT_INSTRUCTION_PATH, InstructionBus
 from player_agent import PlayerAgent, PlayerDecision, utc_now
 
 
@@ -33,8 +34,8 @@ class PlaytestConfig:
     game_command: List[str] = field(
         default_factory=lambda: [sys.executable, str(PROJECT_ROOT / "darkdelve.py")]
     )
-    endpoint: str = "http://127.0.0.1:11434"
-    model: str = "qwen2.5-coder:7b-instruct"
+    endpoint: str = "https://openrouter.ai/api/v1"
+    model: str = "nvidia/nemotron-3-super-120b-a12b:free"
     persona: str = "Default"
     testing_persona: str = ""
     temperature: float = 0.7
@@ -44,6 +45,7 @@ class PlaytestConfig:
     retries: int = 2
     max_turns: Optional[int] = None
     telemetry_path: Path = DEFAULT_TELEMETRY_PATH
+    instruction_path: Path = DEFAULT_INSTRUCTION_PATH
 
     @classmethod
     def from_dict(cls, data: Optional[Mapping[str, Any]]) -> "PlaytestConfig":
@@ -53,11 +55,14 @@ class PlaytestConfig:
             return cls()
         game_command = data.get("game_command", data.get("gameCommand"))
         telemetry_path = data.get("telemetry_path", data.get("telemetryPath"))
+        instruction_path = data.get("instruction_path", data.get("instructionPath"))
         kwargs: Dict[str, Any] = {}
         if game_command:
             kwargs["game_command"] = [str(part) for part in game_command]
         if telemetry_path:
             kwargs["telemetry_path"] = resolve_path(telemetry_path)
+        if instruction_path:
+            kwargs["instruction_path"] = resolve_path(instruction_path)
         allowed = {
             "endpoint",
             "model",
@@ -192,6 +197,7 @@ class OllamaPlaytester:
         agent: Optional[PlayerAgent] = None,
         frame_parser: Optional[ConsoleFrameParser] = None,
         telemetry_store: Optional[TelemetryStore] = None,
+        instruction_bus: Optional[InstructionBus] = None,
     ) -> None:
         self.config = config or PlaytestConfig()
         self.agent = agent or PlayerAgent(
@@ -201,6 +207,7 @@ class OllamaPlaytester:
         )
         self.frame_parser = frame_parser or ConsoleFrameParser()
         self.telemetry_store = telemetry_store or TelemetryStore()
+        self.instruction_bus = instruction_bus or InstructionBus(self.config.instruction_path)
 
     def launch(self) -> subprocess.Popen[str]:
         """Start the game process with piped stdin, stdout, and stderr."""
@@ -245,10 +252,12 @@ class OllamaPlaytester:
                     frames, stdout_buffer = self.frame_parser.parse_frames(stdout_buffer)
                     if frames:
                         final_frame = frames[-1]
+                        active_instructions = self.instruction_bus.get_prompt_text("player")
                         decision = self.agent.decide(
                             final_frame.frame,
                             final_frame.stats,
                             history=self.agent.history,
+                            instruction_text=active_instructions,
                         )
                         self._write_action(process, decision.action)
                         turn_number += 1
@@ -257,6 +266,7 @@ class OllamaPlaytester:
                             final_frame,
                             decision,
                             self._tail_text(stderr_chunks),
+                            active_instructions,
                         )
                         self.telemetry_store.append(self.config.telemetry_path, entry)
                         telemetry_entries.append(entry)
@@ -326,6 +336,7 @@ class OllamaPlaytester:
         frame: ConsoleFrame,
         decision: PlayerDecision,
         stderr_tail: str,
+        active_instructions: str,
     ) -> Dict[str, Any]:
         return {
             "event_type": "turn",
@@ -341,6 +352,7 @@ class OllamaPlaytester:
             "history": list(self.agent.history),
             "frame": frame.frame,
             "stderr_tail": stderr_tail,
+            "active_instructions": active_instructions,
         }
 
     def _event_entry(
@@ -489,6 +501,8 @@ def apply_cli_overrides(config: PlaytestConfig, args: argparse.Namespace) -> Pla
         config.max_turns = args.max_turns
     if args.telemetry:
         config.telemetry_path = resolve_path(args.telemetry)
+    if args.instructions:
+        config.instruction_path = resolve_path(args.instructions)
     if args.game_command:
         config.game_command = args.game_command
     return config
@@ -505,6 +519,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--testing-persona", help="Additional persona modifier string")
     parser.add_argument("--max-turns", type=int, help="Stop after this many player turns")
     parser.add_argument("--telemetry", help="Telemetry JSON path")
+    parser.add_argument("--instructions", help="Instruction bus JSON path")
     parser.add_argument(
         "--game-command",
         nargs="+",
