@@ -92,6 +92,28 @@ def test_ui_status_panel_fits_below_map():
     assert "Welcome to DarkDelve!" in messages
 
 
+def test_render_entities_keeps_player_visible_over_item_on_same_tile():
+    """Items on the player's tile must not overwrite the player glyph."""
+    console = tcod.console.Console(5, 3)
+
+    class ConsoleLikeRenderer:
+        def print(self, x, y, text, color):
+            console.print(x, y, text, fg=color)
+
+    player = Entity(x=2, y=1, char="@", color=COLORS["player"], name="Player")
+    item = Entity(x=2, y=1, char="/", color=COLORS["item"], name="Item")
+    fov = np.ones((5, 3), dtype=bool)
+
+    ui = UI(
+        renderer=ConsoleLikeRenderer(),
+        config={"display": {"width": 5, "height": 3}, "dungeon": {"width": 5, "height": 3}},
+    )
+
+    ui.render_entities([player, item], fov, player)
+
+    assert console.ch[player.y, player.x] == ord("@")
+
+
 def test_rendered_map_screenshot_keeps_off_diagonal_player_visible(tmp_path):
     """Create a headless Linux screenshot of the rendered map and verify it."""
     os.environ["SDL_VIDEODRIVER"] = "dummy"

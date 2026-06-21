@@ -145,6 +145,20 @@ class TestGameLogic(unittest.TestCase):
         self.assertNotIn(item_entity, self.game.entities)
         self.assertNotIn(item_entity, [entry["entity"] for entry in self.game.energy_system.entities])
 
+    def test_pickup_item_accepts_string_weight_from_generated_content(self):
+        """Item weights from generated/external content may arrive as strings."""
+        inventory = Inventory(max_weight=10)
+        item = Item(
+            id="string_weight_item",
+            name="String Weight Item",
+            description="A generated item with a string weight",
+            item_type=ItemType.MISC,
+            weight="3",
+        )
+
+        self.assertTrue(inventory.add_item(item))
+        self.assertEqual(inventory.get_total_weight(), 3)
+
     def test_pickup_item_reports_when_no_item_is_present(self):
         """Test item pickup feedback when the current tile has no item."""
         self.game.create_player()

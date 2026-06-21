@@ -426,10 +426,16 @@ class Inventory:
         if not self.equipment:
             self.equipment = {slot: None for slot in EquipmentSlot}
     
+    def _weight_value(self, value) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return 0
+
     def add_item(self, item: Item) -> bool:
         if len(self.items) >= self.capacity:
             return False
-        if self.get_total_weight() + item.weight > self.max_weight:
+        if self.get_total_weight() + self._weight_value(item.weight) > self.max_weight:
             return False
         self.items.append(item)
         return True
@@ -503,7 +509,7 @@ class Inventory:
         return []
     
     def get_total_weight(self) -> int:
-        return sum(item.effects.get("weight", item.weight) for item in self.items)
+        return sum(self._weight_value(item.effects.get("weight", item.weight)) for item in self.items)
     
     def get_defense_bonus(self) -> int:
         return sum(item.defense_bonus for item in self.equipment.values() if item and item.equipped)
@@ -1569,13 +1575,16 @@ class UI:
                         self.renderer.print(x, y, ".", (50, 50, 50))
     
     def render_entities(self, entities: List[Entity], fov: np.ndarray, player=None):
+        # DarkDelve's FOV arrays are indexed as fov[x, y].
+        height, width = fov.shape[1], fov.shape[0]
+        player_x = getattr(player, "x", None)
+        player_y = getattr(player, "y", None)
+        visible_entities: List[Entity] = []
+        player_entity = None
+
         for entity in entities:
-            # DarkDelve's FOV arrays are indexed as fov[x, y].
-            height, width = fov.shape[1], fov.shape[0]
             if 0 <= entity.x < width and 0 <= entity.y < height:
                 # Only render entities in field of view, the player, or entities sharing the player's tile.
-                player_x = getattr(player, "x", None)
-                player_y = getattr(player, "y", None)
                 at_player_position = (
                     player is not None
                     and player_x is not None
@@ -1584,7 +1593,21 @@ class UI:
                     and entity.y == player_y
                 )
                 if fov[entity.x, entity.y] or entity is player or at_player_position:
-                    self.renderer.print(entity.x, entity.y, entity.char, entity.color)
+                    if entity is player:
+                        player_entity = entity
+                    else:
+                        visible_entities.append(entity)
+
+        if player_entity is None and player is not None:
+            render_player_x = getattr(player, "x", None)
+            render_player_y = getattr(player, "y", None)
+            if render_player_x is not None and render_player_y is not None and 0 <= render_player_x < width and 0 <= render_player_y < height:
+                player_entity = player
+
+        for entity in visible_entities:
+            self.renderer.print(entity.x, entity.y, entity.char, entity.color)
+        if player_entity is not None:
+            self.renderer.print(player_entity.x, player_entity.y, player_entity.char, player_entity.color)
     
     def render_combat_log(self, combat_log):
         events = getattr(combat_log, "events", [])

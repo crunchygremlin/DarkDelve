@@ -507,3 +507,40 @@ def _wait_for_events(self) -> List[Any]:
 - All gameplay and modal screens should call the same event-waiting helper.
 - Keep console input conversion covered by tests.
 - Verify non-interactive runs exit instead of simulating unattended monster turns.
+
+## Generated Item Data and Entity Rendering
+
+### Problem
+Generated or external item data can provide numeric fields such as `weight` as strings. Pickup then crashes with `TypeError: unsupported operand type(s) for +: 'int' and 'str'` when inventory weight is checked. Items on the player's tile can also render after the player and overwrite the player's `@` glyph.
+
+### Root Cause
+`Inventory.add_item()` and `Inventory.get_total_weight()` assumed item weights were always integers. `UI.render_entities()` rendered entities in list order, so an item entity sharing the player's tile could draw after the player.
+
+### Solution
+Normalize item weights to integers before arithmetic and render the player after other visible entities so the player glyph is never overwritten by an item on the same tile:
+
+```python
+def _weight_value(self, value) -> int:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+```
+
+```python
+for entity in visible_entities:
+    self.renderer.print(entity.x, entity.y, entity.char, entity.color)
+if player_entity is not None:
+    self.renderer.print(player_entity.x, player_entity.y, player_entity.char, player_entity.color)
+```
+
+### Affected Code
+- [`darkdelve.py`](darkdelve.py:429) - inventory weight normalization
+- [`darkdelve.py`](darkdelve.py:1571) - player-last entity rendering
+- [`tests/test_game_logic.py`](tests/test_game_logic.py:148) - string item weight regression
+- [`tests/test_map_rendering.py`](tests/test_map_rendering.py:95) - player-over-item rendering regression
+
+### Prevention
+- Treat generated data as untrusted and normalize numeric fields before math.
+- Keep pickup covered by tests, including generated-content edge cases.
+- Always render the player after non-player entities that can share a tile.
