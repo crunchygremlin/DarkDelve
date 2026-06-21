@@ -6,6 +6,7 @@ Test suite for DarkDelve game logic
 import unittest
 import numpy as np
 import tcod
+from types import SimpleNamespace
 from unittest.mock import patch, MagicMock
 import sys
 import os
@@ -18,73 +19,236 @@ from darkdelve import Game, Entity, Item, Inventory, GameState, CONFIG, COLORS, 
 
 class TestGameLogic(unittest.TestCase):
     """Test cases for game logic"""
-    
+
     def setUp(self):
         """Set up test fixtures"""
         self.config = CONFIG
         self.game = Game()
         self.game.initialize()
-        
+
+    def _game_with_player(self) -> Game:
+        """Create a lightweight game instance for action-level tests."""
+        game = Game()
+        game.player = Entity(
+            x=1,
+            y=1,
+            char="@",
+            color=COLORS["player"],
+            name="Test Player",
+            blocks=True,
+            hp=10,
+            max_hp=10,
+            power=5,
+            defense=2,
+            speed=100,
+            intel_tier=0,
+            inventory=Inventory(max_weight=100),
+        )
+        game.dungeon_map = np.zeros((5, 5), dtype=bool)
+        game.entities = [game.player]
+        game.energy_system = EnergySystem()
+        game.energy_system.add_entity(game.player, initial_energy=100)
+        game.fov = np.zeros((5, 5), dtype=bool)
+        game.fov[1, 1] = True
+        game.explored = game.fov.copy()
+        game.fov_system = FOVSystem(radius=1)
+        game.combat_log = MagicMock()
+        game.survival = MagicMock()
+        game.renderer = MagicMock()
+        game.ui = MagicMock()
+        game.check_level_up = lambda: None
+        return game
+
+    def test_game_config_has_playtest_flag(self):
+        """The game config should expose an opt-in in-process playtester flag."""
+        self.assertIn("playtest", CONFIG)
+        self.assertEqual(CONFIG["playtest"]["config_path"], "playtest/playtest_config.yaml")
+        self.assertIs(CONFIG["playtest"]["enabled"], False)
+
     def test_game_initialization(self):
         """Test game initialization"""
         self.assertIsNotNone(self.game)
         self.assertIsNotNone(self.game.config)
         self.assertIsNotNone(self.game.state)
         self.assertIsNotNone(self.game.entities)
-        
+
     def test_create_player(self):
         """Test player creation"""
         self.game.create_player()
-        
+
         self.assertIsNotNone(self.game.player)
         self.assertEqual(self.game.player.char, "@")
         self.assertEqual(self.game.player.name, "Adventurer")
         self.assertTrue(self.game.player.blocks)
-        
+
     def test_generate_level(self):
         """Test level generation"""
         self.game.create_player()
         self.game.generate_level(1, "main")
-        
+
         # Check that level was generated
         self.assertIsNotNone(self.game.dungeon_map)
         self.assertGreater(len(self.game.entities), 0)
         self.assertIsNotNone(self.game.player.x)
         self.assertIsNotNone(self.game.player.y)
-        
+
     def test_player_movement(self):
         """Test player movement"""
         self.game.create_player()
         self.game.generate_level(1, "main")
-        
+
         original_x, original_y = self.game.player.x, self.game.player.y
         if original_x + 1 < self.game.dungeon_map.shape[0]:
             self.game.dungeon_map[original_x + 1, original_y] = 0
-        
+
         # Move player
         self.game.player.move(1, 0, self.game.dungeon_map)
-        
+
         # Check that player moved
         self.assertEqual(self.game.player.x, original_x + 1)
         self.assertEqual(self.game.player.y, original_y)
-        
+
+    def test_process_action_moves_player_without_blocking_input(self):
+        """Library actions should move the player without waiting for console input."""
+        game = self._game_with_player()
+
+        game.process_action("d")
+
+        self.assertEqual(game.player.x, 2)
+        self.assertEqual(game.player.y, 1)
+
+    def test_process_action_attacks_blocking_entity(self):
+        """Movement actions should attack blocking enemies adjacent to the player."""
+        game = self._game_with_player()
+        enemy = Entity(
+            x=2,
+            y=1,
+            char="g",
+            color=COLORS["enemy_normal"],
+            name="Goblin",
+            blocks=True,
+            hp=10,
+            max_hp=10,
+            power=5,
+            defense=2,
+            speed=100,
+        )
+        game.entities.append(enemy)
+
+        with patch("darkdelve.random.randint", return_value=20):
+            game.process_action("d")
+
+        self.assertEqual(game.player.x, 1)
+        self.assertLess(enemy.hp, 10)
+
+    def test_process_action_pickup_uses_comma(self):
+        """Comma should pick up an item on the player's tile."""
+        game = self._game_with_player()
+        item = Item(id="test_item", name="Test Item", item_type=ItemType.MISC, symbol="*")
+        item_entity = Entity(
+            x=game.player.x,
+            y=game.player.y,
+            char="*",
+            color=COLORS["item"],
+            name="Test Item",
+            blocks=False,
+            item=item,
+        )
+        game.entities.append(item_entity)
+        game.energy_system.add_entity(item_entity)
+
+        picked_up = game.process_action(",")
+
+        self.assertFalse(picked_up)
+        self.assertEqual(game.player.inventory.items, [item])
+        self.assertNotIn(item_entity, game.entities)
+
+    def test_process_action_stairs_down(self):
+        """Greater-than should descend stairs when the player is standing on them."""
+        self.game.create_player()
+        self.game.generate_level(1, "main")
+        self.assertIsNotNone(self.game.stair_down_pos)
+        self.game.player.x, self.game.player.y = self.game.stair_down_pos
+
+        self.game.process_action(">")
+
+        self.assertEqual(self.game.state.depth, 2)
+
+    def test_process_action_inventory_is_noop(self):
+        """Inventory should not enter the blocking screen during automated playtests."""
+        game = self._game_with_player()
+
+        self.assertFalse(game.process_action("i"))
+        self.assertFalse(game.showing_inventory)
+
+    def test_process_action_unknown_action_is_noop(self):
+        """Unknown actions should not change game state."""
+        game = self._game_with_player()
+        original_x, original_y = game.player.x, game.player.y
+
+        self.assertFalse(game.process_action("z"))
+
+        self.assertEqual(game.player.x, original_x)
+        self.assertEqual(game.player.y, original_y)
+
+    def test_process_action_quit_stops_game(self):
+        """Control characters should stop the automated game loop."""
+        game = self._game_with_player()
+
+        self.assertTrue(game.process_action("\x1b"))
+        self.assertFalse(game.running)
+
+    def test_main_loop_accepts_library_action(self):
+        """main_loop should process a supplied action without waiting for input."""
+        game = self._game_with_player()
+        game._wait_for_events = MagicMock()
+
+        game.main_loop(action="d", render_to_stdout=False, frame_text="frame")
+
+        self.assertEqual(game.player.x, 2)
+        self.assertEqual(game.turn, 1)
+        game._wait_for_events.assert_not_called()
+        game.renderer.present.assert_not_called()
+
+    def test_render_frame_text_returns_console_text_without_presenting(self):
+        """render_frame_text should render to the console buffer and return text."""
+        game = self._game_with_player()
+        console = tcod.console.Console(5, 3)
+        console.print(1, 1, "@")
+        renderer = SimpleNamespace(_console=console, clear=MagicMock())
+        ui = SimpleNamespace(
+            render_dungeon=MagicMock(),
+            render_entities=MagicMock(),
+            render_ui=MagicMock(),
+        )
+        game.renderer = renderer
+        game.ui = ui
+
+        text = game.render_frame_text()
+
+        self.assertIn("@", text)
+        renderer.clear.assert_called_once()
+        ui.render_dungeon.assert_called_once()
+        ui.render_entities.assert_called_once()
+        ui.render_ui.assert_called_once()
+
     def test_player_collision(self):
         """Test player collision with walls"""
         self.game.create_player()
         self.game.generate_level(1, "main")
-        
+
         # Try to move into a wall
         original_x, original_y = self.game.player.x, self.game.player.y
-        
+
         # Find a wall direction
         moved = False
         for dx, dy in [(0, 1), (0, -1), (1, 0), (-1, 0)]:
             new_x = self.game.player.x + dx
             new_y = self.game.player.y + dy
-            
-            if (0 <= new_x < self.game.dungeon_map.shape[1] and 
+
+            if (0 <= new_x < self.game.dungeon_map.shape[1] and
                 0 <= new_y < self.game.dungeon_map.shape[0]):
-                
+
                 if self.game.dungeon_map[new_x, new_y] == 1:  # Wall
                     self.game.player.move(dx, dy, self.game.dungeon_map)
                     # Should not move into wall

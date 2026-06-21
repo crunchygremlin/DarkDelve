@@ -1984,47 +1984,59 @@ class Game:
             pass
         finally:
             self.cleanup()
-    
-    def main_loop(self):
+
+    def main_loop(
+        self,
+        action: Optional[str] = None,
+        render_to_stdout: bool = True,
+        frame_text: Optional[str] = None,
+    ) -> Optional[str]:
         # Get next actor
         actor = self.energy_system.next_actor()
         if not actor:
-            return
-        
+            return None
+
         if actor is self.player:
             self.turn += 1
             self.state.turn = self.turn
             self.combat_log.new_turn()
-            
-            # Render
-            self.render()
-            
-            # Handle input
-            events = self._wait_for_events()
-            for event in events:
-                if self.input_handler.handle_event(event, self.player, self.dungeon_map, self.entities, self.state, self):
+
+            # Render before input so the agent sees the current state.
+            if frame_text is None:
+                frame_text = self.render_frame_text()
+            if render_to_stdout:
+                self.renderer.present()
+
+            if action is None:
+                # Handle input
+                events = self._wait_for_events()
+                for event in events:
+                    if self.input_handler.handle_event(event, self.player, self.dungeon_map, self.entities, self.state, self):
+                        self.running = False
+                        break
+            else:
+                if self.process_action(action):
                     self.running = False
-                    break
-            
+
             if not self.running:
-                return
-            
+                return frame_text
+
             # Process player turn effects
             self.player.tick_effects()
             if self.config['gameplay'].get('hunger_enabled', True):
                 self.survival.tick(self.player)
-            
+
             # Check for level up
             self.check_level_up()
-            
+
         else:
             # Monster turn
             self.monster_turn(actor)
             actor.tick_effects()
-        
+
         # Process LLM responses
         process_llm_responses(self.entities)
-        
+
         # Execute commander actions
         for entity in self.entities:
             if entity.is_alive and entity.is_commander and entity.current_command:
@@ -2043,14 +2055,115 @@ class Game:
                     path = find_path((entity.x, entity.y), target, self.dungeon_map, self.entities)
                     if len(path) > 1:
                         entity.move_to(path[1][0], path[1][1], self.dungeon_map, self.entities)
-        
+
         # Update FOV
         self.fov = self.fov_system.compute(self.dungeon_map, self.player.x, self.player.y)
         self.explored = self.fov_system.explored.copy()
-        
+
         # Check win/lose
         if not self.player.is_alive:
             self.game_over()
+
+        return frame_text
+
+    def process_action(self, action: str) -> bool:
+        """Apply one library-supplied action without blocking for input.
+
+        This mirrors the safe subset of [`InputHandler.handle_event()`](darkdelve.py:1701)
+        that is useful for automated playtests. The ``i`` inventory action is
+        intentionally treated as a no-op here so the library driver never enters
+        the blocking inventory screen without a second input event.
+        """
+
+        normalized = (action or "").strip().lower()
+        if not normalized:
+            return False
+
+        if normalized in {"\x03", "\x04", "\x1b"}:
+            self.running = False
+            return True
+
+        if self.player is None:
+            return False
+
+        if normalized in {"w", "a", "s", "d", "e", " ", "\r", "\n"}:
+            dx, dy = 0, 0
+            if normalized == "w":
+                dy = -1
+            elif normalized == "s":
+                dy = 1
+            elif normalized == "a":
+                dx = -1
+            elif normalized == "d":
+                dx = 1
+
+            if dx or dy:
+                new_x = self.player.x + dx
+                new_y = self.player.y + dy
+                target_entity = None
+                for entity in self.entities:
+                    if (
+                        entity is not self.player
+                        and entity.is_alive
+                        and entity.x == new_x
+                        and entity.y == new_y
+                        and entity.blocks
+                    ):
+                        target_entity = entity
+                        break
+
+                if target_entity:
+                    self.attack(self.player, target_entity)
+                elif self.dungeon_map is not None:
+                    self.player.move_to(new_x, new_y, self.dungeon_map, self.entities)
+            return False
+
+        if normalized in {",", "."}:
+            self.pickup_item()
+            return False
+
+        if normalized == ">":
+            self.use_stairs_down()
+            return False
+
+        if normalized == "<":
+            self.use_stairs_up()
+            return False
+
+        return False
+
+    def _console_text(self) -> str:
+        """Return the current renderer console as plain text."""
+
+        console = getattr(self.renderer, "_console", None)
+        if console is None:
+            return ""
+
+        visible_width = console.width
+        visible_height = console.height
+        return "\n".join(
+            "".join(chr(int(ch)) if int(ch) else " " for ch in row[:visible_width])
+            for row in console.ch[:visible_height]
+        )
+
+    def _render_to_console(self) -> None:
+        """Render the active game view into the current renderer console."""
+
+        if self.renderer is None or self.ui is None:
+            return
+        if self.dungeon_map is None or self.fov is None or self.explored is None:
+            return
+
+        self.renderer.clear()
+        self.ui.render_dungeon(self.dungeon_map, self.fov, self.explored)
+        self.ui.render_entities(self.entities, self.fov, self.player)
+        self.ui.render_ui(self.player, self.state, self.combat_log, self.turn, self)
+
+    def render_frame_text(self) -> str:
+        """Render the current view and return it as plain text without presenting."""
+
+        self._render_to_console()
+        return self._console_text()
 
     def _uses_console_renderer(self) -> bool:
         return hasattr(self.renderer, "_console") and not hasattr(self.renderer, "_context")
@@ -2274,7 +2387,7 @@ class Game:
         self.render()
         time.sleep(3)
         self.running = False
-    
+
     def victory(self):
         self.add_message("*** VICTORY! You escaped the dungeon! ***")
         self.state.on_death("Victory")
@@ -2379,7 +2492,21 @@ def main():
     if CONFIG['game']['seed'] is not None:
         random.seed(CONFIG['game']['seed'])
         np.random.seed(CONFIG['game']['seed'])
-    
+
+    playtest_config = CONFIG.get('playtest', {})
+    if playtest_config.get('enabled', False):
+        from src.infrastructure.services.mcp_integration import MCPPlaytester
+        game = Game()
+        game.initialize()
+        playtester = MCPPlaytester(
+            game=game,
+            config_path=playtest_config.get('config_path'),
+            auto_initialize=False,
+        )
+        result = playtester.run()
+        print(json.dumps(result.to_dict(), indent=2, sort_keys=True))
+        return 0 if result.status in {'exit', 'max_turns'} else 1
+
     game = Game()
     game.run()
 

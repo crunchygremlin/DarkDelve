@@ -228,9 +228,18 @@ touch src/utils/__init__.py
 
 ## Local Ollama Player AI Playtest Implementation Notes
 
-The local playtester is intentionally isolated from the core game loop. Implement
-it as root-level tooling that drives [`darkdelve.py`](../darkdelve.py:1) through
-the console stdin/stdout contract:
+DarkDelve supports two playtester modes:
+
+- Subprocess mode: [`ollama_playtester.py`](../ollama_playtester.py:1) launches
+  [`darkdelve.py`](../darkdelve.py:1), scrapes ANSI-cleared console frames, and
+  injects actions through stdin.
+- In-process library mode: [`MCPPlaytester`](../src/infrastructure/services/mcp_integration.py:44)
+  drives a [`Game`](../darkdelve.py:1774) instance directly. This is the preferred
+  integration path for local AI playtesting because it avoids process boundaries,
+  preserves telemetry, and can be embedded by tools without starting a separate
+  server.
+
+### Subprocess playtester contract
 
 1. Create `player_agent.py` with `OllamaConfig`, `PlayerDecision`, and
    `PlayerAgent`.
@@ -251,6 +260,28 @@ the console stdin/stdout contract:
    extraction, and telemetry append behavior.
 9. Document usage and telemetry format in `playtest/README.md` and defaults in
    `playtest/playtest_config.yaml`.
+
+### In-process library playtester contract
+
+1. Expose a non-blocking action entry point on [`Game`](../darkdelve.py:1774),
+   such as [`Game.process_action()`](../darkdelve.py:2112), so automation can
+   apply `w`, `a`, `s`, `d`, `e`, pickup, stairs, and quit actions without
+   entering blocking console menus.
+2. Extract the current view into plain text with [`Game.render_frame_text()`](../darkdelve.py:2205).
+   The text frame should be suitable for the Player AI prompt and should not
+   present to stdout during automated runs.
+3. Implement [`MCPPlaytester`](../src/infrastructure/services/mcp_integration.py:44)
+   as a library wrapper around the existing `PlayerAgent`, `PlaytestConfig`,
+   `TelemetryStore`, `extract_stats`, and `InstructionBus`.
+4. For each turn, render the frame, extract stats, ask `PlayerAgent.decide(...)`,
+   call `Game.main_loop(action=decision.action, render_to_stdout=False,
+   frame_text=frame_text)`, append telemetry, and repeat until `max_turns`,
+   exit, crash, or player death.
+5. Treat `i` as a no-op in automated action processing. The real inventory screen
+   waits for a second input event, so in-process automation should avoid entering
+   that blocking state unless a separate menu driver is implemented.
+6. Add integration tests with a fake `PlayerAgent` and fake `Game` to prove the
+   playtester loop writes telemetry and passes actions without human input.
 
 ## Common Pitfalls to Avoid
 

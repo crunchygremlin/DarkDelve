@@ -77,3 +77,6 @@ classes:
     hp_per_level: 8
     skills: [heal, turn_undead, bless, divine_strike]
     start_gear: [iron_mace, scale_mail, holy_symbol, ration_3]
+playtest:
+  config_path: playtest/playtest_config.yaml
+  enabled: false

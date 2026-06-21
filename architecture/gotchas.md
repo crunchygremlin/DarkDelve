@@ -92,6 +92,37 @@ Modify the `render_entities` method to accept the player as a parameter:
 - Pass required parameters explicitly rather than assuming they exist as attributes
 - Test UI rendering functionality thoroughly after any changes
 
+## In-Process Playtester Action Loop
+
+### Problem
+Automated playtests can hang or skip turns if the in-process driver enters the
+normal console menu path or if the game is initialized twice.
+
+### Root Cause
+The normal inventory screen waits for a second input event, and `Game.run()`
+calls `Game.initialize()` before entering the human input loop. The library
+playtester also needs a fully initialized game, but the entry point already
+initializes the game before constructing `MCPPlaytester`.
+
+### Solution
+Use [`Game.process_action()`](../darkdelve.py:2112) for library-supplied actions
+instead of the blocking inventory flow. Treat `i` as a no-op unless you
+implement a separate inventory-state machine. When the caller has already called
+`Game.initialize()`, construct `MCPPlaytester` with `auto_initialize=False`.
+
+### Affected Code
+- [`Game.main_loop()`](../darkdelve.py:2031)
+- [`Game.process_action()`](../darkdelve.py:2112)
+- [`MCPPlaytester`](../src/infrastructure/services/mcp_integration.py:44)
+- [`darkdelve.py` `main()`](../darkdelve.py:2529)
+
+### Prevention
+- Keep the playtester loop in `render -> decide -> main_loop(action) -> telemetry`
+  order.
+- Pass `render_to_stdout=False` and `frame_text=frame_text` for in-process runs.
+- Keep `playtest.enabled` disabled for normal human play.
+- Add tests with a fake `PlayerAgent` so the loop can be verified without Ollama.
+
 ## Tile Rendering Logic Error
 
 ### Problem
