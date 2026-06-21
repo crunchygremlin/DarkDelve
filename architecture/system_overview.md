@@ -81,7 +81,9 @@ DarkDelve follows a SOLID layered architecture with clear separation of concerns
 
 The local playtesting subsystem is intentionally isolated from core game logic.
 It treats [`darkdelve.py`](../darkdelve.py:1) as a console application and drives
-it through the same stdin/stdout contract used by a human playtester.
+it through the same stdin/stdout contract used by a human playtester. This flow is
+implemented in [`ollama_playtester.py`](../ollama_playtester.py:1) and
+[`player_agent.py`](../player_agent.py:1).
 
 ```
 ollama_playtester.py
