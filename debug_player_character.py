@@ -32,8 +32,12 @@ def debug_player_character():
     
     # Check what's in the console at player position before rendering
     try:
-        char_before = game.console.ch[game.player.y, game.player.x]  # [y, x] not [x, y]
-        print(f"  Console at player position: {char_before} = '{chr(char_before) if char_before >= 32 else 'N/A'}'")
+        if hasattr(game.renderer, '_console'):
+            console = game.renderer._console
+            char_before = console.ch[game.player.y, game.player.x]  # [y, x] not [x, y]
+            print(f"  Console at player position: {char_before} = '{chr(char_before) if char_before >= 32 else 'N/A'}'")
+        else:
+            print("  Console not available in current renderer")
     except Exception as e:
         print(f"  Console access error: {e}")
     
@@ -50,32 +54,38 @@ def debug_player_character():
     
     # Check what's in the console at player position after rendering
     try:
-        char_after = game.console.ch[game.player.y, game.player.x]  # [y, x] not [x, y]
-        print(f"  Console at player position: {char_after} = '{chr(char_after) if char_after >= 32 else 'N/A'}'")
-        
-        # Check if it matches
-        if char_after == ord(game.player.char):
-            print("  ✓ Console character matches player character")
+        if hasattr(game.renderer, '_console'):
+            console = game.renderer._console
+            char_after = console.ch[game.player.y, game.player.x]  # [y, x] not [x, y]
+            print(f"  Console at player position: {char_after} = '{chr(char_after) if char_after >= 32 else 'N/A'}'")
+            
+            # Check if it matches
+            if char_after == ord(game.player.char):
+                print("  ✓ Console character matches player character")
+            else:
+                print("  ✗ Console character does NOT match player character")
         else:
-            print("  ✗ Console character does NOT match player character")
+            print("  Console not available in current renderer")
             
     except Exception as e:
         print(f"  Console access error: {e}")
     
     # Show area around player
     print(f"\n--- AREA AROUND PLAYER POSITION ({game.player.x}, {game.player.y}) ---")
-    for y in range(max(0, game.player.y - 2), min(game.console.height, game.player.y + 3)):
-        line = ""
-        for x in range(max(0, game.player.x - 10), min(game.console.width, game.player.x + 11)):
-            try:
-                char_code = game.console.ch[y, x]
-                char = chr(char_code) if char_code >= 32 and char_code <= 126 else '.'
-                if x == game.player.x and y == game.player.y:
-                    line += f"[{char}]"  # Highlight player position
-                else:
-                    line += f" {char} "
-            except:
-                line += " ? "
+    if hasattr(game.renderer, '_console'):
+        console = game.renderer._console
+        for y in range(max(0, game.player.y - 2), min(console.height, game.player.y + 3)):
+            line = ""
+            for x in range(max(0, game.player.x - 10), min(console.width, game.player.x + 11)):
+                try:
+                    char_code = console.ch[y, x]
+                    char = chr(char_code) if char_code >= 32 and char_code <= 126 else '.'
+                    if x == game.player.x and y == game.player.y:
+                        line += f"[{char}]"  # Highlight player position
+                    else:
+                        line += f" {char} "
+                except:
+                    line += " ? "
         print(f"{y:2d}: {line}")
     
     # Show the actual console presentation
@@ -85,7 +95,10 @@ def debug_player_character():
     print("Press any key in the game window to continue...")
     
     # Present the console
-    game.context.present(game.console)
+    if hasattr(game.renderer, '_context') and hasattr(game.renderer, '_console'):
+        game.renderer._context.present(game.renderer._console)
+    elif hasattr(game.renderer, 'present'):
+        game.renderer.present()
     
     print("\n--- FINAL QUESTIONS ---")
     print("1. What does the player character look like?")

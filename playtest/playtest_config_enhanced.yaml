@@ -1,0 +1,43 @@
+# Enhanced local Ollama Player AI playtest configuration.
+# Use OpenRouter API endpoint (correct format for OpenRouter)
+endpoint: https://openrouter.ai/api/v1
+model: cohere/north-mini-code:free
+persona: Default
+# Optional custom modifier appended to the selected built-in persona.
+testing_persona: ""
+temperature: 0.7
+top_p: 0.9
+num_predict: 512
+timeout: 30
+retries: 2
+max_turns: 100
+max_duration_seconds: 600  # Maximum session duration (default 10 minutes)
+max_consecutive_failures: 10  # Maximum consecutive Ollama failures before shutdown
+game_command:
+  - python
+  - darkdelve.py
+telemetry_path: playtest/playtest_telemetry.json
+instruction_path: playtest/instructions.json
+# Enhanced debugging and analysis options
+debug_enabled: true
+debug_output_path: playtest/debug_output.json
+analysis_enabled: true
+analysis_path: playtest/playtest_analysis.py
+# Map exploration configuration
+map_explore:
+  enabled: true
+  max_depth: 26
+  track_visited_areas: true
+  record_exploration_path: true
+# Player behavior configuration
+player_behavior:
+  survival_mode: true
+  exploration_priority: true
+  combat_avoidance: true
+  resource_management: true
+# Performance monitoring
+performance_monitoring:
+  track_fps: true
+  track_memory_usage: true
+  track_response_times: true
+  generate_performance_reports: true

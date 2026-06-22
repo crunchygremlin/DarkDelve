@@ -1,0 +1,392 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Player Character Debug Report</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 20px;
+            background-color: #1a1a1a;
+            color: #e0e0e0;
+            line-height: 1.6;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background-color: #2d2d2d;
+            padding: 30px;
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+        }
+        
+        h1 {
+            color: #4CAF50;
+            text-align: center;
+            border-bottom: 2px solid #4CAF50;
+            padding-bottom: 10px;
+            margin-bottom: 30px;
+        }
+        
+        .debug-section {
+            background-color: #3d3d3d;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .debug-section h2 {
+            color: #81C784;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        
+        .data-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        .data-card {
+            background-color: #4d4d4d;
+            padding: 15px;
+            border-radius: 6px;
+            border: 1px solid #666;
+        }
+        
+        .data-card h3 {
+            color: #FFD54F;
+            margin-top: 0;
+            margin-bottom: 10px;
+        }
+        
+        .data-item {
+            margin: 8px 0;
+            padding: 5px 0;
+            border-bottom: 1px solid #555;
+        }
+        
+        .data-item:last-child {
+            border-bottom: none;
+        }
+        
+        .data-label {
+            font-weight: bold;
+            color: #B0BEC5;
+        }
+        
+        .data-value {
+            color: #FFFFFF;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .comparison-section {
+            background-color: #3d3d3d;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #FF9800;
+        }
+        
+        .comparison-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            margin: 20px 0;
+        }
+        
+        .comparison-item {
+            text-align: center;
+            padding: 20px;
+            background-color: #4d4d4d;
+            border-radius: 8px;
+            border: 2px solid #666;
+        }
+        
+        .comparison-item h3 {
+            color: #FFD54F;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        
+        .expected-character {
+            font-size: 48px;
+            font-weight: bold;
+            color: #4CAF50;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .actual-character {
+            font-size: 48px;
+            font-weight: bold;
+            color: #FF5722;
+            margin: 20px 0;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .character-description {
+            font-size: 16px;
+            color: #B0BEC5;
+            margin: 10px 0;
+        }
+        
+        .debug-output {
+            background-color: #1a1a1a;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            overflow-x: auto;
+            border: 1px solid #555;
+            margin: 10px 0;
+        }
+        
+        .debug-output .success {
+            color: #4CAF50;
+        }
+        
+        .debug-output .error {
+            color: #F44336;
+        }
+        
+        .debug-output .info {
+            color: #2196F3;
+        }
+        
+        .issue-analysis {
+            background-color: #3d3d3d;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #F44336;
+        }
+        
+        .issue-analysis h2 {
+            color: #E57373;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        
+        .issue-analysis ul {
+            padding-left: 20px;
+        }
+        
+        .issue-analysis li {
+            margin: 10px 0;
+            color: #e0e0e0;
+        }
+        
+        .issue-analysis .highlight {
+            background-color: #555;
+            padding: 2px 4px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+        
+        .solution-section {
+            background-color: #3d3d3d;
+            padding: 20px;
+            margin: 20px 0;
+            border-radius: 8px;
+            border-left: 4px solid #4CAF50;
+        }
+        
+        .solution-section h2 {
+            color: #81C784;
+            margin-top: 0;
+            margin-bottom: 15px;
+        }
+        
+        .solution-steps {
+            counter-reset: step-counter;
+        }
+        
+        .solution-step {
+            counter-increment: step-counter;
+            margin: 15px 0;
+            padding: 15px;
+            background-color: #4d4d4d;
+            border-radius: 6px;
+            border-left: 3px solid #4CAF50;
+        }
+        
+        .solution-step::before {
+            content: counter(step-counter);
+            background-color: #4CAF50;
+            color: white;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            display: inline-block;
+            text-align: center;
+            line-height: 25px;
+            margin-right: 10px;
+            font-weight: bold;
+        }
+        
+        .timestamp {
+            color: #757575;
+            font-size: 12px;
+            text-align: right;
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Player Character Debug Report</h1>
+        
+        <div class="debug-section">
+            <h2>🔍 Debug Summary</h2>
+            <p><strong>Date:</strong> 2026-06-09</p>
+            <p><strong>Issue:</strong> Player character shows as "yellow square with a dot in the center" instead of '@' symbol</p>
+            <p><strong>Root Cause:</strong> Font/Tileset rendering issue - character data is correct but visual rendering is wrong</p>
+        </div>
+        
+        <div class="data-grid">
+            <div class="data-card">
+                <h3>📊 Player Character Data</h3>
+                <div class="data-item">
+                    <span class="data-label">Entity:</span>
+                    <span class="data-value">Entity(x=36, y=27, char='@', color=(255, 255, 0), name='Adventurer')</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Character:</span>
+                    <span class="data-value">'@' (ASCII: 64)</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Position:</span>
+                    <span class="data-value">(36, 27)</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Color:</span>
+                    <span class="data-value">(255, 255, 0) - Yellow</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">In Entities List:</span>
+                    <span class="data-value">True</span>
+                </div>
+            </div>
+            
+            <div class="data-card">
+                <h3>🎯 Visibility Check</h3>
+                <div class="data-item">
+                    <span class="data-label">FOV at Position:</span>
+                    <span class="data-value">True</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Should be Visible:</span>
+                    <span class="data-value">True</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Console Before Render:</span>
+                    <span class="data-value">32 = ' ' (space)</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Console After Render:</span>
+                    <span class="data-value">64 = '@' (correct)</span>
+                </div>
+                <div class="data-item">
+                    <span class="data-label">Color After Render:</span>
+                    <span class="data-value">(255, 255, 0) - Yellow</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="comparison-section">
+            <h2>🔬 Visual Comparison</h2>
+            <div class="comparison-grid">
+                <div class="comparison-item">
+                    <h3>Expected Result</h3>
+                    <div class="expected-character">@</div>
+                    <div class="character-description">Standard '@' symbol in yellow color</div>
+                    <div class="character-description">What should be displayed</div>
+                </div>
+                
+                <div class="comparison-item">
+                    <h3>Actual Result</h3>
+                    <div class="actual-character">■</div>
+                    <div class="character-description">Yellow square with a dot in the center</div>
+                    <div class="character-description">What is actually being displayed</div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="debug-section">
+            <h2>📋 Debug Output</h2>
+            <div class="debug-output">
+                <div class="info">=== DETAILED PLAYER CHARACTER DEBUGGING ===</div>
+                <div class="info">Entering Ancient Ruins: The air is thick with the scent of ancient stone and decay...</div>
+                <div class="info">WARNING: Player start position (43, 24) is a wall, finding walkable position...</div>
+                <div class="info">Found walkable position: (39, 20)</div>
+                <div class="info">Welcome to DarkDelve! Press ESC for menu.</div>
+                
+                <div class="info">=== PLAYER CHARACTER DATA ===</div>
+                <div class="success">Player entity: Entity(x=36, y=27, char='@', color=(255, 255, 0), name='Adventurer')</div>
+                <div class="success">Player char: '@' (ASCII: 64)</div>
+                <div class="success">Player position: (36, 27)</div>
+                <div class="success">Player color: (255, 255, 0)</div>
+                <div class="success">Player in entities list: True</div>
+                
+                <div class="info">=== FOV AND VISIBILITY CHECK ===</div>
+                <div class="success">FOV at player position (36, 27): True</div>
+                <div class="success">Player should be visible: True</div>
+                
+                <div class="info">=== CONSOLE STATE BEFORE RENDERING ===</div>
+                <div class="info">Console at player position (36, 27): 32 = ' '</div>
+                <div class="info">Color: [255 255 255]</div>
+                
+                <div class="info">=== DEBUGGING render_entities METHOD ===</div>
+                <div class="success">render_entities called with 23 entities</div>
+                <div class="success">Player passed to render_entities: Entity(x=36, y=27, char='@', color=(255, 255, 0))</div>
+                <div class="success">Player char: '@' (ASCII: 64)</div>
+                <div class="success">Entity: Adventurer at (36, 27) with char '@'</div>
+                <div class="success">Would render Adventurer at (36, 27) with '@'</div>
+                
+                <div class="info">=== CONSOLE STATE AFTER RENDERING ===</div>
+                <div class="success">Console at player position (36, 27): 64 = '@'</div>
+                <div class="success">Color: [255 255   0]</div>
+                <div class="success">✓ Console character matches player character</div>
+            </div>
+        </div>
+        
+        <div class="issue-analysis">
+            <h2>🚨 Issue Analysis</h2>
+            <ul>
+                <li><strong>Character Data is Correct:</strong> The player entity has the correct character '@' (ASCII 64)</li>
+                <li><strong>Console Rendering is Correct:</strong> The console receives the correct character code (64) and color (255, 255, 0)</li>
+                <li><strong>Visual Rendering is Wrong:</strong> The tileset/font is rendering the '@' character as a yellow square with a dot</li>
+                <li><strong>Root Cause:</strong> The tileset <code>dejavu10x10_gs_tc.png</code> does not have a proper glyph for the '@' character, or it's being interpreted incorrectly</li>
+                <li><strong>Scope:</strong> This is a font/tileset issue, not a game logic issue</li>
+            </ul>
+        </div>
+        
+        <div class="solution-section">
+            <h2>🔧 Solution Steps</h2>
+            <div class="solution-steps">
+                <div class="solution-step">
+                    <strong>Verify Tileset Compatibility:</strong> Check if the current tileset properly supports the '@' character. The DejaVu font should support this character, but there might be rendering issues.
+                </div>
+                <div class="solution-step">
+                    <strong>Test Alternative Characters:</strong> Try using a different character that renders properly in the tileset (like 'P' for player) to confirm the issue is specific to '@'.
+                </div>
+                <div class="solution-step">
+                    <strong>Check Font Configuration:</strong> Verify that the font is loaded correctly and that the character mapping is working as expected.
+                </div>
+                <div class="solution-step">
+                    <strong>Consider Font Replacement:</strong> If the issue persists, consider using a different tileset that has better ASCII character support.
+                </div>
+            </div>
+        </div>
+        
+        <div class="timestamp">
+            Generated on 2026-06-09 at 03:20:43 UTC
+        </div>
+    </div>
+</body>
+</html>

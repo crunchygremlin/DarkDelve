@@ -21,8 +21,8 @@ import requests
 
 VALID_ACTIONS = ("w", "a", "s", "d", "e", "i")
 RESPONSE_FIELDS = ("macro_goal", "reasoning", "action", "telemetry_notes")
-DEFAULT_ENDPOINT = "http://127.0.0.1:11434"
-DEFAULT_MODEL = "qwen2.5-coder:7b-instruct"
+DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1"
+DEFAULT_MODEL = "cohere/north-mini-code:free"
 SAFE_FALLBACK_ACTION = "e"
 
 
@@ -114,7 +114,20 @@ class OllamaConfig:
 
         if self.endpoint.endswith("/api/generate"):
             return self.endpoint
-        return f"{self.endpoint}/api/generate"
+        # For OpenRouter API, the endpoint is already the full API URL
+        # OpenRouter uses /api/v1/chat/completions for chat completions
+        # Don't append /api/generate as OpenRouter uses a different format
+        if "openrouter.ai" in self.endpoint:
+            # OpenRouter uses chat completions endpoint
+            return self.endpoint.rstrip("/") + "/chat/completions"
+        # For standard Ollama, append /api/generate
+        return self.endpoint.rstrip("/") + "/api/generate"
+
+    @property
+    def is_openrouter(self) -> bool:
+        """Check if the endpoint is OpenRouter."""
+
+        return "openrouter.ai" in self.endpoint
 
 
 @dataclass(slots=True)
@@ -199,22 +212,24 @@ class PlayerAgent:
         map_text: str,
         stats: Optional[Mapping[str, Any]] = None,
         history: Optional[Sequence[Mapping[str, Any]]] = None,
+        instruction_text: Optional[str] = None,
     ) -> str:
         """Construct the per-turn user prompt from the current frame."""
 
         stats = stats or {}
         history = list(history or self.history)[-5:]
-        return "\n\n".join(
-            [
-                "Current DarkDelve console frame:",
-                map_text or "<empty frame>",
-                "Current stats:",
-                self._format_stats(stats),
-                "Recent 5-turn history:",
-                self._format_history(history),
-                "Choose exactly one action from w, a, s, d, e, or i.",
-            ]
-        )
+        sections = [
+            "Current DarkDelve console frame:",
+            map_text or "<empty frame>",
+            "Current stats:",
+            self._format_stats(stats),
+            "Recent 5-turn history:",
+            self._format_history(history),
+            "Choose exactly one action from w, a, s, d, e, or i.",
+        ]
+        if instruction_text:
+            sections.insert(1, "Active playtest instructions:\n" + instruction_text)
+        return "\n\n".join(section for section in sections if section)
 
     def build_payload(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
         """Build the exact Ollama ``/api/generate`` payload."""
@@ -230,12 +245,48 @@ class PlayerAgent:
             "num_predict": self.config.num_predict,
         }
 
-    def request_ollama(self, system_prompt: str, user_prompt: str) -> str:
-        """Call Ollama and return the raw model response text."""
+    def build_openrouter_payload(self, system_prompt: str, user_prompt: str) -> Dict[str, Any]:
+        """Build the OpenRouter ``/chat/completions`` payload.
 
-        payload = self.build_payload(system_prompt, user_prompt)
+        OpenRouter uses the OpenAI-compatible chat completions format with a
+        ``messages`` array instead of Ollama's ``prompt``/``system`` fields.
+        """
+
+        return {
+            "model": self.config.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "stream": False,
+            "temperature": self.config.temperature,
+            "top_p": self.config.top_p,
+            "max_tokens": self.config.num_predict,
+        }
+
+    def request_ollama(self, system_prompt: str, user_prompt: str) -> str:
+        """Call the LLM API and return the raw model response text.
+
+        Supports both Ollama ``/api/generate`` and OpenRouter
+        ``/chat/completions`` endpoints.  The correct payload format and
+        response extraction path are chosen automatically based on the
+        configured endpoint.
+
+        Implements robust error handling with:
+        - Retry logic with exponential backoff
+        - JSON parsing error recovery
+        - Fallback to safe action on persistent failures
+        """
+
+        use_openrouter = self.config.is_openrouter
+        payload = (
+            self.build_openrouter_payload(system_prompt, user_prompt)
+            if use_openrouter
+            else self.build_payload(system_prompt, user_prompt)
+        )
         last_error: Optional[Exception] = None
         attempts = max(1, self.config.retries + 1)
+
         for attempt in range(attempts):
             try:
                 response = requests.post(
@@ -244,25 +295,99 @@ class PlayerAgent:
                     timeout=self.config.timeout,
                 )
                 response.raise_for_status()
-                return str(response.json().get("response", "")).strip()
-            except Exception as exc:  # pragma: no cover - exercised by integration runs
+                json_data = response.json()
+
+                if use_openrouter:
+                    # OpenRouter returns OpenAI-compatible chat completions:
+                    # {"choices": [{"message": {"content": "..."}}]}
+                    choices = json_data.get("choices", [])
+                    if not choices:
+                        raise RuntimeError("OpenRouter response has no choices")
+                    message = choices[0].get("message", {})
+                    raw_response = str(message.get("content", "")).strip()
+                else:
+                    # Ollama /api/generate returns {"response": "..."}
+                    raw_response = str(json_data.get("response", "")).strip()
+
+                if not raw_response:
+                    raise RuntimeError(
+                        "Empty response from OpenRouter API"
+                        if use_openrouter
+                        else "Empty response from Ollama API"
+                    )
+
+                return raw_response
+
+            except json.JSONDecodeError as exc:
+                last_error = exc
+                try:
+                    raw_text = response.text.strip()
+                    if raw_text:
+                        return raw_text
+                except Exception:
+                    pass
+                if attempt >= attempts - 1:
+                    break
+                time.sleep(min(2.0, 0.5 * (attempt + 1)))
+
+            except requests.exceptions.HTTPError as exc:
+                last_error = exc
+                status_code = (
+                    getattr(exc.response, "status_code", None)
+                    if hasattr(exc, "response")
+                    else None
+                )
+                if status_code == 404:
+                    raise RuntimeError(
+                        f"API endpoint not found (404). "
+                        f"Check endpoint URL: {self.config.generate_url()}. "
+                        f"Original error: {last_error}"
+                    )
+                if attempt >= attempts - 1:
+                    break
+                time.sleep(min(2.0, 0.5 * (attempt + 1)))
+
+            except requests.exceptions.Timeout:
+                last_error = RuntimeError(
+                    f"Request timed out after {self.config.timeout}s"
+                )
+                if attempt >= attempts - 1:
+                    break
+                time.sleep(min(2.0, 0.5 * (attempt + 1)))
+
+            except requests.exceptions.RequestException as exc:
                 last_error = exc
                 if attempt >= attempts - 1:
                     break
                 time.sleep(min(2.0, 0.5 * (attempt + 1)))
-        raise RuntimeError(f"Ollama generate request failed: {last_error}")
+
+            except Exception as exc:  # pragma: no cover - defensive catch-all
+                last_error = exc
+                if attempt >= attempts - 1:
+                    break
+                time.sleep(min(2.0, 0.5 * (attempt + 1)))
+
+        raise RuntimeError(
+            f"LLM generate request failed after {attempts} attempts: {last_error}"
+        )
 
     def decide(
         self,
         map_text: str,
         stats: Optional[Mapping[str, Any]] = None,
         history: Optional[Sequence[Mapping[str, Any]]] = None,
+        instruction_text: Optional[str] = None,
     ) -> PlayerDecision:
         """Request, parse, validate, and record one player decision."""
 
         active_history = list(history if history is not None else self.history)[-5:]
         system_prompt = self.build_system_prompt()
-        user_prompt = self.build_user_prompt(map_text, stats, active_history)
+        user_prompt = self.build_user_prompt(
+            map_text,
+            stats,
+            active_history,
+            instruction_text=instruction_text,
+        )
         raw_response = self.request_ollama(system_prompt, user_prompt)
         decision = self.parse_response(raw_response, active_history)
         self.record_turn(decision)

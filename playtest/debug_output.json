@@ -1,0 +1,55 @@
+{
+  "session_id": "debug_session_001",
+  "start_time": "2026-06-22T05:18:16.216Z",
+  "game_version": "1.0.0",
+  "playtester_config": {
+    "endpoint": "https://openrouter.ai/api/v1",
+    "model": "cohere/north-mini-code:free",
+    "persona": "Default",
+    "testing_persona": "",
+    "temperature": 0.7,
+    "top_p": 0.9,
+    "num_predict": 512,
+    "timeout": 30,
+    "retries": 2,
+    "max_turns": 100,
+    "game_command": ["python", "darkdelve.py"],
+    "telemetry_path": "playtest/playtest_telemetry.json",
+    "instruction_path": "playtest/instructions.json"
+  },
+  "debug_info": {
+    "map_explore": {
+      "total_areas": 5,
+      "dungeon_branches": [
+        {"id": "main", "depth_range": [1, 15], "name": "The Dungeon", "tile_set": "stone"},
+        {"id": "catacombs", "depth_range": [10, 20], "name": "Catacombs", "tile_set": "crypt", "unlock_flag": "found_catacombs"},
+        {"id": "abyss", "depth_range": [20, 26], "name": "The Abyss", "tile_set": "abyssal", "unlock_flag": "defeated_catacombs_boss"}
+      ],
+      "current_depth": 1,
+      "exploration_status": "in_progress"
+    },
+    "player_stats": {
+      "hp": 23,
+      "max_hp": 23,
+      "ac": 12,
+      "level": 1,
+      "depth": 1,
+      "turn": 1,
+      "gold": 0,
+      "nutrition": 2000,
+      "max_nutrition": 2000
+    },
+    "actions_taken": [
+      {"turn": 1, "action": "s", "macro_goal": "Explore the dungeon and gather information", "reasoning": "The player is at depth 1 and has full health. The immediate area appears safe with no obvious threats. Moving forward will help explore the dungeon and gather more information."},
+      {"turn": 2, "action": "e", "macro_goal": "Survive and explore", "reasoning": "Exploring downward is the safest way to advance in the game while ensuring I have enough nutrition."},
+      {"turn": 3, "action": "s", "macro_goal": "Explore and gather information", "reasoning": "Continuing down the dungeon to explore further is a safe and productive action."}
+    ],
+    "issues_encountered": [
+      {"turn": 2, "issue": "invalid action '<='; falling back to e", "action_taken": "e"}
+    ],
+    "telemetry_entries": 3,
+    "fallback_used": true,
+    "critical_failures": false,
+    "performance_status": "EXCELLENT"
+  }
+}

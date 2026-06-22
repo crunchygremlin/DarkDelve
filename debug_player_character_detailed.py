@@ -42,7 +42,7 @@ def debug_player_character_detailed():
             'room_max_size': 14,
             'max_depth': 26
         },
-        'llm': {'model': 'qwen2.5-coder:7b-instruct'},
+        'llm': {'model': 'cohere/north-mini-code:free'},
         'gameplay': {
             'permadeath': True,
             'hunger_enabled': True,
@@ -94,13 +94,17 @@ def debug_player_character_detailed():
     # Show console state before rendering
     print("=== CONSOLE STATE BEFORE RENDERING ===")
     try:
-        if player_y < game.console.ch.shape[0] and player_x < game.console.ch.shape[1]:
-            char_before = game.console.ch[player_y, player_x]
-            color_before = game.console.fg[player_y, player_x]
-            print(f"Console at player position ({player_x}, {player_y}): {char_before} = '{chr(char_before)}'")
-            print(f"Color: {color_before}")
+        if hasattr(game.renderer, '_console'):
+            console = game.renderer._console
+            if player_y < console.ch.shape[0] and player_x < console.ch.shape[1]:
+                char_before = console.ch[player_y, player_x]
+                color_before = console.fg[player_y, player_x]
+                print(f"Console at player position ({player_x}, {player_y}): {char_before} = '{chr(char_before)}'")
+                print(f"Color: {color_before}")
+            else:
+                print(f"Player position ({player_x}, {player_y}) is out of console bounds {console.ch.shape}")
         else:
-            print(f"Player position ({player_x}, {player_y}) is out of console bounds {game.console.ch.shape}")
+            print("Console not available in current renderer")
     except Exception as e:
         print(f"Error reading console before rendering: {e}")
     print()
@@ -125,7 +129,10 @@ def debug_player_character_detailed():
                 # Only render entities in field of view or the player
                 if fov[entity.y, entity.x] or entity is player:
                     print(f"Would render {entity.name} at ({entity.x}, {entity.y}) with '{entity.char}'")
-                    game.console.print(entity.x, entity.y, entity.char, entity.color)
+                    if hasattr(game.renderer, '_console'):
+                        game.renderer._console.print(entity.x, entity.y, entity.char, entity.color)
+                    else:
+                        print(f"Would render {entity.name} at ({entity.x}, {entity.y}) with '{entity.char}' (no console available)")
                 else:
                     print(f"Entity {entity.name} not in FOV and not player, skipping")
             else:
@@ -143,22 +150,25 @@ def debug_player_character_detailed():
         # Show console state after rendering
         print("\n=== CONSOLE STATE AFTER RENDERING ===")
         try:
-            if player_y < game.console.ch.shape[0] and player_x < game.console.ch.shape[1]:
-                char_after = game.console.ch[player_y, player_x]
-                color_after = game.console.fg[player_y, player_x]
-                print(f"Console at player position ({player_x}, {player_y}): {char_after} = '{chr(char_after)}'")
-                print(f"Color: {color_after}")
-                
-                # Check if the character matches
-                if char_after == player_char_code:
-                    print("✓ Console character matches player character")
-                else:
-                    print(f"✗ Console character ({char_after} = '{chr(char_after)}') does NOT match player character ({player_char_code} = '{player_char}')")
-                    print(f"Expected: {player_char_code} ('{player_char}')")
-                    print(f"Actual: {char_after} ('{chr(char_after)}')")
+            if hasattr(game.renderer, '_console'):
+                console = game.renderer._console
+                if player_y < console.ch.shape[0] and player_x < console.ch.shape[1]:
+                    char_after = console.ch[player_y, player_x]
+                    color_after = console.fg[player_y, player_x]
+                    print(f"Console at player position ({player_x}, {player_y}): {char_after} = '{chr(char_after)}'")
+                    print(f"Color: {color_after}")
                     
+                    # Check if the character matches
+                    if char_after == player_char_code:
+                        print("✓ Console character matches player character")
+                    else:
+                        print(f"✗ Console character ({char_after} = '{chr(char_after)}') does NOT match player character ({player_char_code} = '{player_char}')")
+                        print(f"Expected: {player_char_code} ('{player_char}')")
+                        print(f"Actual: {char_after} ('{chr(char_after)}')")
+                else:
+                    print(f"Player position ({player_x}, {player_y}) is out of console bounds {console.ch.shape}")
             else:
-                print(f"Player position ({player_x}, {player_y}) is out of console bounds {game.console.ch.shape}")
+                print("Console not available in current renderer")
                 
         except Exception as e:
             print(f"Error reading console after rendering: {e}")

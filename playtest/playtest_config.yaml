@@ -1,6 +1,7 @@
 # Default local Ollama Player AI playtest configuration.
-endpoint: https://openrouter.ai
-model: nvidia/nemotron-3-super-120b-a12b:free
+# Use OpenRouter API endpoint (correct format for OpenRouter)
+endpoint: https://openrouter.ai/api/v1
+model: cohere/north-mini-code:free
 persona: Default
 # Optional custom modifier appended to the selected built-in persona.
 testing_persona: ""

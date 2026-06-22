@@ -1,82 +1,173 @@
-game:
-  name: "DarkDelve"
-  version: "1.0.0"
-  seed: null
-
+classes:
+  cleric:
+    hp_per_level: 8
+    name: Cleric
+    skills:
+    - heal
+    - turn_undead
+    - bless
+    - divine_strike
+    start_gear:
+    - iron_mace
+    - scale_mail
+    - holy_symbol
+    - ration_3
+    stats:
+      cha: 12
+      con: 12
+      dex: 8
+      int: 10
+      str: 10
+      wis: 16
+  mage:
+    hp_per_level: 5
+    name: Mage
+    skills:
+    - fireball
+    - magic_missile
+    - shield
+    - blink
+    start_gear:
+    - apprentice_staff
+    - robe
+    - spellbook_fire
+    - ration_3
+    stats:
+      cha: 10
+      con: 10
+      dex: 10
+      int: 16
+      str: 8
+      wis: 12
+  rogue:
+    hp_per_level: 7
+    name: Rogue
+    skills:
+    - backstab
+    - evasion
+    - trap_disarm
+    - poison_blade
+    start_gear:
+    - steel_dagger
+    - leather_armor
+    - lockpicks_5
+    - ration_3
+    stats:
+      cha: 10
+      con: 10
+      dex: 16
+      int: 12
+      str: 10
+      wis: 10
+  warrior:
+    hp_per_level: 10
+    name: Warrior
+    skills:
+    - power_attack
+    - cleave
+    - battle_shout
+    - shield_block
+    start_gear:
+    - iron_longsword
+    - chain_mail
+    - wooden_shield
+    - ration_3
+    stats:
+      cha: 8
+      con: 13
+      dex: 10
+      int: 8
+      str: 14
+      wis: 10
 display:
-  width: 120
-  height: 50
-  tileset: "dejavu10x10_gs_tc.png"
   fps_cap: 60
   fullscreen: false
-
+  height: 50
+  renderer: console
+  tileset: proper_ascii_tileset.png
+  width: 120
 dungeon:
-  width: 80
-  height: 43
-  max_rooms: 12
-  room_min_size: 6
-  room_max_size: 14
-  max_depth: 26
   branches:
-    - id: "main"
-      name: "The Dungeon"
-      depth_range: [1, 15]
-      tile_set: "stone"
-    - id: "catacombs"
-      name: "Catacombs"
-      depth_range: [10, 20]
-      tile_set: "crypt"
-      unlock_flag: "found_catacombs"
-    - id: "abyss"
-      name: "The Abyss"
-      depth_range: [20, 26]
-      tile_set: "abyssal"
-      unlock_flag: "defeated_catacombs_boss"
-
-llm:
-  model: "qwen2.5-coder:7b-instruct"
-  temperature: 0.7
-  top_p: 0.9
-  num_predict: 1024
-  timeout: 30
-  cache_enabled: true
-  fallback_enabled: true
-  auto_pull_model: true
-
+  - depth_range:
+    - 1
+    - 15
+    id: main
+    name: The Dungeon
+    tile_set: stone
+  - depth_range:
+    - 10
+    - 20
+    id: catacombs
+    name: Catacombs
+    tile_set: crypt
+    unlock_flag: found_catacombs
+  - depth_range:
+    - 20
+    - 26
+    id: abyss
+    name: The Abyss
+    tile_set: abyssal
+    unlock_flag: defeated_catacombs_boss
+  height: 43
+  max_depth: 26
+  max_rooms: 12
+  room_max_size: 14
+  room_min_size: 6
+  width: 80
+game:
+  name: DarkDelve
+  seed: null
+  version: 1.0.0
 gameplay:
-  permadeath: true
+  base_nutrition_per_turn: 1
   hunger_enabled: true
   identification_enabled: true
-  score_on_quit: true
-  base_nutrition_per_turn: 1
   max_nutrition: 2000
+  permadeath: true
+  score_on_quit: true
   starving_threshold: 200
-
-classes:
-  warrior:
-    name: "Warrior"
-    stats: {str: 14, dex: 10, con: 13, int: 8, wis: 10, cha: 8}
-    hp_per_level: 10
-    skills: [power_attack, cleave, battle_shout, shield_block]
-    start_gear: [iron_longsword, chain_mail, wooden_shield, ration_3]
-  rogue:
-    name: "Rogue"
-    stats: {str: 10, dex: 16, con: 10, int: 12, wis: 10, cha: 10}
-    hp_per_level: 7
-    skills: [backstab, evasion, trap_disarm, poison_blade]
-    start_gear: [steel_dagger, leather_armor, lockpicks_5, ration_3]
-  mage:
-    name: "Mage"
-    stats: {str: 8, dex: 10, con: 10, int: 16, wis: 12, cha: 10}
-    hp_per_level: 5
-    skills: [fireball, magic_missile, shield, blink]
-    start_gear: [apprentice_staff, robe, spellbook_fire, ration_3]
-  cleric:
-    name: "Cleric"
-    stats: {str: 10, dex: 8, con: 12, int: 10, wis: 16, cha: 12}
-    hp_per_level: 8
-    skills: [heal, turn_undead, bless, divine_strike]
-    start_gear: [iron_mace, scale_mail, holy_symbol, ration_3]
+llm:
+  auto_pull_model: true
+  cache_enabled: true
+  fallback_enabled: true
+  model: cohere/north-mini-code:free
+  num_predict: 1024
+  temperature: 0.7
+  timeout: 30
+  top_p: 0.9
 playtest:
   config_path: playtest/playtest_config.yaml
-  enabled: false
+  enabled: true
+difficulty:
+  default: normal
+  scaling:
+    story: 0.5
+    normal: 1.0
+    hard: 1.5
+    nightmare: 2.0
+    ironman: 3.0
+durability:
+  base:
+    sword: 100
+    axe: 120
+    mace: 150
+    dagger: 60
+    spear: 80
+    bow: 70
+    shield: 200
+    potion: 1
+    wand: 30
+    ring: 999
+    amulet: 999
+    scroll: 1
+  hit_loss: 1
+  block_loss: 3
+  crit_loss: 5
+  degradation_threshold: 0.5
+  repair_stations:
+    - shrine
+    - forge
+damage:
+  critical_multiplier: 1.5
+  armor_minimum: 1
+  resistance_default: 0.0

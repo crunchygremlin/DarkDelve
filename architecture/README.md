@@ -19,6 +19,11 @@ architecture/
 └── gotchas.md                  # Repeated development pitfalls and fixes
 ```
 
+The root also contains the local Ollama playtesting subsystem. It includes a
+file-based operator instruction bus so persistent `setup` and one-shot `push`
+instructions can be injected into Player AI, Dungeon Master/content, and commander
+prompts without mixing the operator instruction channel with the game window.
+ 
 The root also contains the local Ollama playtesting subsystem:
 
 ```

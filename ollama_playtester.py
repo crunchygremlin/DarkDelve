@@ -44,6 +44,8 @@ class PlaytestConfig:
     timeout: float = 30.0
     retries: int = 2
     max_turns: Optional[int] = None
+    max_duration_seconds: int = 600  # Maximum session duration (default 10 minutes)
+    max_consecutive_failures: int = 10  # Maximum consecutive Ollama failures before shutdown
     telemetry_path: Path = DEFAULT_TELEMETRY_PATH
     instruction_path: Path = DEFAULT_INSTRUCTION_PATH
 
@@ -74,6 +76,8 @@ class PlaytestConfig:
             "timeout",
             "retries",
             "max_turns",
+            "max_duration_seconds",
+            "max_consecutive_failures",
         }
         for key, value in data.items():
             if key in allowed and value is not None:
@@ -163,29 +167,36 @@ class ConsoleFrameParser:
 
 
 class TelemetryStore:
-    """Append JSON telemetry entries to ``playtest/playtest_telemetry.json``."""
+    """Append JSON telemetry entries to ``playtest/playtest_telemetry.json``.
+
+    Uses line-delimited JSON (one JSON object per line) so entries can be
+    appended without reading the entire file back into memory.  A rolling
+    cap (``max_entries``) keeps the file from growing without bound.
+    """
 
     @staticmethod
-    def append(path: Path, entry: Mapping[str, Any]) -> None:
-        """Atomically append one entry to the JSON telemetry list."""
+    def append(path: Path, entry: Mapping[str, Any], max_entries: int = 500) -> None:
+        """Append one entry as a line-delimited JSON line.
+
+        When the file exceeds ``max_entries`` lines the oldest entries are
+        trimmed so memory and disk stay bounded.
+        """
 
         path = Path(path)
         path.parent.mkdir(parents=True, exist_ok=True)
-        entries: List[Dict[str, Any]] = []
+
+        # Append the new entry as a single JSON line
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(dict(entry), sort_keys=True) + "\n")
+
+        # Trim if over the cap: rewrite only when necessary
         if path.exists():
-            with path.open("r", encoding="utf-8") as handle:
-                content = handle.read().strip()
-                if content:
-                    loaded = json.loads(content)
-                    if not isinstance(loaded, list):
-                        raise ValueError(f"Telemetry file {path} must contain a JSON list")
-                    entries = loaded
-        entries.append(dict(entry))
-        tmp_path = path.with_name(f".{path.name}.tmp")
-        with tmp_path.open("w", encoding="utf-8") as handle:
-            json.dump(entries, handle, indent=2, sort_keys=True)
-            handle.write("\n")
-        tmp_path.replace(path)
+            lines = path.read_text(encoding="utf-8").splitlines()
+            if len(lines) > max_entries:
+                kept = lines[-max_entries:]
+                tmp_path = path.with_name(f".{path.name}.tmp")
+                tmp_path.write_text("\n".join(kept) + "\n", encoding="utf-8")
+                tmp_path.replace(path)
 
 
 class OllamaPlaytester:
@@ -235,9 +246,19 @@ class OllamaPlaytester:
         status = "running"
         error_message = ""
         returncode: Optional[int] = None
+        start_time = time.time()
+        consecutive_failures = 0
+        _max_in_memory = 200  # cap in-memory telemetry list
 
         try:
             while True:
+                # Check session duration limit
+                elapsed = time.time() - start_time
+                if elapsed > self.config.max_duration_seconds:
+                    status = "timeout"
+                    error_message = f"Session exceeded {self.config.max_duration_seconds}s limit"
+                    break
+                    
                 if self.config.max_turns is not None and turn_number >= self.config.max_turns:
                     status = "max_turns"
                     break
@@ -253,12 +274,29 @@ class OllamaPlaytester:
                     if frames:
                         final_frame = frames[-1]
                         active_instructions = self.instruction_bus.get_prompt_text("player")
-                        decision = self.agent.decide(
-                            final_frame.frame,
-                            final_frame.stats,
-                            history=self.agent.history,
-                            instruction_text=active_instructions,
-                        )
+                        try:
+                            decision = self.agent.decide(
+                                final_frame.frame,
+                                final_frame.stats,
+                                history=self.agent.history,
+                                instruction_text=active_instructions,
+                            )
+                            consecutive_failures = 0  # Reset on successful decision
+                        except RuntimeError as e:
+                            consecutive_failures += 1
+                            if consecutive_failures >= self.config.max_consecutive_failures:
+                                status = "error"
+                                error_message = f"Exceeded {self.config.max_consecutive_failures} consecutive failures"
+                                break
+                            # Use fallback action
+                            from player_agent import SAFE_FALLBACK_ACTION
+                            decision = PlayerDecision(
+                                macro_goal="Recovery",
+                                reasoning=f"Ollama failure: {e}; using fallback",
+                                action=SAFE_FALLBACK_ACTION,
+                                telemetry_notes=str(e),
+                            )
+                        
                         self._write_action(process, decision.action)
                         turn_number += 1
                         entry = self._turn_entry(
@@ -330,6 +368,15 @@ class OllamaPlaytester:
         process.stdin.write(action + "\n")
         process.stdin.flush()
 
+    @staticmethod
+    def _summarise_frame(frame: ConsoleFrame, max_rows: int = 10) -> str:
+        """Return only the last *max_rows* non-empty rows of the frame to keep
+        telemetry entries small while still showing the visible game area."""
+        non_empty = [r for r in frame.rows if r.strip()]
+        if len(non_empty) > max_rows:
+            non_empty = non_empty[-max_rows:]
+        return "\n".join(non_empty)
+
     def _turn_entry(
         self,
         turn_number: int,
@@ -349,8 +396,8 @@ class OllamaPlaytester:
             "telemetry_notes": decision.telemetry_notes,
             "issues": decision.issues,
             "fallback_used": decision.fallback_used,
-            "history": list(self.agent.history),
-            "frame": frame.frame,
+            "history": list(self.agent.history[-3:]),
+            "frame": self._summarise_frame(frame),
             "stderr_tail": stderr_tail,
             "active_instructions": active_instructions,
         }

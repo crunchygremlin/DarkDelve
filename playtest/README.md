@@ -16,11 +16,11 @@ used by the subprocess playtester.
 
 ## Usage
 
-Start Ollama and ensure the configured model is available:
+Start OpenRouter and ensure the configured model is available:
 
 ```bash
-ollama serve
-ollama pull qwen2.5-coder:7b-instruct
+# No local server needed - using OpenRouter
+# Model cohere/north-mini-code:free is available via OpenRouter
 ```
 
 Run the subprocess playtester from the project root:
@@ -44,7 +44,7 @@ playtest:
 ```
 
 The in-process mode uses the same `playtest/playtest_config.yaml` settings for
-Ollama endpoint, model, persona, max turns, telemetry path, and instruction path.
+OpenRouter endpoint, model, persona, max turns, telemetry path, and instruction path.
 It does not require a separate MCP server, FastAPI service, or subprocess game
 window.
 
@@ -52,7 +52,7 @@ Useful subprocess overrides:
 
 ```bash
 python ollama_playtester.py --persona "Aggressive Stress-Tester" --max-turns 50
-python ollama_playtester.py --model qwen2.5-coder:7b-instruct --endpoint http://127.0.0.1:11434
+python ollama_playtester.py --model cohere/north-mini-code:free --endpoint https://openrouter.ai/api/v1
 python ollama_playtester.py --game-command python darkdelve.py
 ```
 

@@ -43,7 +43,7 @@ def debug_player_character_interactive():
             'room_max_size': 14,
             'max_depth': 26
         },
-        'llm': {'model': 'qwen2.5-coder:7b-instruct'},
+        'llm': {'model': 'cohere/north-mini-code:free'},
         'gameplay': {
             'permadeath': True,
             'hunger_enabled': True,
@@ -105,9 +105,13 @@ def debug_player_character_interactive():
     print("--- BEFORE RENDERING ---")
     try:
         # Check what's in the console at player position before rendering
-        char_before = game.console.ch[player_y, player_x]  # Note: tcod uses [y, x] indexing
-        color_before = game.console.fg[player_y, player_x]
-        print(f"Console at player position ({player_x}, {player_y}): {char_before} = '{chr(char_before)}'")
+        if hasattr(game.renderer, '_console'):
+            console = game.renderer._console
+            char_before = console.ch[player_y, player_x]  # Note: tcod uses [y, x] indexing
+            color_before = console.fg[player_y, player_x]
+            print(f"Console at player position ({player_x}, {player_y}): {char_before} = '{chr(char_before)}'")
+        else:
+            print("Console not available in current renderer")
         print(f"Color: {color_before}")
     except Exception as e:
         print(f"Error reading console before rendering: {e}")
@@ -122,9 +126,13 @@ def debug_player_character_interactive():
         # Show console state after rendering
         print("--- AFTER RENDERING ---")
         try:
-            char_after = game.console.ch[player_y, player_x]
-            color_after = game.console.fg[player_y, player_x]
-            print(f"Console at player position ({player_x}, {player_y}): {char_after} = '{chr(char_after)}'")
+            if hasattr(game.renderer, '_console'):
+                console = game.renderer._console
+                char_after = console.ch[player_y, player_x]
+                color_after = console.fg[player_y, player_x]
+                print(f"Console at player position ({player_x}, {player_y}): {char_after} = '{chr(char_after)}'")
+            else:
+                print("Console not available in current renderer")
             print(f"Color: {color_after}")
             
             # Check if the character matches
