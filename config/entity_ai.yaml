@@ -1,0 +1,258 @@
+# Entity AI System Configuration
+# Defines mob types, perception, social structures, and behavior catalogs
+
+mob_types:
+  goblin:
+    display_name: "Goblin"
+    health: 15
+    speed: 1.0
+    perception:
+      sight_range: 6.0
+      hearing_range: 14.0
+      smell_range: 0.0
+      vibration_range: 0.0
+      echolocation_range: 0.0
+      magic_sense_range: 0.0
+      darkvision: false
+      see_invisible: false
+      ignore_walls_hearing: false
+      noise_sensitivity: 1.3
+      light_sensitivity: 1.0
+      darkness_penalty: 0.6
+    power_offsets:
+      melee_strength: 2.0
+      melee_precision: 1.0
+    skill_offsets:
+      sneakiness: 2.0
+      intimidation: 1.0
+    behavior_catalog: "goblin"
+    default_role: "minion"
+    base_loyalty: 0.5
+
+  goblin_king:
+    display_name: "Goblin King"
+    health: 40
+    speed: 0.8
+    perception:
+      sight_range: 8.0
+      hearing_range: 12.0
+      noise_sensitivity: 1.0
+      darkness_penalty: 0.5
+    power_offsets:
+      melee_strength: 5.0
+      melee_precision: 3.0
+    skill_offsets:
+      intimidation: 4.0
+      persuasion: 3.0
+      tactical_awareness: 2.0
+    behavior_catalog: "goblin_king"
+    default_role: "leader"
+    is_leader: true
+    wealth_pool: 100.0
+
+  wolf:
+    display_name: "Wolf"
+    health: 20
+    speed: 1.5
+    perception:
+      sight_range: 8.0
+      hearing_range: 18.0
+      smell_range: 12.0
+      noise_sensitivity: 1.5
+    power_offsets:
+      melee_strength: 3.0
+      piercing: 2.0
+    skill_offsets:
+      perception: 2.0
+      survival: 1.0
+    behavior_catalog: "wolf"
+    default_role: "minion"
+    base_loyalty: 0.7
+
+  spider:
+    display_name: "Giant Spider"
+    health: 12
+    speed: 1.2
+    perception:
+      sight_range: 4.0
+      hearing_range: 6.0
+      vibration_range: 10.0
+      ignore_walls_vibration: true
+    power_offsets:
+      piercing: 3.0
+      poison_magic: 2.0
+    skill_offsets:
+      stealth: 3.0
+      sneakiness: 2.0
+    behavior_catalog: "spider"
+    default_role: "worker"
+    base_loyalty: 1.0
+
+  bat:
+    display_name: "Cave Bat"
+    health: 8
+    speed: 2.0
+    perception:
+      sight_range: 2.0
+      echolocation_range: 14.0
+      darkvision: true
+    power_offsets:
+      piercing: 1.0
+    skill_offsets:
+      acrobatics: 3.0
+    behavior_catalog: "default"
+    default_role: "minion"
+
+  mercenary:
+    display_name: "Mercenary"
+    health: 25
+    speed: 1.0
+    perception:
+      sight_range: 10.0
+      hearing_range: 10.0
+      noise_sensitivity: 1.0
+    power_offsets:
+      melee_strength: 3.0
+      melee_precision: 3.0
+    skill_offsets:
+      weapon_mastery: 3.0
+      tactical_awareness: 2.0
+      intimidation: 2.0
+    behavior_catalog: "mercenary"
+    default_role: "minion"
+    base_loyalty: 0.4
+
+  undead:
+    display_name: "Skeleton Warrior"
+    health: 18
+    speed: 0.7
+    perception:
+      sight_range: 8.0
+      hearing_range: 4.0
+      magic_sense_range: 8.0
+    power_offsets:
+      melee_strength: 2.0
+      slashing: 2.0
+    skill_offsets:
+      weapon_mastery: 1.0
+    behavior_catalog: "undead"
+    default_role: "minion"
+    base_loyalty: 1.0
+
+  lich:
+    display_name: "Lich"
+    health: 60
+    speed: 0.6
+    perception:
+      sight_range: 12.0
+      hearing_range: 8.0
+      magic_sense_range: 15.0
+      see_invisible: true
+    power_offsets:
+      arcane_magic: 6.0
+      shadow_magic: 5.0
+      fire_magic: 3.0
+      ice_magic: 3.0
+    skill_offsets:
+      arcane_knowledge: 5.0
+      tactical_awareness: 3.0
+    behavior_catalog: "undead"
+    default_role: "leader"
+    is_leader: true
+    base_loyalty: 1.0
+
+social_structures:
+  goblin_kingdom:
+    display_name: "Goblin Kingdom"
+    description: "A hierarchical goblin tribe with a king, guards, and minions"
+    leader_type: "goblin_king"
+    member_types: ["goblin"]
+    guard_type: "goblin"
+    min_members: 5
+    max_members: 12
+    loyalty_sensitive: true
+    wealth_driven: true
+    can_promote: true
+    promotion_item_value: 20.0
+
+  wolf_pack:
+    display_name: "Wolf Pack"
+    description: "A pack of wolves led by an alpha"
+    leader_type: "wolf"
+    member_types: ["wolf"]
+    min_members: 4
+    max_members: 8
+    loyalty_sensitive: false
+    strength_based: true
+
+  spider_hive:
+    display_name: "Spider Hive"
+    description: "A spider queen with workers and drones, hive mind"
+    leader_type: "spider"
+    member_types: ["spider"]
+    min_members: 6
+    max_members: 15
+    loyalty_sensitive: false
+    hive_mind: true
+    shared_perception: true
+
+  mercenary_band:
+    display_name: "Mercenary Band"
+    description: "A group of mercenaries with a captain, contract-based"
+    leader_type: "mercenary"
+    member_types: ["mercenary"]
+    min_members: 3
+    max_members: 8
+    loyalty_sensitive: true
+    can_be_bribed: true
+    bribe_multiplier: 2.0
+
+  undead_court:
+    display_name: "Undead Court"
+    description: "A lich commanding knights and skeletons"
+    leader_type: "lich"
+    member_types: ["undead"]
+    min_members: 5
+    max_members: 12
+    loyalty_sensitive: false
+    domination_based: true
+    fear_based: true
+
+  merchant_guild:
+    display_name: "Merchant Guild"
+    description: "A guildmaster with merchants and guards, trade-based"
+    leader_type: "goblin_king"
+    member_types: ["goblin", "mercenary"]
+    guard_type: "mercenary"
+    min_members: 3
+    max_members: 6
+    loyalty_sensitive: true
+    wealth_driven: true
+    non_combat_focus: true
+
+loyalty:
+  min_value: 0.0
+  max_value: 1.0
+  desertion_threshold: 0.1
+  betrayal_threshold: 0.05
+  fanatic_threshold: 0.9
+  gift_loyalty_per_gold: 0.01
+  combat_alongside_boost: 0.02
+  leader_fled_penalty: -0.15
+  promotion_boost: 0.2
+  order_boost: 0.01
+  no_share_penalty: -0.02
+
+perception:
+  default_sight_range: 8.0
+  default_hearing_range: 8.0
+  max_noise_level: 1.0
+  max_light_level: 1.0
+  memory_duration_ticks: 300
+  recalc_interval_ticks: 1
+
+behavior:
+  default_evaluation_interval: 1
+  max_script_depth: 5
+  max_children_per_node: 10
+  default_timeout_ms: 5000
