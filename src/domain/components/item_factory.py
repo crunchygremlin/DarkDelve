@@ -6,6 +6,11 @@ from ..value_objects.item_creation import (
 )
 
 
+__all__ = [
+    "ItemFactory",
+]
+
+
 class ItemFactory(Component):
     """Factory component for creating items dynamically."""
 

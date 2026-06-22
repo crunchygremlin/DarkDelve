@@ -4,6 +4,11 @@ from ..value_objects.puzzle_items import PuzzleMechanic, PuzzleItem
 from ..components.puzzle_mechanic import PuzzleMechanicComponent
 
 
+__all__ = [
+    "PuzzleService",
+]
+
+
 class PuzzleService:
     """Validates puzzle requirements, tracks solved state, and rewards players."""
 

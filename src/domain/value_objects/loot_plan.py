@@ -7,6 +7,11 @@ if TYPE_CHECKING:
     from .item_creation import Item
 
 
+__all__ = [
+    "LootPlan",
+]
+
+
 @dataclass
 class LootPlan:
     """DM's plan for what items to place in a level."""

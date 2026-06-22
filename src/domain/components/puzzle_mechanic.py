@@ -4,6 +4,11 @@ from .component import Component
 from ..value_objects.puzzle_items import PuzzleMechanic, PuzzleItem
 
 
+__all__ = [
+    "PuzzleMechanicComponent",
+]
+
+
 class PuzzleMechanicComponent(Component):
     """Manages puzzle item placement and resolution logic."""
 

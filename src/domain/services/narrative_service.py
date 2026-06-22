@@ -4,6 +4,11 @@ from ..value_objects.narrative import StoryOutline, NarrativeEvent
 from ..components.narrative import NarrativeComponent
 
 
+__all__ = [
+    "NarrativeService",
+]
+
+
 class NarrativeService:
     """Updates StoryOutline, triggers NarrativeEvents, and stores hints."""
 

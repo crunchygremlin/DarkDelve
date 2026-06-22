@@ -4,6 +4,11 @@ from .component import Component
 from ..value_objects.durability import ItemDurabilityComponent
 
 
+__all__ = [
+    "ItemDurability",
+]
+
+
 class ItemDurability(Component):
     """Component that tracks durability state and applies degradation logic."""
 

@@ -5,6 +5,11 @@ from ..value_objects.loot_plan import LootPlan
 from ..value_objects.item_creation import Item
 
 
+__all__ = [
+    "LootPlanner",
+]
+
+
 class LootPlanner(Component):
     """Generates LootPlan per level based on player profile and difficulty."""
 

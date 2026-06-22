@@ -4,6 +4,11 @@ from .component import Component
 from ..value_objects.damage_model import DamageCalculator, DamageResult
 
 
+__all__ = [
+    "DamageComponent",
+]
+
+
 class DamageComponent(Component):
     """Wrapper around DamageCalculator to integrate with combat component."""
 

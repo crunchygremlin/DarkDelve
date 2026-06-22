@@ -4,6 +4,12 @@ from dataclasses import dataclass, field
 from typing import List, Dict
 
 
+__all__ = [
+    "DurabilityConfig",
+    "ItemDurabilityComponent",
+]
+
+
 @dataclass
 class DurabilityConfig:
     """Configuration for how durability works."""

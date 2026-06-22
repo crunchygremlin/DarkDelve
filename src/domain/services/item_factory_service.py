@@ -6,6 +6,11 @@ from ..value_objects.item_creation import (
 from ..components.item_factory import ItemFactory
 
 
+__all__ = [
+    "ItemFactoryService",
+]
+
+
 class ItemFactoryService:
     """Provides a clean API for the DM to request items."""
 

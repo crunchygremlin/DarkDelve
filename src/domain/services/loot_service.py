@@ -5,6 +5,11 @@ from ..value_objects.item_creation import Item
 from ..components.loot_planner import LootPlanner
 
 
+__all__ = [
+    "LootService",
+]
+
+
 class LootService:
     """Applies LootPlan to a DungeonLevel, updates inventory, and emits loot events."""
 

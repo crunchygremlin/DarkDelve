@@ -4,6 +4,14 @@ from dataclasses import dataclass, field
 from typing import Dict
 
 
+__all__ = [
+    "DamageInstance",
+    "DamageResult",
+    "ResistanceProfile",
+    "DamageCalculator",
+]
+
+
 @dataclass
 class DamageInstance:
     """A single damage calculation."""

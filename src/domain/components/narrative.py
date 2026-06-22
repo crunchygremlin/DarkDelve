@@ -4,6 +4,11 @@ from .component import Component
 from ..value_objects.narrative import StoryOutline, NarrativeEvent, LevelNarrative
 
 
+__all__ = [
+    "NarrativeComponent",
+]
+
+
 class NarrativeComponent(Component):
     """Handles story outline progression, hint distribution, and event emission."""
 

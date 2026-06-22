@@ -4,6 +4,15 @@ from dataclasses import dataclass, field
 from typing import List, Optional
 
 
+__all__ = [
+    "LevelNarrative",
+    "BossEncounter",
+    "KeyItem",
+    "StoryOutline",
+    "NarrativeEvent",
+]
+
+
 @dataclass
 class LevelNarrative:
     """Narrative information for a single dungeon level."""

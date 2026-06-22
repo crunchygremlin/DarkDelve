@@ -4,6 +4,11 @@ from .component import Component
 from ..value_objects.difficulty import DungeonLevel, DifficultyMode
 
 
+__all__ = [
+    "DungeonControl",
+]
+
+
 class DungeonControl(Component):
     """Component that holds the current dungeon level and exposes generation hooks."""
 

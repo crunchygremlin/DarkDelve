@@ -7,6 +7,12 @@ if TYPE_CHECKING:
     from .item_creation import Item
 
 
+__all__ = [
+    "PuzzleItem",
+    "PuzzleMechanic",
+]
+
+
 @dataclass
 class PuzzleItem:
     """An item that seems useless now but is needed later."""

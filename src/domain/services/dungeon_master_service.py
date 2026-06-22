@@ -8,6 +8,11 @@ from ..value_objects.narrative import StoryOutline
 from .level_design_service import LevelDesignService
 
 
+__all__ = [
+    "DungeonMasterService",
+]
+
+
 class DungeonMasterService:
     """Orchestrates level generation, difficulty scaling, and boss chain creation."""
 
