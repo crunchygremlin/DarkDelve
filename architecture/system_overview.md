@@ -67,6 +67,12 @@ DarkDelve follows a SOLID layered architecture with clear separation of concerns
 - **Utils**: Math utilities
 - **Events**: Event, Handler, Bus implementations
 
+### 6. Workflow Layer ✅ COMPLETED
+- **Workflow Controller**: Orchestrates pipeline stages (orchestrator → architect → coder → playtester → debugger)
+- **Pipeline Engine**: Manages stage execution and mode delegation
+- **Task Classification**: Automatic complexity detection (simple, moderate, complex, critical)
+- **Conditional Execution**: Dynamic stage triggering based on task complexity and results
+
 ## Data Flow
 
 1. **User Input**: Presentation layer captures user input
