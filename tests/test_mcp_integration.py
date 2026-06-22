@@ -107,8 +107,9 @@ def test_mcp_playtester_drives_fake_game_without_human_input(tmp_path: Path):
 
     telemetry_path = config.telemetry_path
     assert telemetry_path.exists()
+    # Telemetry is line-delimited JSON (one object per line)
     with telemetry_path.open("r", encoding="utf-8") as handle:
-        telemetry_entries = json.load(handle)
+        telemetry_entries = [json.loads(line) for line in handle if line.strip()]
     assert len(telemetry_entries) == 2
     assert telemetry_entries[0]["action"] == "d"
 

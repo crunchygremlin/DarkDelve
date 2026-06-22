@@ -66,18 +66,38 @@ def test_user_prompt_includes_frame_stats_and_five_turn_history():
     assert "Explore north" not in prompt
 
 
-def test_request_payload_always_includes_json_format(monkeypatch):
+def test_user_prompt_includes_active_instruction_text():
     agent = PlayerAgent()
-    calls = []
 
+    prompt = agent.build_user_prompt(
+        "##",
+        {"hp": 10},
+        [],
+        instruction_text="Setup instructions:\nExplore carefully.\n\nPush instructions:\nUse stairs.",
+    )
+
+    assert "Active playtest instructions" in prompt
+    assert "Explore carefully." in prompt
+    assert "Use stairs." in prompt
+
+
+def test_request_payload_always_includes_json_format(monkeypatch):
+    # Use a non-OpenRouter endpoint to test Ollama format
+    agent = PlayerAgent(config={"endpoint": "http://localhost:11434"})
+    calls = []
+    
     def fake_post(url, **kwargs):
         calls.append((url, kwargs["json"], kwargs["timeout"]))
-        return FakeResponse(json.dumps({"macro_goal": "Explore", "reasoning": "Safe", "action": "e", "telemetry_notes": ""}))
-
+        # Ollama returns {"response": "the actual response text"}
+        # FakeResponse.json() returns {"response": self._response}
+        # So we pass just the inner response text
+        return FakeResponse('{"macro_goal": "Explore", "reasoning": "Safe", "action": "e", "telemetry_notes": ""}')
+    
     monkeypatch.setattr("player_agent.requests.post", fake_post)
-
+    
     response = agent.request_ollama("system", "user")
-
+    
+    # The response field contains the actual JSON string
     assert response == '{"macro_goal": "Explore", "reasoning": "Safe", "action": "e", "telemetry_notes": ""}'
     assert calls[0][0].endswith("/api/generate")
     assert calls[0][1]["format"] == "json"
