@@ -8,7 +8,9 @@ from src.domain.value_objects.behavior_script import BehaviorScript
 from src.domain.value_objects.perception import PerceptionStatus
 from src.domain.value_objects.social import SocialStructure
 from src.domain.value_objects.power_levels import PlayerProfile
-from src.domain.value_objects.llm_logging import LLMLogger, LLMCallLog
+from src.domain.value_objects.llm_logging import (
+    LLMLogger, LLMCallLog, ContextWindowDiagnostics, estimate_tokens
+)
 from src.domain.services.level_design_service import LevelDesignService
 
 __all__ = ["DungeonMasterAgent"]
@@ -35,6 +37,17 @@ class DungeonMasterAgent:
         self.level_design = level_design_service
         self.logger = llm_logger
         self.social_service = social_service
+        self._model_name = "gpt-oss"  # Default model
+        self._temperature = 0.7  # Default temperature
+
+    def set_model(self, model_name: str, temperature: float = 0.7):
+        """Set the model to use for generation."""
+        self._model_name = model_name
+        self._temperature = temperature
+
+    def get_performance_report(self) -> str:
+        """Get a performance report from the logger."""
+        return self.logger.get_performance_report()
 
     def generate_behavior_script(
         self,
@@ -50,11 +63,21 @@ class DungeonMasterAgent:
             entity_id, mob_type, perception, social_context,
             valid_conditions, valid_actions
         )
+        
+        # Estimate tokens and check headroom
+        prompt_tokens = self.logger.estimate_prompt_tokens(prompt)
+        headroom_diag = self.logger.check_headroom(prompt)
+        
         start = time.time()
         try:
             response = self.ollama.generate(prompt)
             latency = (time.time() - start) * 1000
+            response_tokens = estimate_tokens(response)
             script = self._parse_behavior_response(entity_id, response, valid_conditions, valid_actions)
+            
+            # Calculate context after the call
+            context_after = headroom_diag.max_context_tokens - headroom_diag.headroom_tokens + response_tokens
+            
             self.logger.log_call(LLMCallLog(
                 call_id=str(uuid.uuid4()),
                 timestamp=start,
@@ -63,9 +86,16 @@ class DungeonMasterAgent:
                 prompt_summary=prompt[:200],
                 response_summary=response[:200],
                 latency_ms=latency,
-                tokens_used=len(prompt.split()) + len(response.split()),
+                tokens_used=prompt_tokens + response_tokens,
                 success=True,
                 behavior_script_id=script.script_id if script else None,
+                prompt_tokens=prompt_tokens,
+                response_tokens=response_tokens,
+                context_before_tokens=headroom_diag.max_context_tokens - headroom_diag.headroom_tokens,
+                context_after_tokens=context_after,
+                context_headroom=headroom_diag.max_context_tokens - context_after,
+                model=self._model_name,
+                temperature=self._temperature,
             ))
             return script
         except Exception as e:
@@ -78,9 +108,12 @@ class DungeonMasterAgent:
                 prompt_summary=prompt[:200],
                 response_summary="",
                 latency_ms=latency,
-                tokens_used=len(prompt.split()),
+                tokens_used=prompt_tokens,
                 success=False,
                 error=str(e),
+                prompt_tokens=prompt_tokens,
+                model=self._model_name,
+                temperature=self._temperature,
             ))
             return None
 
@@ -92,11 +125,21 @@ class DungeonMasterAgent:
     ) -> Dict[str, Any]:
         """Design a level via LLM based on player profile."""
         prompt = self.level_design._build_level_prompt(player_profile, level_number)
+        
+        # Estimate tokens and check headroom
+        prompt_tokens = self.logger.estimate_prompt_tokens(prompt)
+        headroom_diag = self.logger.check_headroom(prompt)
+        
         start = time.time()
         try:
             response = self.ollama.generate(prompt)
             latency = (time.time() - start) * 1000
+            response_tokens = estimate_tokens(response)
             level_config = self.level_design._parse_level_response(response)
+            
+            # Calculate context after the call
+            context_after = headroom_diag.max_context_tokens - headroom_diag.headroom_tokens + response_tokens
+            
             self.logger.log_call(LLMCallLog(
                 call_id=str(uuid.uuid4()),
                 timestamp=start,
@@ -105,8 +148,15 @@ class DungeonMasterAgent:
                 prompt_summary=prompt[:200],
                 response_summary=response[:200],
                 latency_ms=latency,
-                tokens_used=len(prompt.split()) + len(response.split()),
+                tokens_used=prompt_tokens + response_tokens,
                 success=True,
+                prompt_tokens=prompt_tokens,
+                response_tokens=response_tokens,
+                context_before_tokens=headroom_diag.max_context_tokens - headroom_diag.headroom_tokens,
+                context_after_tokens=context_after,
+                context_headroom=headroom_diag.max_context_tokens - context_after,
+                model=self._model_name,
+                temperature=self._temperature,
             ))
             return level_config
         except Exception as e:
@@ -119,9 +169,12 @@ class DungeonMasterAgent:
                 prompt_summary=prompt[:200],
                 response_summary="",
                 latency_ms=latency,
-                tokens_used=len(prompt.split()),
+                tokens_used=prompt_tokens,
                 success=False,
                 error=str(e),
+                prompt_tokens=prompt_tokens,
+                model=self._model_name,
+                temperature=self._temperature,
             ))
             return {}
 
