@@ -20,7 +20,8 @@ class TestErrorRecoveryIntegration:
         
         # Second call succeeds
         mock_response_success = Mock()
-        mock_response_success.json.return_value = {"response": '{"action": "s", "macro_goal": "test", "reasoning": "test", "telemetry_notes": "test"}'}
+        # OpenRouter format: {"choices": [{"message": {"content": "..."}}]}
+        mock_response_success.json.return_value = {"choices": [{"message": {"content": '{"action": "s", "macro_goal": "test", "reasoning": "test", "telemetry_notes": "test"}'}}]}
         mock_response_success.status_code = 200
         
         mock_post.side_effect = [mock_response_404, mock_response_success]
@@ -47,7 +48,7 @@ class TestErrorRecoveryIntegration:
         
         # Second call succeeds
         mock_response_success = Mock()
-        mock_response_success.json.return_value = {"response": '{"action": "e", "macro_goal": "test", "reasoning": "test", "telemetry_notes": "test"}'}
+        mock_response_success.json.return_value = {"choices": [{"message": {"content": '{"action": "e", "macro_goal": "test", "reasoning": "test", "telemetry_notes": "test"}'}}]}
         mock_response_success.status_code = 200
         
         mock_post.side_effect = [mock_response_invalid, mock_response_success]
@@ -84,9 +85,13 @@ class TestErrorRecoveryIntegration:
         import requests
         
         # First call times out
+        mock_success = Mock()
+        mock_success.json.return_value = {"choices": [{"message": {"content": '{"action": "s", "macro_goal": "test", "reasoning": "test", "telemetry_notes": "test"}'}}]}
+        mock_success.status_code = 200
+        
         mock_post.side_effect = [
             requests.exceptions.Timeout(),
-            Mock(status_code=200, json=lambda: {"response": '{"action": "s", "macro_goal": "test", "reasoning": "test", "telemetry_notes": "test"}'})
+            mock_success
         ]
 
         config = OllamaConfig(endpoint="https://openrouter.ai/api/v1", timeout=1.0, retries=0)

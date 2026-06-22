@@ -13,12 +13,12 @@ class TestOllamaConfig:
     def test_generate_url_with_openrouter_endpoint(self):
         """Test that OpenRouter endpoint is correctly formatted."""
         config = OllamaConfig(endpoint="https://openrouter.ai/api/v1")
-        assert config.generate_url() == "https://openrouter.ai/api/v1/api/generate"
+        assert config.generate_url() == "https://openrouter.ai/api/v1/chat/completions"
 
     def test_generate_url_with_trailing_slash(self):
         """Test that trailing slash is handled correctly."""
         config = OllamaConfig(endpoint="https://openrouter.ai/api/v1/")
-        assert config.generate_url() == "https://openrouter.ai/api/v1/api/generate"
+        assert config.generate_url() == "https://openrouter.ai/api/v1/chat/completions"
 
     def test_generate_url_with_custom_endpoint(self):
         """Test custom endpoint handling."""
@@ -89,7 +89,8 @@ class TestPlayerAgentRequest:
     def test_request_ollama_success(self, mock_post):
         """Test successful Ollama request."""
         mock_response = Mock()
-        mock_response.json.return_value = {"response": '{"action": "s", "macro_goal": "test", "reasoning": "test", "telemetry_notes": "test"}'}
+        # OpenRouter returns OpenAI-compatible chat completions format
+        mock_response.json.return_value = {"choices": [{"message": {"content": '{"action": "s", "macro_goal": "test", "reasoning": "test", "telemetry_notes": "test"}'}}]}
         mock_response.status_code = 200
         mock_post.return_value = mock_response
 

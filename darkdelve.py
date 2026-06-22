@@ -2195,7 +2195,7 @@ class Game:
         return self._console_text()
 
     def _uses_console_renderer(self) -> bool:
-        return hasattr(self.renderer, "_console") and not hasattr(self.renderer, "_context")
+        return hasattr(self.renderer, "_root_console") and not hasattr(self.renderer, "_context")
 
     def _wait_for_events(self) -> List[Any]:
         """Return blocking input events for the active renderer backend."""
@@ -2511,6 +2511,21 @@ class Game:
             self.ollama.stop()
         if self.context:
             self.context.__exit__(None, None, None)
+
+# =============================================================================
+# INSTRUCTION PROMPT HELPER
+# =============================================================================
+
+INSTRUCTION_PATH = Path(__file__).parent / "playtest" / "instructions.json"
+
+
+def load_instruction_prompt(target: str) -> str:
+    """Load and format playtest instructions for the specified target."""
+    from playtest.instruction_bus import InstructionBus
+
+    bus = InstructionBus(path=INSTRUCTION_PATH)
+    return bus.get_prompt_text(target)
+
 
 # =============================================================================
 # ENTRY POINT

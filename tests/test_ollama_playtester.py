@@ -66,30 +66,40 @@ def test_extract_stats_returns_none_for_unknown_values():
 
 
 def test_telemetry_store_appends_json_list(tmp_path):
+    """TelemetryStore uses line-delimited JSON format, not a JSON list."""
     path = tmp_path / "playtest_telemetry.json"
 
     TelemetryStore.append(path, {"event_type": "turn", "turn_number": 1})
     TelemetryStore.append(path, {"event_type": "turn", "turn_number": 2})
 
+    # Read as line-delimited JSON
     with path.open("r", encoding="utf-8") as handle:
-        entries = json.load(handle)
+        lines = handle.read().strip().splitlines()
 
-    assert entries == [
-        {"event_type": "turn", "turn_number": 1},
-        {"event_type": "turn", "turn_number": 2},
-    ]
+    assert len(lines) == 2
+    entry1 = json.loads(lines[0])
+    entry2 = json.loads(lines[1])
+    assert entry1 == {"event_type": "turn", "turn_number": 1}
+    assert entry2 == {"event_type": "turn", "turn_number": 2}
 
 
-def test_telemetry_store_rejects_non_list_existing_file(tmp_path):
+def test_telemetry_store_appends_to_existing_file(tmp_path):
+    """TelemetryStore appends line-delimited JSON to existing file."""
     path = tmp_path / "playtest_telemetry.json"
-    path.write_text('{"event_type": "bad"}', encoding="utf-8")
+    # Write a single JSON object (not a list) - this is allowed
+    path.write_text('{"event_type": "bad"}\n', encoding="utf-8")
 
-    try:
-        TelemetryStore.append(path, {"event_type": "turn"})
-    except ValueError as exc:
-        assert "must contain a JSON list" in str(exc)
-    else:  # pragma: no cover - pytest should raise
-        raise AssertionError("ValueError was not raised")
+    TelemetryStore.append(path, {"event_type": "turn"})
+
+    # Read as line-delimited JSON
+    with path.open("r", encoding="utf-8") as handle:
+        lines = handle.read().strip().splitlines()
+
+    assert len(lines) == 2
+    entry1 = json.loads(lines[0])
+    entry2 = json.loads(lines[1])
+    assert entry1 == {"event_type": "bad"}
+    assert entry2 == {"event_type": "turn"}
 
 
 def test_playtest_config_loads_yaml_defaults_and_paths(tmp_path):

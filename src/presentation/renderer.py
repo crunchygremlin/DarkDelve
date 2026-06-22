@@ -123,10 +123,47 @@ class Renderer:
 class ConsoleRenderer(Renderer):
     """Console-based renderer for backward compatibility."""
     
-    def __init__(self, width: int = 80, height: int = 50):
+    def __init__(self, console: Optional[tcod.Console] = None, config: Optional[Dict] = None, width: int = 80, height: int = 50):
         super().__init__(width, height)
+        # Use _root_console for consistency with the base class
+        self._root_console = console or tcod.console.Console(width, height)
+        self._config = config or {}
+    
+    def present(self) -> None:
+        """Present the rendered frame by writing to stdout."""
+        import sys
+        import shutil
+        
+        if self._root_console:
+            # Get terminal size, defaulting to console dimensions
+            term_width, term_height = shutil.get_terminal_size((self._root_console.width, self._root_console.height))
+            
+            # Build the output string with ANSI escape codes
+            output = "\033[H\033[2J"  # Clear screen and move cursor home
+            
+            # Render the console content, clipped to terminal size
+            lines = []
+            for y in range(min(self._root_console.height, term_height)):
+                line = ""
+                for x in range(min(self._root_console.width, term_width)):
+                    ch = self._root_console.ch[y, x]
+                    if ch == 0:
+                        line += " "
+                    else:
+                        line += chr(ch)
+                lines.append(line)
+            
+            output += "\n".join(lines) + "\033[0m\n"
+            
+            sys.stdout.write(output)
+            sys.stdout.flush()
 
 
-def create_renderer(width: int = 80, height: int = 50) -> Renderer:
-    """Factory function to create a renderer."""
+def create_renderer(config: Dict, renderer_type: str = "console") -> Renderer:
+    """Factory function to create a renderer based on config and type."""
+    width = config.get('display', {}).get('width', 80)
+    height = config.get('display', {}).get('height', 50)
+    
+    if renderer_type == "console":
+        return ConsoleRenderer(width=width, height=height, config=config)
     return Renderer(width, height)
