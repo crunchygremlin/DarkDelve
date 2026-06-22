@@ -15,59 +15,82 @@ The Entity AI System introduces a layered architecture that replaces the previou
 ---
 
 ## New Files to Create
-| Path | Purpose |
-|------|---------|
-| `src/domain/value_objects/perception_status.py` | `PerceptionStatus` dataclass and modifiers |
-| `src/domain/value_objects/behavior_script.py` | Data model for behavior trees |
-| `src/domain/value_objects/social.py` | `SocialRelationship`, `SocialStructure`, `Loyalty` dataclasses |
-| `src/domain/value_objects/power_levels.py` | Power‑level categories (offensive/defensive) |
-| `src/domain/value_objects/skill_set.py` | Skill enumeration and modifiers |
-| `src/domain/value_objects/player_profile.py` | `PlayerProfile` for LLM level design |
-| `src/domain/value_objects/llm_logging.py` | `LLMCallLog` & `LLMPerformanceMetrics` |
-| `src/domain/services/perception_service.py` | Populate `PerceptionStatus` from FOV query |
-| `src/domain/services/behavior_engine.py` | Execute `BehaviorScript` trees |
-| `src/domain/services/social_service.py` | Manage relationships & loyalty |
-| `src/domain/services/power_service.py` | Compute offensive/defensive power values |
-| `src/domain/services/skill_service.py` | Resolve skill effects on actions |
-| `src/domain/services/llm_performance_service.py` | Write logs to telemetry path |
-| `architecture/entity_ai_system.md` | This document |
+ | Path | Purpose |
+ |------|---------|
+ | `src/domain/value_objects/perception_status.py` | `PerceptionStatus` dataclass and modifiers |
+ | `src/domain/value_objects/behavior_script.py` | Data model for behavior trees |
+ | `src/domain/value_objects/social.py` | `SocialRelationship`, `SocialStructure`, `Loyalty` dataclasses |
+ | `src/domain/value_objects/power_levels.py` | Power‑level categories (offensive/defensive) |
+ | `src/domain/value_objects/skill_set.py` | Skill enumeration and modifiers |
+ | `src/domain/value_objects/player_profile.py` | `PlayerProfile` for LLM level design |
+ | `src/domain/value_objects/llm_logging.py` | `LLMCallLog` & `LLMPerformanceMetrics` |
+ | `src/domain/services/perception_service.py` | Populate `PerceptionStatus` from FOV query |
+ | `src/domain/services/behavior_engine.py` | Execute `BehaviorScript` trees |
+ | `src/domain/services/social_service.py` | Manage relationships & loyalty |
+ | `src/domain/services/power_service.py` | Compute offensive/defensive power values |
+ | `src/domain/services/skill_service.py` | Resolve skill effects on actions |
+ | `src/domain/services/llm_performance_service.py` | Write logs to telemetry path |
+ | `architecture/entity_ai_system.md` | This document |
 
 ## Existing Files to Modify
-| File | Change |
-|------|--------|
-| `src/domain/components/ai.py` | Replace direct map access with a call to `PerceptionService.get_status(entity_id)` and expose a `process_behavior(script: BehaviorScript)` method that delegates to `BehaviorEngine`.
-| `src/domain/agents/llm_agent.py` | Update `generate_prompt` to accept a `PerceptionStatus` and optional `PlayerProfile`; change return type to `BehaviorScript`.
-| `src/application/game_queries/fov_query.py` | Export a helper `compute_fov(entity_id) -> Set[Position]` used by `PerceptionService`.
-| `src/application/event_system/event_bus.py` | Add new event types `PerceptionUpdated`, `BehaviorScriptSelected`, `LoyaltyChanged`.
-| `src/domain/value_objects/stats.py` | Extend with `PowerLevels` field (reference new dataclass).
+ | File | Change |
+ |------|--------|
+ | `src/domain/components/ai.py` | Replace direct map access with a call to `PerceptionService.get_status(entity_id)` and expose a `process_behavior(script: BehaviorScript)` method that delegates to `BehaviorEngine`. |
+ | `src/domain/agents/llm_agent.py` | Update `generate_prompt` to accept a `PerceptionStatus` and optional `PlayerProfile`; change return type to `BehaviorScript`. |
+ | `src/application/game_queries/fov_query.py` | Export a helper `compute_fov(entity_id) -> Set[Position]` used by `PerceptionService`. |
+ | `src/application/event_system/event_bus.py` | Add new event types `PerceptionUpdated`, `BehaviorScriptSelected`, `LoyaltyChanged`. |
+ | `src/domain/value_objects/stats.py` | Extend with `PowerLevels` field (reference new dataclass). |
 
 ---
 
 ## Data Structures
 
-### PerceptionStatus (`src/domain/value_objects/perception_status.py`)
+### PerceptionStatus (`src/domain/value_objects/perception.py`)
 ```python
 from dataclasses import dataclass
-from typing import List, Tuple, Optional
+from typing import List, Optional, Dict, Any
 
 @dataclass
 class PerceptionStatus:
-    can_see_player: bool
-    can_hear_player: bool
-    player_last_known_position: Optional[Tuple[int, int]]
-    visible_threats: List[str]          # entity IDs
-    audible_threats: List[str]
-    distance_to_player: Optional[float]
-    modifiers: List[str]                # e.g. ["good_hearing", "echolocation"]
+    entity_id: str
+    can_see_player: bool = False
+    can_hear_player: bool = False
+    can_smell_player: bool = False
+    player_last_known_position: Optional[Any] = None
+    player_noise_level: float = 0.0
+    player_distance_estimate: float = -1.0
+    visible_threats: List[str] = field(default_factory=list)
+    visible_items: List[str] = field(default_factory=list)
+    visible_allies: List[str] = field(default_factory=list)
+    visible_enemies: List[str] = field(default_factory=list)
+    environment_danger: float = 0.0
+    light_level: float = 1.0
+    nearby_traps: int = 0
+    nearby_exits: int = 0
+    combat_occurring_nearby: bool = False
+    ally_health_status: str = "unknown"
+    time_since_player_seen: float = -1.0
+    custom_flags: Dict[str, Any] = field(default_factory=dict)
 ```
 
-### PerceptionModifiers (`src/domain/value_objects/perception_status.py`)
+### PerceptionModifiers (`src/domain/value_objects/perception.py`)
 ```python
-PERCEPTION_MODIFIERS = {
-    "goblin": ["good_hearing"],
-    "bat": ["echolocation"],
-    "spider": ["vibration"]
-}
+@dataclass
+class PerceptionModifiers:
+    entity_type: str
+    sight_range: float = 8.0
+    hearing_range: float = 12.0
+    smell_range: float = 4.0
+    vibration_range: float = 6.0
+    echolocation_range: float = 10.0
+    magic_sense_range: float = 5.0
+    darkvision: bool = False
+    see_invisible: bool = False
+    ignore_walls_hearing: bool = False
+    ignore_walls_vibration: bool = False
+    noise_sensitivity: float = 1.0
+    light_sensitivity: float = 1.0
+    darkness_penalty: float = 0.5
 ```
 
 ### BehaviorScript (`src/domain/value_objects/behavior_script.py`)
@@ -77,12 +100,16 @@ from typing import List, Dict, Any, Optional
 
 @dataclass
 class BehaviorNode:
-    type: str                     # "condition" | "action" | "selector" | "sequence"
-    params: Dict[str, Any]
+    node_id: str
+    node_type: str  # "condition" | "action" | "selector" | "sequence"
+    priority: int
+    conditions: Optional[List[Dict[str, Any]]] = None
+    action: Optional[Dict[str, Any]] = None
     children: Optional[List["BehaviorNode"]] = None
 
 @dataclass
 class BehaviorScript:
+    script_id: str
     root: BehaviorNode
     version: str = "1.0"
 ```
@@ -91,21 +118,36 @@ class BehaviorScript:
 ```python
 @dataclass
 class SocialRelationship:
-    source_id: str
-    target_id: str
-    relation: str                # "ally", "enemy", "neutral"
-    affinity: float              # 0.0‑1.0
+    entity_a_id: str
+    entity_b_id: str
+    relationship_type: str  # "ally", "enemy", "neutral"
+    strength: float = 0.0  # -1.0 to 1.0
+    history: List[str] = field(default_factory=list)
 
 @dataclass
 class SocialStructure:
-    entity_id: str
-    hierarchy_level: int         # 0 = leader, higher = lower rank
-    loyalty: float               # 0.0‑1.0
-    group_id: str                # e.g. "goblin_kingdom"
+    structure_id: str
+    structure_type: str  # SocialStructureType value
+    leader_id: str
+    member_ids: List[str] = field(default_factory=list)
+    hierarchy: Dict[str, int] = field(default_factory=dict)
+    shared_goals: List[str] = field(default_factory=list)
+    wealth_pool: float = 0.0
+    relationships: List[SocialRelationship] = field(default_factory=list)
+
+@dataclass
+class LoyaltyState:
+    minion_id: str
+    leader_id: str
+    loyalty_score: float = 0.5  # 0.0 to 1.0
+    base_loyalty: float = 0.5
+    modifiers: List[Dict[str, Any]] = field(default_factory=list)
 ```
 
 ### PowerLevels (`src/domain/value_objects/power_levels.py`)
 ```python
+from dataclasses import dataclass
+
 @dataclass
 class PowerLevels:
     # Offensive
@@ -136,35 +178,17 @@ class PowerLevels:
     evasion: int = 0
 ```
 
-### SkillSet (`src/domain/value_objects/skill_set.py`)
+### PlayerProfile (`src/domain/value_objects/power_levels.py`)
 ```python
-from enum import Enum
+from dataclasses import dataclass
+from typing import List, Dict, Any
 
-class Skill(Enum):
-    SNEAKINESS = "sneakiness"
-    STEALTH = "stealth"
-    ACROBATICS = "acrobatics"
-    PERCEPTION = "perception"
-    INVESTIGATION = "investigation"
-    INTIMIDATION = "intimidation"
-    PERSUASION = "persuasion"
-    DECEPTION = "deception"
-    LANGUAGE = "language"
-    ARCANE_KNOWLEDGE = "arcane_knowledge"
-    SURVIVAL = "survival"
-    MEDICINE = "medicine"
-    WEAPON_MASTERY = "weapon_mastery"
-    ARMOR_MASTERY = "armor_mastery"
-    TACTICAL_AWARENESS = "tactical_awareness"
-```
-
-### PlayerProfile (`src/domain/value_objects/player_profile.py`)
-```python
 @dataclass
 class PlayerProfile:
     level: int
-    skills: List[Skill]
+    stats: Dict[str, float]
     power_levels: PowerLevels
+    skills: List[str]
     recent_actions: List[Dict[str, Any]]
 ```
 
@@ -172,18 +196,37 @@ class PlayerProfile:
 ```python
 @dataclass
 class LLMCallLog:
-    timestamp: str
+    call_id: str
+    timestamp: float
+    context: str  # "behavior_generation", "level_design", "item_seeding"
+    entity_id: Optional[str]
     prompt_summary: str
     response_summary: str
-    latency_ms: int
+    latency_ms: float
     tokens_used: int
     success: bool
+    error: Optional[str] = None
+    behavior_script_id: Optional[str] = None
+    prompt_tokens: int = 0
+    response_tokens: int = 0
+    context_before_tokens: int = 0
+    context_after_tokens: int = 0
+    context_headroom: int = 8192
+    model: str = ""
+    temperature: float = 0.0
 
 @dataclass
 class LLMPerformanceMetrics:
     total_calls: int = 0
-    avg_latency_ms: float = 0.0
-    error_rate: float = 0.0
+    total_latency_ms: float = 0.0
+    latencies: List[float] = field(default_factory=list)
+    error_count: int = 0
+    total_tokens: int = 0
+    calls_by_context: Dict[str, int] = field(default_factory=dict)
+    avg_prompt_tokens: float = 0.0
+    avg_response_tokens: float = 0.0
+    max_prompt_tokens_seen: int = 0
+    context_pressure_events: int = 0
 ```
 
 ---
@@ -216,22 +259,22 @@ class LLMPerformanceMetrics:
 ```
 * The LLM receives a **prompt** containing the `PerceptionStatus` (and optionally `PlayerProfile`).
 * It returns a JSON tree that conforms to the `BehaviorScript` schema.
-* `BehaviorEngine` validates the tree, then each tick walks the tree, evaluating `BehaviorCondition` nodes against the entity’s current state (including **social** and **skill** data) and executing `BehaviorAction` nodes.
+* `BehaviorEngine` validates the tree, then each tick walks the tree, evaluating `BehaviorCondition` nodes against the entity's current state (including **social** and **skill** data) and executing `BehaviorAction` nodes.
 
 #### Catalog of Conditions & Actions (excerpt)
 | Condition | Parameters | Meaning |
 |-----------|------------|---------|
-| `player_visible` | – | `perception.can_see_player`
-| `health_below` | `threshold: float` | Entity health < threshold
-| `loyalty_above` | `value: float` | `SocialStructure.loyalty >= value`
-| `has_skill` | `skill: Skill` | Entity skill level > 0
+| `player_visible` | – | `perception.can_see_player` |
+| `health_below` | `threshold: float` | Entity health < threshold |
+| `loyalty_above` | `value: float` | `SocialStructure.loyalty >= value` |
+| `has_skill` | `skill: Skill` | Entity skill level > 0 |
 
 | Action | Parameters | Effect |
 |--------|------------|--------|
-| `move_to` | `position: (x, y)` | Calls `AI.move_towards`
-| `attack` | `target_id: str` | Calls combat service
-| `give_item` | `item_id: str, recipient_id: str` | Inventory transfer
-| `increase_loyalty` | `amount: float` | Adjusts `SocialStructure.loyalty`
+| `move_to` | `position: (x, y)` | Calls `AI.move_towards` |
+| `attack` | `target_id: str` | Calls combat service |
+| `give_item` | `item_id: str, recipient_id: str` | Inventory transfer |
+| `increase_loyalty` | `amount: float` | Adjusts `SocialStructure.loyalty` |
 
 ### 3. Social Structures & Loyalty
 ```
@@ -255,7 +298,7 @@ The new `PowerLevels` dataclass **extends** the existing `Stats` value object (`
 Skills are stored in a `Set[Skill]` on the entity component `SkillComponent` (new).  During condition evaluation, `has_skill` checks this set.  During combat, `SkillService` provides modifiers (e.g., `STEALTH` reduces detection chance, `WEAPON_MASTERY` adds to melee damage).
 
 ### 6. LLM Level Design & Item Seeding
-* `PlayerProfile` is built from the player’s `Stats`, `PowerLevels`, and learned `Skill`s.
+* `PlayerProfile` is built from the player's `Stats`, `PowerLevels`, and learned `Skill`s.
 * When the game needs **new content** (e.g., a new dungeon room), the `CommanderAgent` sends a `MapAccessRequest` containing the profile and a request type (`"level_creation"`, `"clairvoyance"`).
 * The LLM returns a description and optional item list, which the `LevelGenerator` consumes.
 
@@ -287,6 +330,7 @@ Each scenario is defined in `config/social_structures.yaml` (see *Configuration 
 | Social Updates | `src/domain/services/social_service.py` | Listens to `CombatHandler` events to adjust loyalty |
 | Power Levels | `src/domain/value_objects/stats.py` | New field `power_levels` referenced by `CombatService` |
 | Skill Effects | `src/domain/services/skill_service.py` | Provides modifiers to `BehaviorEngine` and `CombatService` |
+| Context Manager | `src/domain/services/context_manager.py` | Tracks token usage, provides headroom diagnostics |
 
 ---
 
@@ -367,5 +411,77 @@ stateDiagram-v2
 
 ---
 
-*Document generated by the Architect mode. Developers can now implement the outlined files and modify the referenced components.*
+## New Systems Added
 
+### Context Manager System
+- **File:** `src/domain/services/context_manager.py`
+- **Purpose:** Manages LLM context window for maximum effectiveness
+- **Key Features:**
+  - Token estimation and tracking
+  - Context headroom diagnostics
+  - History trimming for token budget management
+  - System prompt management
+
+### Item Creation System
+- **Files:** `src/domain/value_objects/item_creation.py`, `src/domain/components/item_factory.py`, `src/domain/services/item_factory_service.py`
+- **Purpose:** Create items with proper rarity, stats, modifiers, and curses
+- **Key Features:**
+  - ItemType, ItemPower, ItemDefense, ItemModifier, ItemCurse enums
+  - Boss-slayer items with specific weaknesses
+  - Puzzle items with hidden potential
+  - Trash items with potential for later use
+
+### Durability System
+- **Files:** `src/domain/value_objects/durability.py`, `src/domain/components/item_durability.py`
+- **Purpose:** Track item condition and apply degradation logic
+- **Key Features:**
+  - Base durability per item type
+  - Hit/block/crit durability loss
+  - Degradation threshold (50% = degraded)
+  - Repair mechanics with limited uses
+
+### Damage Model System
+- **Files:** `src/domain/value_objects/damage_model.py`, `src/domain/components/damage_calculator.py`
+- **Purpose:** Hero-System style damage calculation
+- **Key Features:**
+  - Resistance-based damage reduction
+  - Armor flat reduction
+  - Block and dodge mechanics
+  - Critical hit support
+
+### Narrative System
+- **Files:** `src/domain/value_objects/narrative.py`, `src/domain/components/narrative.py`, `src/domain/services/narrative_service.py`
+- **Purpose:** Manage story progression and hint distribution
+- **Key Features:**
+  - StoryOutline for entire dungeon run
+  - LevelNarrative with hints and required items
+  - BossEncounter with weaknesses/resistances
+  - NarrativeEvent triggers
+
+### Loot Planning System
+- **Files:** `src/domain/value_objects/loot_plan.py`, `src/domain/components/loot_planner.py`, `src/domain/services/loot_service.py`
+- **Purpose:** Plan and distribute loot based on player profile
+- **Key Features:**
+  - Catering items for player's build
+  - Challenge items for player's weaknesses
+  - Trash items with hidden potential
+
+### Puzzle Item System
+- **Files:** `src/domain/value_objects/puzzle_items.py`, `src/domain/components/puzzle_mechanic.py`, `src/domain/services/puzzle_service.py`
+- **Purpose:** Track puzzle items and validate solutions
+- **Key Features:**
+  - PuzzleItem with found/used level tracking
+  - PuzzleMechanic with required items
+  - Solution validation based on collected items
+
+### Difficulty System
+- **Files:** `src/domain/value_objects/difficulty.py`
+- **Purpose:** Control dungeon generation scaling
+- **Key Features:**
+  - DifficultyMode enum (STORY, NORMAL, HARD, NIGHTMARE, IRONMAN)
+  - Scaling factors for mob count, trap density, loot rarity
+  - Player power targeting
+
+---
+
+*Document generated by the Architect mode. Developers can now implement the outlined files and modify the referenced components.*

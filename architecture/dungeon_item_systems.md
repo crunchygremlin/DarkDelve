@@ -13,7 +13,13 @@ src/
 │  │   ├─ damage_model.py
 │  │   ├─ narrative.py
 │  │   ├─ loot_plan.py
-│  │   └─ puzzle_items.py
+│  │   ├─ puzzle_items.py
+│  │   ├─ perception.py
+│  │   ├─ social.py
+│  │   ├─ behavior_script.py
+│  │   ├─ llm_logging.py
+│  │   ├─ power_levels.py
+│  │   └─ stats.py
 │  ├─ components/           # Behaviour attached to entities / services
 │  │   ├─ dungeon_control.py
 │  │   ├─ item_factory.py
@@ -21,17 +27,32 @@ src/
 │  │   ├─ damage_calculator.py
 │  │   ├─ narrative.py
 │  │   ├─ loot_planner.py
-│  │   └─ puzzle_mechanic.py
+│  │   ├─ puzzle_mechanic.py
+│  │   ├─ ai.py
+│  │   ├─ behavior_component.py
+│  │   ├─ combat.py
+│  │   ├─ perception_component.py
+│  │   ├─ inventory.py
+│  │   ├─ equipment.py
+│  │   └─ movement.py
 │  ├─ services/             # Orchestrators that use the above VO/Components
 │  │   ├─ dungeon_master_service.py
 │  │   ├─ item_factory_service.py
 │  │   ├─ loot_service.py
 │  │   ├─ narrative_service.py
-│  │   └─ puzzle_service.py
+│  │   ├─ puzzle_service.py
+│  │   ├─ context_manager.py
+│  │   ├─ perception_service.py
+│  │   ├─ behavior_script_service.py
+│  │   ├─ level_design_service.py
+│  │   ├─ social_service.py
+│  │   ├─ player_profile_service.py
+│  │   └─ entity_ai_orchestrator.py
 │  └─ ... (existing entities, components, services)
 ├─ infrastructure/
 │  └─ configuration/
-│      └─ config_loader.py   # reads the new schema from `config/game.yaml`
+│      ├─ config_loader.py
+│      └─ entity_ai_config_loader.py
 └─ architecture/dungeon_item_systems.md   # <‑‑ this document
 ```
 
@@ -49,6 +70,11 @@ The systems interact through the **Event Bus** (`src/application/event_system/ev
 | `src/domain/value_objects/narrative.py` | `StoryOutline`, `NarrativeEvent`, `LevelNarrative`, `BossEncounter`, `KeyItem` (re‑exported for clarity) |
 | `src/domain/value_objects/loot_plan.py` | `LootPlan` dataclass |
 | `src/domain/value_objects/puzzle_items.py` | `PuzzleItem`, `PuzzleMechanic` |
+| `src/domain/value_objects/perception.py` | `PerceptionSense`, `PerceptionModifiers`, `PerceptionStatus` |
+| `src/domain/value_objects/social.py` | `SocialRelationship`, `SocialStructure`, `LoyaltyState` |
+| `src/domain/value_objects/behavior_script.py` | `BehaviorNode`, `BehaviorScript` |
+| `src/domain/value_objects/llm_logging.py` | `ContextWindowDiagnostics`, `TokenBudget`, `LLMCallLog`, `LLMPerformanceMetrics`, `LLMLogger` |
+| `src/domain/value_objects/power_levels.py` | `PowerLevels` dataclass |
 | `src/domain/components/dungeon_control.py` | Component that holds the current `DungeonLevel` and exposes generation hooks |
 | `src/domain/components/item_factory.py` | High‑level façade that uses `ItemFactory` (LLM‑backed) to produce `Item` entities |
 | `src/domain/components/item_durability.py` | Component that tracks durability state and applies degradation logic |
@@ -61,6 +87,15 @@ The systems interact through the **Event Bus** (`src/application/event_system/ev
 | `src/domain/services/loot_service.py` | Applies `LootPlan` to a `DungeonLevel`, updates inventory, and emits loot events |
 | `src/domain/services/narrative_service.py` | Updates `StoryOutline`, triggers `NarrativeEvent`s, and stores hints |
 | `src/domain/services/puzzle_service.py` | Validates puzzle requirements, tracks solved state, and rewards players |
+| `src/domain/services/context_manager.py` | Manages LLM context window, tracks token usage, provides headroom diagnostics |
+| `src/domain/services/perception_service.py` | Populate `PerceptionStatus` from FOV query |
+| `src/domain/services/behavior_script_service.py` | Parse and execute behavior scripts |
+| `src/domain/services/level_design_service.py` | Generate level layouts via LLM |
+| `src/domain/services/social_service.py` | Manage relationships & loyalty |
+| `src/domain/services/player_profile_service.py` | Build PlayerProfile for LLM level design |
+| `src/domain/services/entity_ai_orchestrator.py` | Orchestrate AI systems together |
+| `config/entity_ai.yaml` | YAML configuration for mob types, perception, social structures |
+| `src/infrastructure/configuration/entity_ai_config_loader.py` | Python class for loading and accessing entity AI configuration |
 
 ## Existing Files to Modify
 | File | Change |
@@ -71,6 +106,8 @@ The systems interact through the **Event Bus** (`src/application/event_system/ev
 | `src/domain/components/combat.py` | Replace direct damage math with a call to `DamageCalculator` component. |
 | `src/domain/entities/item.py` | Extend to include `ItemStats`, `modifiers`, `curses`, and durability fields (via composition with `ItemDurabilityComponent`). |
 
+---
+
 ## Data Structures (Full Definitions)
 
 ### `src/domain/value_objects/difficulty.py`
@@ -78,14 +115,14 @@ The systems interact through the **Event Bus** (`src/application/event_system/ev
 from __future__ import annotations
 from dataclasses import dataclass, field
 from enum import Enum
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, TYPE_CHECKING
 
 class DifficultyMode(Enum):
-    STORY = "story"
-    NORMAL = "normal"
-    HARD = "hard"
-    NIGHTMARE = "nightmare"
-    IRONMAN = "ironman"
+    STORY = "story"           # easy, focus on narrative
+    NORMAL = "normal"         # balanced challenge + loot
+    HARD = "hard"             # challenging, less loot
+    NIGHTMARE = "nightmare"   # brutal, minimal loot
+    IRONMAN = "ironman"       # permadeath, hardcore
 
 @dataclass
 class Room:
@@ -93,8 +130,8 @@ class Room:
     y: int
     width: int
     height: int
-    room_type: str
-    connected_rooms: List[int]
+    room_type: str            # "normal", "treasure", "boss", "puzzle", "shrine", "trap"
+    connected_rooms: List[int] = field(default_factory=list)
     description: str = ""
 
 @dataclass
@@ -151,7 +188,7 @@ class BossEncounter:
     weaknesses: List[str]
     resistances: List[str]
     special_loot: List[str]
-    pre_level_hints: List[str]
+    pre_level_hints: List[str] = field(default_factory=list)
 
 @dataclass
 class KeyItem:
@@ -268,6 +305,27 @@ class ItemStats:
     weight: float = 1.0
     required_level: int = 1
     required_stats: Dict[str, float] = field(default_factory=dict)
+
+@dataclass
+class Item:
+    item_id: str
+    name: str
+    description: str
+    item_type: str
+    rarity: str
+    powers: List[str]
+    defenses: List[str]
+    modifiers: List[str]
+    curses: List[str]
+    stats: ItemStats
+    special_abilities: List[str] = field(default_factory=list)
+    lore_text: str = ""
+    is_quest_item: bool = False
+    puzzle_role: Optional[str] = None
+    boss_bonus: Optional[str] = None
+    level_origin: int = 0
+    value_gold: int = 0
+    is_identified: bool = True
 ```
 
 ### `src/domain/value_objects/durability.py`
@@ -394,7 +452,7 @@ class DamageCalculator:
 ```python
 from __future__ import annotations
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict
+from typing import List, Optional
 
 @dataclass
 class LevelNarrative:
@@ -416,7 +474,7 @@ class BossEncounter:
     weaknesses: List[str]
     resistances: List[str]
     special_loot: List[str]
-    pre_level_hints: List[str]
+    pre_level_hints: List[str] = field(default_factory=list)
 
 @dataclass
 class KeyItem:
@@ -471,17 +529,16 @@ class NarrativeEvent:
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
-from .item_creation import Item
 
 @dataclass
 class LootPlan:
     level_number: int
-    items: List[Item]
+    items: List["Item"]
     target_power_type: str
     target_challenge: str
     catering_items: List[str] = field(default_factory=list)
     challenge_items: List[str] = field(default_factory=list)
-    trash_items: List[Item] = field(default_factory=list)
+    trash_items: List["Item"] = field(default_factory=list)
 ```
 
 ### `src/domain/value_objects/puzzle_items.py`
@@ -489,7 +546,6 @@ class LootPlan:
 from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import List
-from .item_creation import Item
 
 @dataclass
 class PuzzleItem:
@@ -540,8 +596,8 @@ class PuzzleMechanic:
 * `NarrativeService` tracks the current outline, emits `NarrativeEvent`s, and provides hints to the player via the UI.
 
 ### 6️⃣ Loot Catering System
-* `LootPlannerComponent` analyses the player’s `Stats`, `PowerLevels`, and current `DifficultyMode` to produce a `LootPlan`.
-* Items marked as `catering_items` boost the player’s build; `challenge_items` exploit weaknesses.
+* `LootPlannerComponent` analyses the player's `Stats`, `PowerLevels`, and current `DifficultyMode` to produce a `LootPlan`.
+* Items marked as `catering_items` boost the player's build; `challenge_items` exploit weaknesses.
 
 ### 7️⃣ Puzzle/Trash Item System
 * `PuzzleService` registers `PuzzleMechanic`s and validates when a player uses a `PuzzleItem`.
@@ -550,6 +606,15 @@ class PuzzleMechanic:
 ### 8️⃣ Item Factory (DM‑side)
 * The factory can be **LLM‑augmented**: `create_from_scenario` sends a prompt to `OllamaService` and parses the response into an `Item`.
 * Deterministic helpers (`create_boss_slayer`, `create_puzzle_item`) ensure reproducibility for tests.
+
+### 9️⃣ Context Manager System
+* **File:** `src/domain/services/context_manager.py`
+* **Purpose:** Manages LLM context window for maximum effectiveness
+* **Key Features:**
+  - Token estimation and tracking
+  - Context headroom diagnostics
+  - History trimming for token budget management
+  - System prompt management
 
 ---
 
@@ -644,4 +709,3 @@ flowchart TD
 ---
 
 *Document generated by the Architect mode.*
-
