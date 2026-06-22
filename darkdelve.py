@@ -30,6 +30,13 @@ import requests
 # Import renderer classes
 from src.presentation.renderer import create_renderer
 
+# Import agent system
+from src.domain.agents import (
+    Agent, AgentType, AgentManager, LLMAgent, LLMAgentConfig, RandomAgent, CommanderAgent
+)
+from src.domain.agents.integration import AgentTurnProcessor, AgentTurnContext
+from src.domain.agents.state import AgentGameState, EntityState, ItemState
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -625,6 +632,7 @@ class LevelTheme:
 
 @dataclass
 class Entity:
+    id: str = field(default_factory=lambda: str(uuid.uuid4()))
     x: int = 0
     y: int = 0
     char: str = "@"
@@ -1765,6 +1773,10 @@ class Game:
         self.showing_menu = False
         self.menu_selection = 0
         self.message_log: List[str] = []
+        
+        # Agent system integration
+        self.agent_manager = AgentManager()
+        self.turn_processor: Optional[AgentTurnProcessor] = None
     
     @property
     def console(self):
@@ -1808,6 +1820,10 @@ class Game:
         # Start LLM worker thread
         self.llm_thread = threading.Thread(target=local_llm_worker, args=(self.ollama,), daemon=True)
         self.llm_thread.start()
+        
+        # Initialize agent turn processor
+        self.turn_processor = AgentTurnProcessor(self)
+        self.turn_processor.set_llm_queues(llm_request_queue, llm_response_queue)
         
         # Initialize tcod
         tileset_path = ASSETS_PATH / "tilesets" / self.config['display']['tileset']
@@ -1940,6 +1956,13 @@ class Game:
                     )
                     entity.home_position = (x, y)
                     self.entities.append(entity)
+                    
+                    # Assign agent to monster
+                    if template.tier == MobTier.BOSS:
+                        agent = CommanderAgent(entity, home_position=(x, y))
+                    else:
+                        agent = RandomAgent(entity, agent_type=AgentType.MONSTER)
+                    self.agent_manager.register_agent(agent)
                     break
         
         # Generate items
@@ -2030,14 +2053,20 @@ class Game:
             self.check_level_up()
 
         else:
-            # Monster turn
-            self.monster_turn(actor)
+            # Monster turn - use agent system if available, otherwise default AI
+            agent = self.agent_manager.get_agent_for_entity(actor)
+            if agent and self.turn_processor:
+                # Use AgentTurnProcessor for agent-controlled entities
+                self.turn_processor.process_actor_turn(actor, agent)
+            else:
+                # Fall back to default AI
+                self.monster_turn(actor)
             actor.tick_effects()
 
-        # Process LLM responses
+        # Process LLM responses (for commander entities that use the legacy system)
         process_llm_responses(self.entities)
 
-        # Execute commander actions
+        # Execute commander actions (for commanders using the legacy LLM system)
         for entity in self.entities:
             if entity.is_alive and entity.is_commander and entity.current_command:
                 action, target = interpret_commander_action(entity, self.player, self.dungeon_map, self.entities)

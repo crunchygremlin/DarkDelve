@@ -16,7 +16,7 @@ from .base import Agent, AgentType, PerceptionResult
 from .actions import AgentAction, ActionType, ActionResult
 from .state import AgentGameState, EntityState, ItemState, CombatState
 from .llm_agent import LLMAgent, LLMAgentConfig, RandomAgent
-from .commander_agent import CommanderAgent
+from .commander_agent import CommanderAgent, AgentManager
 
 __all__ = [
     # Base types
@@ -37,4 +37,5 @@ __all__ = [
     "LLMAgentConfig",
     "RandomAgent",
     "CommanderAgent",
+    "AgentManager",
 ]

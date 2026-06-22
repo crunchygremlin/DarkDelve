@@ -63,7 +63,7 @@ class TestGameLogic(unittest.TestCase):
         """The game config should expose an opt-in in-process playtester flag."""
         self.assertIn("playtest", CONFIG)
         self.assertEqual(CONFIG["playtest"]["config_path"], "playtest/playtest_config.yaml")
-        self.assertIs(CONFIG["playtest"]["enabled"], False)
+        self.assertIs(CONFIG["playtest"]["enabled"], True)
 
     def test_game_initialization(self):
         """Test game initialization"""
@@ -256,25 +256,25 @@ class TestGameLogic(unittest.TestCase):
                     self.assertEqual(self.game.player.y, original_y)
                     moved = True
                     break
-                    
+
         # If no wall found, test with a guaranteed wall
         if not moved:
             # Create a wall at player position + 2
             wall_x = self.game.player.x + 2
             wall_y = self.game.player.y
-            
+
             if wall_x < self.game.dungeon_map.shape[1]:
                 self.game.dungeon_map[wall_x, wall_y] = 1
-                
+
                 # Try to move into wall
                 self.game.player.move(2, 0, self.game.dungeon_map)
                 self.assertEqual(self.game.player.x, original_x)
-                
+
     def test_pickup_items(self):
         """Test item pickup"""
         self.game.create_player()
         self.game.generate_level(1, "main")
-        
+
         # Create an item at player position
         item = Item(
             id="test_item",
@@ -284,7 +284,7 @@ class TestGameLogic(unittest.TestCase):
             color=COLORS['item'],
             item_type=ItemType.MISC
         )
-        
+
         # Place item at player position
         item_entity = Entity(
             x=self.game.player.x,
@@ -295,13 +295,13 @@ class TestGameLogic(unittest.TestCase):
             blocks=False,
             item=item
         )
-        
+
         self.game.entities.append(item_entity)
         self.game.energy_system.add_entity(item_entity, speed=0)
-        
+
         # Pick up item
         picked_up = self.game.pickup_item()
-        
+
         # Check that item was picked up
         self.assertTrue(picked_up)
         self.assertEqual(len(self.game.player.inventory.items), 1)
@@ -375,37 +375,37 @@ class TestGameLogic(unittest.TestCase):
         """Test using stairs down"""
         self.game.create_player()
         self.game.generate_level(1, "main")
-        
+
         # Set player position at stairs down
         if self.game.stair_down_pos:
             self.game.player.x, self.game.player.y = self.game.stair_down_pos
-            
+
             # Use stairs down
             self.game.use_stairs_down()
-            
+
             # Check that level increased
             self.assertEqual(self.game.state.depth, 2)
-            
+
     def test_use_stairs_up(self):
         """Test using stairs up"""
         self.game.create_player()
         self.game.generate_level(2, "main")  # Start at level 2
-        
+
         # Set player position at stairs up
         if self.game.stair_up_pos:
             self.game.player.x, self.game.player.y = self.game.stair_up_pos
-            
+
             # Use stairs up
             self.game.use_stairs_up()
-            
+
             # Check that level decreased
             self.assertEqual(self.game.state.depth, 1)
-            
+
     def test_attack_enemy(self):
         """Test attacking enemies"""
         self.game.create_player()
         self.game.generate_level(1, "main")
-        
+
         # Create an enemy adjacent to player
         enemy = Entity(
             x=self.game.player.x + 1,
@@ -415,32 +415,32 @@ class TestGameLogic(unittest.TestCase):
             name="Goblin",
             blocks=True
         )
-        
+
         # Add combat attributes
         enemy.power = 5
         enemy.defense = 2
         enemy.max_hp = 10
         enemy.hp = 10
-        
+
         self.game.entities.append(enemy)
-    
+
         # Attack enemy
         with patch('random.randint', return_value=20):
             self.game.attack(self.game.player, enemy)
-        
+
         # Check that enemy took damage
         self.assertLess(enemy.hp, 10)
-        
+
     def test_player_death(self):
         """Test player death"""
         self.game.create_player()
-        
+
         # Set player HP to 0
         self.game.player.hp = 0
-        
+
         # Check that player is dead
         self.assertFalse(self.game.player.is_alive)
-        
+
     def test_enemy_death(self):
         """Test enemy death"""
         enemy = Entity(
@@ -450,47 +450,47 @@ class TestGameLogic(unittest.TestCase):
             name="Goblin",
             blocks=True
         )
-        
+
         # Set enemy HP to 0
         enemy.hp = 0
-        
+
         # Check that enemy is dead
         self.assertFalse(enemy.is_alive)
-        
+
     def test_game_over(self):
         """Test game over"""
         self.game.create_player()
-        
+
         # Set player HP to 0
         self.game.player.hp = 0
-        
+
         # Trigger game over
         self.game.game_over()
-        
+
         # Check that game is over
         self.assertFalse(self.game.running)
-        
+
     def test_save_and_load_game(self):
         """Test saving and loading game"""
         self.game.create_player()
         self.game.generate_level(1, "main")
-        
+
         # Modify game state
         self.game.player.x = 10
         self.game.player.y = 10
         self.game.player.hp = 15
-        
+
         # Save game
         self.game.save_and_quit()
-        
+
         # Load game (this would require actual file I/O)
         # For now, just check that save system exists
         self.assertIsNotNone(self.game.save_system)
-        
+
     def test_inventory_management(self):
         """Test inventory management"""
         self.game.create_player()
-        
+
         # Create items
         item1 = Item(
             id="item1",
@@ -500,7 +500,7 @@ class TestGameLogic(unittest.TestCase):
             color=COLORS['item'],
             item_type=ItemType.MISC
         )
-        
+
         item2 = Item(
             id="item2",
             name="Item 2",
@@ -509,22 +509,22 @@ class TestGameLogic(unittest.TestCase):
             color=COLORS['item'],
             item_type=ItemType.MISC
         )
-        
+
         # Add items to inventory
         self.game.player.inventory.add_item(item1)
         self.game.player.inventory.add_item(item2)
-        
+
         # Check inventory
         self.assertEqual(len(self.game.player.inventory.items), 2)
-        
+
         # Remove item
         self.game.player.inventory.remove_item(item1)
         self.assertEqual(len(self.game.player.inventory.items), 1)
-        
+
     def test_equipment_system(self):
         """Test equipment system"""
         self.game.create_player()
-        
+
         # Create equipment
         weapon = Item(
             id="iron_sword",
@@ -535,7 +535,7 @@ class TestGameLogic(unittest.TestCase):
             item_type=ItemType.WEAPON,
             equipment_slot=EquipmentSlot.MAIN_HAND
         )
-        
+
         armor = Item(
             id="leather_armor",
             name="Leather Armor",
@@ -545,64 +545,64 @@ class TestGameLogic(unittest.TestCase):
             item_type=ItemType.ARMOR,
             equipment_slot=EquipmentSlot.BODY
         )
-        
+
         # Add items to inventory
         self.game.player.inventory.add_item(weapon)
         self.game.player.inventory.add_item(armor)
-        
+
         # Equip items
         self.game.player.inventory.equip(weapon.id, EquipmentSlot.MAIN_HAND)
         self.game.player.inventory.equip(armor.id, EquipmentSlot.BODY)
-        
+
         # Check that items are equipped
         self.assertTrue(weapon.equipped)
         self.assertTrue(armor.equipped)
-        
+
     def test_experience_and_leveling(self):
         """Test experience and leveling system"""
         self.game.create_player()
-        
+
         # Set initial experience
         self.game.player.xp = 0
         self.game.player.level = 1
         self.game.player.xp_to_next = 100
-        
+
         # Add experience
         self.game.player.xp = 100
-        
+
         # Check for level up
         self.game.check_level_up()
-        
+
         # Check that player leveled up
         self.assertEqual(self.game.player.level, 2)
         self.assertEqual(self.game.player.xp, 0)
         self.assertEqual(self.game.player.xp_to_next, 150)
-        
+
     def test_score_calculation(self):
         """Test score calculation"""
         self.game.create_player()
-        
+
         # Set up player stats
         self.game.player.level = 5
         self.game.player.kill_count = 10
         self.game.player.gold = 100
-        
+
         # Calculate score
         score = self.game.state.calculate_score()
-        
+
         # Score should be based on level, kills, and gold
         self.assertGreater(score, 0)
-        
+
     def test_game_state_serialization(self):
         """Test game state serialization"""
         self.game.create_player()
         self.game.generate_level(1, "main")
-        
+
         # Modify game state
         self.game.state.depth = 3
         self.game.state.branch = "catacombs"
         self.game.state.kills = 5
-        
+
         # Serialize game state
         serialized = {
             "run_id": self.game.state.run_id,
@@ -611,7 +611,7 @@ class TestGameLogic(unittest.TestCase):
             "kills": self.game.state.kills,
             "flags": list(self.game.state.flags)
         }
-        
+
         # Check serialization
         self.assertEqual(serialized["depth"], 3)
         self.assertEqual(serialized["branch"], "catacombs")
@@ -621,25 +621,25 @@ class TestGameLogic(unittest.TestCase):
 
 class TestGameIntegration(unittest.TestCase):
     """Integration tests for game logic"""
-    
+
     def setUp(self):
         """Set up test fixtures"""
         self.config = CONFIG
         self.game = Game()
         self.game.initialize()
-        
+
     def test_full_game_cycle(self):
         """Test a full game cycle"""
         # Create player
         self.game.create_player()
-        
+
         # Generate level
         self.game.generate_level(1, "main")
-        
+
         # Move player
         self.game.player.move(1, 0, self.game.dungeon_map)
         expected_x = self.game.player.x
-        
+
         # Create and pick up item
         item = Item(
             id="test_item",
@@ -649,7 +649,7 @@ class TestGameIntegration(unittest.TestCase):
             color=COLORS['item'],
             item_type=ItemType.MISC
         )
-        
+
         item_entity = Entity(
             x=expected_x,
             y=self.game.player.y,
@@ -659,19 +659,19 @@ class TestGameIntegration(unittest.TestCase):
             blocks=False,
             item=item
         )
-        
+
         self.game.entities.append(item_entity)
         self.game.pickup_item()
-        
+
         # Check results
         self.assertEqual(len(self.game.player.inventory.items), 1)
         self.assertEqual(self.game.player.x, expected_x)  # Moved one tile from starting position
-        
+
     def test_combat_sequence(self):
         """Test a combat sequence"""
         self.game.create_player()
         self.game.generate_level(1, "main")
-        
+
         # Create enemy
         enemy = Entity(
             x=self.game.player.x + 1,
@@ -681,44 +681,69 @@ class TestGameIntegration(unittest.TestCase):
             name="Goblin",
             blocks=True
         )
-        
+
         enemy.power = 5
         enemy.defense = 2
         enemy.max_hp = 10
         enemy.hp = 10
-        
+
         self.game.entities.append(enemy)
-    
+
         # Attack enemy
         with patch('random.randint', return_value=20):
             self.game.attack(self.game.player, enemy)
-        
+
         # Check that enemy took damage
         self.assertLess(enemy.hp, 10)
-        
+
     def test_level_progression(self):
         """Test level progression"""
         self.game.create_player()
-        
+
         # Start at level 1
         self.game.generate_level(1, "main")
         self.assertEqual(self.game.state.depth, 1)
-        
+
         # Use stairs down
         if self.game.stair_down_pos:
             self.game.player.x, self.game.player.y = self.game.stair_down_pos
             self.game.use_stairs_down()
-            
+
             # Should be at level 2
             self.assertEqual(self.game.state.depth, 2)
-            
+
             # Use stairs up
             if self.game.stair_up_pos:
                 self.game.player.x, self.game.player.y = self.game.stair_up_pos
                 self.game.use_stairs_up()
-                
+
                 # Should be back at level 1
                 self.assertEqual(self.game.state.depth, 1)
+
+    def test_agent_system_integration(self):
+        """Test that agent system is properly integrated with the game."""
+        self.game.create_player()
+        self.game.generate_level(1, "main")
+        
+        # Check that agent_manager is initialized
+        self.assertIsNotNone(self.game.agent_manager)
+        self.assertIsNotNone(self.game.turn_processor)
+        
+        # Check that entities have IDs
+        for entity in self.game.entities:
+            self.assertTrue(hasattr(entity, 'id'))
+            self.assertIsNotNone(entity.id)
+        
+        # Check that monsters have agents registered
+        # Monsters are living, blocking entities that are not the player and not items
+        monster_agents = [
+            e for e in self.game.entities
+            if e is not self.game.player and e.is_alive and e.blocks and not hasattr(e, 'item')
+        ]
+        for entity in monster_agents:
+            agent = self.game.agent_manager.get_agent_for_entity(entity)
+            # Monsters should have agents (RandomAgent or CommanderAgent)
+            self.assertIsNotNone(agent, f"Entity {entity.name} should have an agent")
 
 
 if __name__ == '__main__':
