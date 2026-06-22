@@ -1,151 +1,132 @@
-"""
-Renderer module for DarkDelve.
+"""Main renderer for the game."""
 
-This module provides abstract and concrete renderer implementations for the game.
-It allows for different rendering backends (console, graphical) to be used interchangeably.
-"""
+from typing import Any, Dict, List, Optional, Tuple
 
-from abc import ABC, abstractmethod
-from pathlib import Path
-import shutil
-import sys
 import tcod
-import numpy as np
-from typing import Optional, Tuple, Any
 
-# Import configuration - will be passed as parameter
+from src.presentation.renderers.tile_renderer import TileRenderer
 
 
-class Renderer(ABC):
-    """Abstract base class for all renderer implementations."""
-
-    @abstractmethod
-    def clear(self) -> None:
-        """Clear the rendering surface."""
-        pass
-
-    @abstractmethod
-    def print(self, x: int, y: int, text: str, color: Optional[Tuple[int, int, int]] = None) -> None:
-        """Print text at the specified position with optional color."""
-        pass
-
-    @abstractmethod
+class Renderer:
+    """Main game renderer."""
+    
+    COLORS: Dict[str, Tuple[int, int, int]] = {
+        'player': (255, 255, 0),
+        'wall': (80, 80, 80),
+        'floor': (100, 100, 100),
+        'door': (150, 100, 50),
+        'gold': (255, 215, 0),
+        'blood': (200, 0, 0),
+        'poison': (0, 200, 0),
+        'magic': (150, 100, 255),
+        'water': (100, 150, 255),
+        'fire': (255, 100, 0),
+        'item': (200, 200, 100),
+        'enemy_weak': (100, 200, 100),
+        'enemy_normal': (100, 150, 200),
+        'enemy_tough': (200, 100, 100),
+        'enemy_boss': (255, 0, 0),
+        'equipment': (150, 150, 150),
+        'text': (220, 220, 220),
+        'text_dim': (150, 150, 150),
+        'hp_high': (0, 255, 0),
+        'hp_med': (255, 255, 0),
+        'hp_low': (255, 0, 0),
+    }
+    
+    def __init__(self, width: int = 80, height: int = 50):
+        self.width = width
+        self.height = height
+        self.tile_renderer: Optional[TileRenderer] = None
+        self._root_console: Optional[tcod.Console] = None
+    
+    def initialize(self, tileset_path: Optional[str] = None) -> None:
+        """Initialize the renderer."""
+        self.tile_renderer = TileRenderer(self.width, self.height)
+        self.tile_renderer.initialize(tileset_path)
+        
+        self._root_console = tcod.console.Console(self.width, self.height)
+    
+    def print(self, x: int, y: int, text: str, color: Tuple[int, int, int]) -> None:
+        """Print text at position."""
+        if self._root_console:
+            self._root_console.print(x, y, text, fg=color)
+    
+    def render(self, game_state: Any) -> None:
+        """Render the game state."""
+        if not self._root_console or not self.tile_renderer:
+            return
+        
+        self._root_console.clear()
+        
+        # Render map
+        if hasattr(game_state, 'game_map'):
+            self._render_map(game_state.game_map)
+        
+        # Render entities
+        if hasattr(game_state, 'entities'):
+            self._render_entities(game_state.entities)
+        
+        # Render UI
+        if hasattr(game_state, 'player'):
+            self._render_hud(game_state.player)
+    
+    def _render_map(self, game_map: Any) -> None:
+        """Render the game map."""
+        if not self.tile_renderer:
+            return
+        
+        for y, row in enumerate(game_map):
+            for x, tile in enumerate(row):
+                if isinstance(tile, dict):
+                    char = tile.get('char', '.')
+                    color = tile.get('color', self.COLORS['floor'])
+                else:
+                    char = getattr(tile, 'symbol', '.')
+                    color = self.COLORS['floor']
+                
+                self.tile_renderer.render_tile(x, y, char, color)
+    
+    def _render_entities(self, entities: List[Any]) -> None:
+        """Render game entities."""
+        if not self.tile_renderer:
+            return
+        
+        for entity in entities:
+            x, y = getattr(entity, 'x', 0), getattr(entity, 'y', 0)
+            char = getattr(entity, 'symbol', '@')
+            color = self.COLORS['player']
+            self.tile_renderer.render_tile(x, y, char, color)
+    
+    def _render_hud(self, player: Any) -> None:
+        """Render the heads-up display."""
+        if not self._root_console:
+            return
+        
+        hp = getattr(player, 'hp', 0)
+        max_hp = getattr(player, 'max_hp', 1)
+        hp_color = self.COLORS['hp_high'] if hp > max_hp * 0.7 else self.COLORS['hp_low']
+        
+        self._root_console.print(1, 0, f"HP: {hp}/{max_hp}", fg=hp_color)
+    
     def present(self) -> None:
-        """Present the rendered content to the display."""
-        pass
+        """Present the rendered frame."""
+        if self._root_console:
+            tcod.console_flush()
+    
+    def clear(self) -> None:
+        """Clear the screen."""
+        if self._root_console:
+            self._root_console.clear()
 
 
 class ConsoleRenderer(Renderer):
-    """Renderer that uses tcod.console.Console for text-based output."""
-
-    def __init__(self, console: tcod.console.Console, config: dict = None):
-        """Initialize with a tcod console instance."""
-        self._console = console
-        self.config = config or {}
-
-    def clear(self) -> None:
-        """Clear the console."""
-        self._console.clear()
-
-    def print(self, x: int, y: int, text: str, color: Optional[Tuple[int, int, int]] = None) -> None:
-        """Print text at the specified position with optional color."""
-        if color is not None:
-            self._console.print(x, y, text, fg=color)
-        else:
-            self._console.print(x, y, text)
-
-    def present(self) -> None:
-        """Draw the offscreen console into the terminal without scrolling."""
-        display_config = self.config.get("display", {}) if self.config else {}
-        fallback_width = display_config.get("width", self._console.width)
-        fallback_height = display_config.get("height", self._console.height)
-        terminal_width, terminal_height = shutil.get_terminal_size(
-            fallback=(fallback_width, fallback_height)
-        )
-
-        visible_width = min(self._console.width, max(1, terminal_width))
-        visible_height = min(self._console.height, max(1, terminal_height))
-        frame = "\n".join(
-            "".join(chr(int(ch)) if int(ch) else " " for ch in row[:visible_width])
-            for row in self._console.ch[:visible_height]
-        )
-        sys.stdout.write(f"\033[H\033[2J{frame}\033[0m\n")
-        sys.stdout.flush()
+    """Console-based renderer for backward compatibility."""
+    
+    def __init__(self, width: int = 80, height: int = 50):
+        super().__init__(width, height)
 
 
-class GraphicalRenderer(Renderer):
-    """Renderer that uses tcod.console.Console with graphical context."""
-
-    def __init__(self, console: tcod.console.Console, context: tcod.context.Context, config: dict = None):
-        """Initialize with a tcod console and context instance."""
-        self._console = console
-        self._context = context
-        self.config = config or {}
-
-    def clear(self) -> None:
-        """Clear the console."""
-        self._console.clear()
-
-    def print(self, x: int, y: int, text: str, color: Optional[Tuple[int, int, int]] = None) -> None:
-        """Print text at the specified position with optional color."""
-        if color is not None:
-            self._console.print(x, y, text, fg=color)
-        else:
-            self._console.print(x, y, text)
-
-    def present(self) -> None:
-        """Present the console content to the graphical context."""
-        self._context.present(self._console)
-
-
-def create_renderer(config: dict, renderer_type: str = 'console') -> Renderer:
-    """
-    Factory function to create the appropriate renderer based on configuration.
-
-    Args:
-        config: Game configuration dictionary
-        renderer_type: Type of renderer to create ('console' or 'graphical')
-
-    Returns:
-        A Renderer instance
-
-    Raises:
-        ValueError: If the renderer type is not supported
-    """
-    screen_width = config['display']['width']
-    screen_height = config['display']['height']
-
-    if renderer_type == 'console':
-        console = tcod.console.Console(screen_width, screen_height)
-        return ConsoleRenderer(console, config)
-
-    elif renderer_type == 'graphical':
-        # Load tileset
-        tileset_path = Path(config['display']['tileset'])
-        if not tileset_path:
-            raise ValueError("Tileset path not configured for graphical renderer")
-
-        if not tileset_path.is_absolute():
-            project_root = Path(__file__).resolve().parents[2]
-            tileset_path = project_root / "assets" / "tilesets" / tileset_path
-
-        # Load the tileset
-        tileset = tcod.tileset.load_tilesheet(
-            str(tileset_path),
-            16, 8, tcod.tileset.CHARMAP_TCOD
-        )
-
-        # Create console and context
-        console = tcod.console.Console(screen_width, screen_height)
-        context = tcod.context.new_terminal(
-            columns=screen_width,
-            rows=screen_height,
-            tileset=tileset,
-            title="DarkDelve",
-            vsync=True,
-        )
-
-        return GraphicalRenderer(console, context, config)
-
-    else:
-        raise ValueError(f"Unknown renderer type: {renderer_type}")
+def create_renderer(width: int = 80, height: int = 50) -> Renderer:
+    """Factory function to create a renderer."""
+    return Renderer(width, height)

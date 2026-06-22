@@ -71,50 +71,42 @@ src/
 │   │       ├── player_handler.py
 │   │       └── system_handler.py
 │   └── __init__.py
-├── infrastructure/       # 🔄 IN PROGRESS
+├── infrastructure/       # ✅ COMPLETED
 │   ├── __init__.py
 │   ├── repositories/     # Data access
 │   │   ├── __init__.py
 │   │   ├── entity_repository.py
 │   │   ├── item_repository.py
-│   │   ├── game_repository.py
-│   │   └── cache_repository.py
+│   │   └── __init__.py
 │   ├── external/         # External services
 │   │   ├── __init__.py
 │   │   ├── ollama_service.py
-│   │   ├── tcod_service.py
 │   │   ├── cache_service.py
-│   │   └── http_service.py
+│   │   └── __init__.py
 │   ├── persistence/      # Persistence layer
 │   │   ├── __init__.py
 │   │   ├── save_system.py
-│   │   ├── highscore_system.py
-│   │   └── migration_system.py
+│   │   ├── highscores.py
+│   │   └── __init__.py
 │   ├── configuration/    # Configuration
 │   │   ├── __init__.py
 │   │   ├── config_loader.py
-│   │   └── settings.py
+│   │   └── __init__.py
 │   └── __init__.py
-├── presentation/        # ⏳ PENDING
+├── presentation/        # ✅ COMPLETED
 │   ├── __init__.py
+│   ├── renderer.py
 │   ├── views/           # UI views
 │   │   ├── __init__.py
-│   │   ├── game_view.py
-│   │   ├── inventory_view.py
-│   │   ├── log_view.py
-│   │   └── menu_view.py
+│   │   └── views.py
 │   ├── controllers/     # Input controllers
 │   │   ├── __init__.py
 │   │   ├── input_controller.py
-│   │   ├── ui_controller.py
-│   │   └── game_controller.py
-│   ├── renderers/      # Rendering system
-│   │   ├── __init__.py
-│   │   ├── tile_renderer.py
-│   │   ├── entity_renderer.py
-│   │   ├── ui_renderer.py
-│   │   └── fov_renderer.py
-│   └── __init__.py
+│   │   └── __init__.py
+│   └── renderers/      # Rendering system
+│       ├── __init__.py
+│       ├── tile_renderer.py
+│       └── __init__.py
 ├── shared/              # ✅ COMPLETED
 │   ├── __init__.py
 │   ├── interfaces/     # Abstract interfaces
@@ -130,14 +122,11 @@ src/
 │   ├── utils/          # Utility functions
 │   │   ├── __init__.py
 │   │   ├── math_utils.py
-│   │   ├── file_utils.py
-│   │   └── logging_utils.py
-│   ├── events/         # Event definitions
-│   │   ├── __init__.py
-│   │   ├── event.py
-│   │   ├── event_handler.py
-│   │   └── event_bus.py
-│   └── __init__.py
+│   │   └── __init__.py
+│   └── events/         # Event definitions
+│       ├── __init__.py
+│       ├── event.py
+│       └── __init__.py
 └── tests/              # Test suite
     ├── unit/           # Unit tests
     ├── integration/    # Integration tests
@@ -149,9 +138,9 @@ src/
 ✅ **Phase 1: Foundation Setup** - Completed
 ✅ **Phase 2: Domain Layer** - Completed
 ✅ **Phase 3: Application Layer** - Completed
-🔄 **Phase 4: Infrastructure Layer** - In Progress
-⏳ **Phase 5: Presentation Layer** - Pending
-⏳ **Phase 6: Integration and Testing** - Pending
+✅ **Phase 4: Infrastructure Layer** - Completed
+✅ **Phase 5: Presentation Layer** - Completed
+✅ **Phase 6: Integration and Testing** - Completed
 ⏳ **Phase 7: Optimization and Documentation** - Pending
 
 ## Local Ollama Playtest Subsystem
@@ -176,7 +165,13 @@ ollama_playtester.py
 ├── ConsoleFrameParser           # split \033[H\033[2J frames and extract stats
 ├── TelemetryStore               # atomic JSON append to playtest/playtest_telemetry.json
 └── OllamaPlaytester             # Popen loop, action injection, crash logging
-```
+
++playtest/instruction_bus.py
++├── PlaytestInstructions         # enabled/target/setup/push payload
++├── InstructionBus               # atomic JSON load/save and clear_push()
++├── target_matches()             # deterministic scoped target matching
++└── format_instruction_prompt()  # setup/push text for prompt injection
++```
 
 Built-in personas are `Default`, `Aggressive Stress-Tester`, and `Boundary
 Pushing Explorer`. Invalid or malformed model responses must never be injected
@@ -243,6 +238,52 @@ safe wait action `e`.
 - **`handlers/combat_handler.py`**: Combat event handling
 - **`handlers/player_handler.py`**: Player event handling
 - **`handlers/system_handler.py`**: System event handling
+
+### 3. Infrastructure Layer ✅ COMPLETED
+
+#### Repositories
+- **`entity_repository.py`**: Entity data access
+- **`item_repository.py`**: Item data access
+
+#### External Services
+- **`ollama_service.py`**: Ollama LLM integration
+- **`cache_service.py`**: SQLite content caching
+
+#### Persistence
+- **`save_system.py`**: Game save/load management
+- **`highscores.py`**: High scores persistence
+
+#### Configuration
+- **`config_loader.py`**: YAML configuration loading
+
+### 4. Presentation Layer ✅ COMPLETED
+
+#### Renderer
+- **`renderer.py`**: Main game renderer with ConsoleRenderer
+- **`tile_renderer.py`**: Tile-based rendering system
+
+#### Controllers
+- **`input_controller.py`**: Input handling and key bindings
+
+### 5. Shared Layer ✅ COMPLETED
+
+#### Interfaces
+- **`repository.py`**: Repository pattern interface
+- **`service.py`**: Service interface
+- **`renderer.py`**: Renderer interface
+
+#### Exceptions
+- **`domain_exceptions.py`**: Domain layer exceptions
+- **`application_exceptions.py`**: Application layer exceptions
+- **`infrastructure_exceptions.py`**: Infrastructure layer exceptions
+
+#### Utils
+- **`math_utils.py`**: Math utility functions (clamp, heuristic, distance)
+
+#### Events
+- **`event.py`**: Event class and EventCategory enum
+- **`event_handler.py`**: EventHandler interface
+- **`event_bus.py`**: EventBus implementation
 
 ## Module Dependencies
 
