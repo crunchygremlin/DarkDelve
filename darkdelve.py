@@ -889,7 +889,8 @@ class DungeonGenerator:
                 continue
             
             # Carve out the room (set to False = floor)
-            dungeon_map[x1+1:x2, y1+1:y2] = False
+            # Use x1:x2+1 and y1:y2+1 to ensure the center is always carved
+            dungeon_map[x1:x2+1, y1:y2+1] = False
             
             if len(rooms) == 0:
                 player_start = (center_x, center_y)
@@ -1957,6 +1958,7 @@ class Game:
         if self.dungeon_map[player_start[0], player_start[1]]:
             print(f"WARNING: Player start position {player_start} is a wall, finding walkable position...")
             # Find the nearest walkable position
+            found_walkable = False
             for radius in range(1, 20):
                 for dx in range(-radius, radius + 1):
                     for dy in range(-radius, radius + 1):
@@ -1966,13 +1968,30 @@ class Game:
                             not self.dungeon_map[new_x, new_y]):
                             player_start = (new_x, new_y)
                             print(f"Found walkable position: {player_start}")
+                            found_walkable = True
                             break
-                    else:
-                        continue
+                    if found_walkable:
+                        break
+                if found_walkable:
                     break
-                else:
-                    continue
-                break
+            
+            # If no walkable position found, search the entire map
+            if not found_walkable:
+                print("WARNING: Could not find walkable position near start, searching entire map...")
+                for x in range(self.dungeon_map.shape[0]):
+                    for y in range(self.dungeon_map.shape[1]):
+                        if not self.dungeon_map[x, y]:
+                            player_start = (x, y)
+                            print(f"Found walkable position: {player_start}")
+                            found_walkable = True
+                            break
+                    if found_walkable:
+                        break
+            
+            # If still no walkable position, carve a floor at the player's position
+            if not found_walkable:
+                print("WARNING: No walkable positions found, carving floor at player position...")
+                self.dungeon_map[player_start[0], player_start[1]] = False
         
         self.player.x, self.player.y = player_start
         self.player.home_position = player_start
