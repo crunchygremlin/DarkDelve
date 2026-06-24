@@ -17,6 +17,7 @@ import threading
 import queue
 import platform
 import urllib.request
+import traceback
 from dataclasses import dataclass, field
 from typing import List, Dict, Optional, Tuple, Any, Set
 from enum import Enum
@@ -973,6 +974,7 @@ class FOVSystem:
         transparency_array = ~dungeon_map
         
         # Ensure our player position integer lookups fit within the array dimensions.
+        # numpy shape returns (rows, cols) = (height, width) for 2D arrays
         height, width = dungeon_map.shape
         safe_x = max(0, min(int(player_x), width - 1))
         safe_y = max(0, min(int(player_y), height - 1))
@@ -1553,34 +1555,62 @@ class UI:
             self.ui_y = self.map_height + 1
         else:
             self.ui_y = self.map_height
+        # Camera offset for viewport - centers on player
+        self.camera_x = 0
+        self.camera_y = 0
     
     def _render_text(self, x: int, y: int, text: str, color):
         """Render text character by character to avoid tile rendering issues"""
         for i, char in enumerate(text):
             self.renderer.print(x + i, y, char, color)
     
-    def render_dungeon(self, dungeon_map: np.ndarray, fov: np.ndarray, explored: np.ndarray):
+    def update_camera(self, player_x: int, player_y: int, dungeon_map: np.ndarray):
+        """Update camera to center on player position."""
+        # Center the camera on the player
+        self.camera_x = player_x - self.console_width // 2
+        self.camera_y = player_y - self.console_height // 2
+        
+        # Clamp camera to map bounds
+        self.camera_x = max(0, min(self.camera_x, dungeon_map.shape[0] - self.console_width))
+        self.camera_y = max(0, min(self.camera_y, dungeon_map.shape[1] - self.console_height))
+    
+    def render_dungeon(self, dungeon_map: np.ndarray, fov: np.ndarray, explored: np.ndarray, player=None):
         # DarkDelve's generated maps are indexed as dungeon_map[x, y].
         width, height = dungeon_map.shape
         
+        # Update camera to center on player if player is provided
+        if player is not None:
+            self.update_camera(player.x, player.y, dungeon_map)
+        
         for y in range(height):
             for x in range(width):
+                # Apply camera offset to get screen coordinates
+                screen_x = x - self.camera_x
+                screen_y = y - self.camera_y
+                
+                # Only render if within console bounds
+                if screen_x < 0 or screen_x >= self.console_width:
+                    continue
+                if screen_y < 0 or screen_y >= self.console_height:
+                    continue
+                    
                 # Keep rendering safe if a caller passes differently shaped arrays.
                 if y >= fov.shape[1] or x >= fov.shape[0]:
                     continue
                 if y >= explored.shape[1] or x >= explored.shape[0]:
                     continue
                     
-                if fov[x, y]:
+                # Use explicit bool conversion to avoid NumPy array truth ambiguity
+                if bool(fov[x, y]):
                     if dungeon_map[x, y]:  # True = wall
-                        self.renderer.print(x, y, "#", COLORS['wall'])
+                        self.renderer.print(screen_x, screen_y, "#", COLORS['wall'])
                     else:  # False = floor
-                        self.renderer.print(x, y, ".", COLORS['floor'])
-                elif explored[x, y]:
+                        self.renderer.print(screen_x, screen_y, ".", COLORS['floor'])
+                elif bool(explored[x, y]):
                     if dungeon_map[x, y]:  # True = wall
-                        self.renderer.print(x, y, "#", (30, 30, 30))
+                        self.renderer.print(screen_x, screen_y, "#", (30, 30, 30))
                     else:  # False = floor
-                        self.renderer.print(x, y, ".", (50, 50, 50))
+                        self.renderer.print(screen_x, screen_y, ".", (50, 50, 50))
     
     def render_entities(self, entities: List[Entity], fov: np.ndarray, player=None):
         # DarkDelve's FOV arrays are indexed as fov[x, y].
@@ -1600,7 +1630,8 @@ class UI:
                     and entity.x == player_x
                     and entity.y == player_y
                 )
-                if fov[entity.x, entity.y] or entity is player or at_player_position:
+                # Explicit bool conversion for NumPy array element
+                if bool(fov[entity.x, entity.y]) or entity is player or at_player_position:
                     if entity is player:
                         player_entity = entity
                     else:
@@ -1613,9 +1644,18 @@ class UI:
                 player_entity = player
 
         for entity in visible_entities:
-            self.renderer.print(entity.x, entity.y, entity.char, entity.color)
+            # Apply camera offset to get screen coordinates
+            screen_x = entity.x - self.camera_x
+            screen_y = entity.y - self.camera_y
+            # Only render if within console bounds
+            if 0 <= screen_x < self.console_width and 0 <= screen_y < self.console_height:
+                self.renderer.print(screen_x, screen_y, entity.char, entity.color)
         if player_entity is not None:
-            self.renderer.print(player_entity.x, player_entity.y, player_entity.char, player_entity.color)
+            # Apply camera offset for player
+            screen_x = player_entity.x - self.camera_x
+            screen_y = player_entity.y - self.camera_y
+            if 0 <= screen_x < self.console_width and 0 <= screen_y < self.console_height:
+                self.renderer.print(screen_x, screen_y, player_entity.char, player_entity.color)
     
     def render_combat_log(self, combat_log):
         events = getattr(combat_log, "events", [])
@@ -2005,6 +2045,13 @@ class Game:
                 self.main_loop()
         except KeyboardInterrupt:
             pass
+        except Exception as e:
+            # Print full traceback with line numbers for debugging
+            print(f"\n\n=== GAME CRASHED ===")
+            print(f"Error: {e}")
+            print(f"\nTraceback:")
+            traceback.print_exc()
+            print(f"=== END CRASH ===\n")
         finally:
             self.cleanup()
 
@@ -2014,86 +2061,96 @@ class Game:
         render_to_stdout: bool = True,
         frame_text: Optional[str] = None,
     ) -> Optional[str]:
-        # Get next actor
-        actor = self.energy_system.next_actor()
-        if not actor:
-            return None
+        try:
+            # Get next actor
+            actor = self.energy_system.next_actor()
+            if not actor:
+                return None
 
-        if actor is self.player:
-            self.turn += 1
-            self.state.turn = self.turn
-            self.combat_log.new_turn()
+            if actor is self.player:
+                self.turn += 1
+                self.state.turn = self.turn
+                self.combat_log.new_turn()
 
-            # Render before input so the agent sees the current state.
-            if frame_text is None:
-                frame_text = self.render_frame_text()
-            if render_to_stdout:
-                self.renderer.present()
+                # Render before input so the agent sees the current state.
+                if frame_text is None:
+                    frame_text = self.render_frame_text()
+                if render_to_stdout:
+                    self.renderer.present()
 
-            if action is None:
-                # Handle input
-                events = self._wait_for_events()
-                for event in events:
-                    if self.input_handler.handle_event(event, self.player, self.dungeon_map, self.entities, self.state, self):
+                if action is None:
+                    # Handle input
+                    events = self._wait_for_events()
+                    for event in events:
+                        if self.input_handler.handle_event(event, self.player, self.dungeon_map, self.entities, self.state, self):
+                            self.running = False
+                            break
+                else:
+                    if self.process_action(action):
                         self.running = False
-                        break
+
+                if not self.running:
+                    return frame_text
+
+                # Process player turn effects
+                self.player.tick_effects()
+                if self.config['gameplay'].get('hunger_enabled', True):
+                    self.survival.tick(self.player)
+
+                # Check for level up
+                self.check_level_up()
+
             else:
-                if self.process_action(action):
-                    self.running = False
+                # Monster turn - use agent system if available, otherwise default AI
+                agent = self.agent_manager.get_agent_for_entity(actor)
+                if agent and self.turn_processor:
+                    # Use AgentTurnProcessor for agent-controlled entities
+                    self.turn_processor.process_actor_turn(actor, agent)
+                else:
+                    # Fall back to default AI
+                    self.monster_turn(actor)
+                actor.tick_effects()
 
-            if not self.running:
-                return frame_text
+            # Process LLM responses (for commander entities that use the legacy system)
+            process_llm_responses(self.entities)
 
-            # Process player turn effects
-            self.player.tick_effects()
-            if self.config['gameplay'].get('hunger_enabled', True):
-                self.survival.tick(self.player)
+            # Execute commander actions (for commanders using the legacy LLM system)
+            for entity in self.entities:
+                if entity.is_alive and entity.is_commander and entity.current_command:
+                    action, target = interpret_commander_action(entity, self.player, self.dungeon_map, self.entities)
+                    if action == "ATTACK" and target:
+                        path = find_path((entity.x, entity.y), target, self.dungeon_map, self.entities)
+                        if len(path) > 1:
+                            entity.move_to(path[1][0], path[1][1], self.dungeon_map, self.entities)
+                            if path[1] == (self.player.x, self.player.y):
+                                self.attack(entity, self.player)
+                    elif action == "RETREAT" and target:
+                        path = find_path((entity.x, entity.y), target, self.dungeon_map, self.entities)
+                        if len(path) > 1:
+                            entity.move_to(path[1][0], path[1][1], self.dungeon_map, self.entities)
+                    elif action == "DEFEND" and target:
+                        path = find_path((entity.x, entity.y), target, self.dungeon_map, self.entities)
+                        if len(path) > 1:
+                            entity.move_to(path[1][0], path[1][1], self.dungeon_map, self.entities)
 
-            # Check for level up
-            self.check_level_up()
+            # Update FOV
+            self.fov = self.fov_system.compute(self.dungeon_map, self.player.x, self.player.y)
+            self.explored = self.fov_system.explored.copy()
 
-        else:
-            # Monster turn - use agent system if available, otherwise default AI
-            agent = self.agent_manager.get_agent_for_entity(actor)
-            if agent and self.turn_processor:
-                # Use AgentTurnProcessor for agent-controlled entities
-                self.turn_processor.process_actor_turn(actor, agent)
-            else:
-                # Fall back to default AI
-                self.monster_turn(actor)
-            actor.tick_effects()
+            # Check win/lose
+            if not self.player.is_alive:
+                self.game_over()
 
-        # Process LLM responses (for commander entities that use the legacy system)
-        process_llm_responses(self.entities)
-
-        # Execute commander actions (for commanders using the legacy LLM system)
-        for entity in self.entities:
-            if entity.is_alive and entity.is_commander and entity.current_command:
-                action, target = interpret_commander_action(entity, self.player, self.dungeon_map, self.entities)
-                if action == "ATTACK" and target:
-                    path = find_path((entity.x, entity.y), target, self.dungeon_map, self.entities)
-                    if len(path) > 1:
-                        entity.move_to(path[1][0], path[1][1], self.dungeon_map, self.entities)
-                        if path[1] == (self.player.x, self.player.y):
-                            self.attack(entity, self.player)
-                elif action == "RETREAT" and target:
-                    path = find_path((entity.x, entity.y), target, self.dungeon_map, self.entities)
-                    if len(path) > 1:
-                        entity.move_to(path[1][0], path[1][1], self.dungeon_map, self.entities)
-                elif action == "DEFEND" and target:
-                    path = find_path((entity.x, entity.y), target, self.dungeon_map, self.entities)
-                    if len(path) > 1:
-                        entity.move_to(path[1][0], path[1][1], self.dungeon_map, self.entities)
-
-        # Update FOV
-        self.fov = self.fov_system.compute(self.dungeon_map, self.player.x, self.player.y)
-        self.explored = self.fov_system.explored.copy()
-
-        # Check win/lose
-        if not self.player.is_alive:
-            self.game_over()
-
-        return frame_text
+            return frame_text
+        except Exception as e:
+            # Print full traceback with line numbers for debugging
+            print(f"\n\n=== ERROR IN MAIN LOOP (turn {self.turn}) ===")
+            print(f"Error: {e}")
+            print(f"\nTraceback:")
+            traceback.print_exc()
+            print(f"=== END ERROR ===\n")
+            self.running = False
+            raise
 
     def process_action(self, action: str) -> bool:
         """Apply one library-supplied action without blocking for input.
@@ -2114,6 +2171,26 @@ class Game:
 
         if self.player is None:
             return False
+
+        # Handle menu navigation if menu is showing
+        if self.showing_menu:
+            if normalized in {"\x1b", "escape"}:
+                self.showing_menu = False
+                return False
+            elif normalized in {"\x1b[a", "up", "w"}:
+                self.menu_selection = (self.menu_selection - 1) % 3
+                return False
+            elif normalized in {"\x1b[b", "down", "s"}:
+                self.menu_selection = (self.menu_selection + 1) % 3
+                return False
+            elif normalized in {"\r", "\n", "enter", " "}:
+                if self.menu_selection == 0:
+                    self.showing_menu = False
+                elif self.menu_selection == 1:
+                    self.save_and_quit()
+                elif self.menu_selection == 2:
+                    self.quit_no_save()
+                return False
 
         if normalized in {"w", "a", "s", "d", "e", " ", "\r", "\n"}:
             dx, dy = 0, 0
@@ -2164,7 +2241,10 @@ class Game:
     def _console_text(self) -> str:
         """Return the current renderer console as plain text."""
 
+        # Try both _console (TileRenderer) and _root_console (ConsoleRenderer)
         console = getattr(self.renderer, "_console", None)
+        if console is None:
+            console = getattr(self.renderer, "_root_console", None)
         if console is None:
             return ""
 
@@ -2184,7 +2264,7 @@ class Game:
             return
 
         self.renderer.clear()
-        self.ui.render_dungeon(self.dungeon_map, self.fov, self.explored)
+        self.ui.render_dungeon(self.dungeon_map, self.fov, self.explored, self.player)
         self.ui.render_entities(self.entities, self.fov, self.player)
         self.ui.render_ui(self.player, self.state, self.combat_log, self.turn, self)
 
@@ -2428,7 +2508,7 @@ class Game:
     
     def render(self):
         self.renderer.clear()
-        self.ui.render_dungeon(self.dungeon_map, self.fov, self.explored)
+        self.ui.render_dungeon(self.dungeon_map, self.fov, self.explored, self.player)
         self.ui.render_entities(self.entities, self.fov, self.player)
         self.ui.render_ui(self.player, self.state, self.combat_log, self.turn, self)
         
@@ -2532,18 +2612,29 @@ def load_instruction_prompt(target: str) -> str:
 # =============================================================================
 
 def main():
+    import argparse
+    parser = argparse.ArgumentParser(description="DarkDelve - A Traditional Roguelike")
+    parser.add_argument("--playtest", action="store_true", help="Run in AI playtest mode")
+    parser.add_argument("--turns", type=int, default=500, help="Max turns for playtest mode")
+    args = parser.parse_args()
+
     # Set random seed if provided
     if CONFIG['game']['seed'] is not None:
         random.seed(CONFIG['game']['seed'])
         np.random.seed(CONFIG['game']['seed'])
 
     playtest_config = CONFIG.get('playtest', {})
-    if playtest_config.get('enabled', False):
+    playtest_enabled = args.playtest or playtest_config.get('enabled', False)
+    
+    if playtest_enabled:
         from src.infrastructure.services.mcp_integration import MCPPlaytester
+        from ollama_playtester import PlaytestConfig
         game = Game()
         game.initialize()
+        config = PlaytestConfig(max_turns=args.turns)
         playtester = MCPPlaytester(
             game=game,
+            config=config,
             config_path=playtest_config.get('config_path'),
             auto_initialize=False,
         )

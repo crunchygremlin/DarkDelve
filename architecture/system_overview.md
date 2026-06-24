@@ -68,10 +68,16 @@ DarkDelve follows a SOLID layered architecture with clear separation of concerns
 - **Events**: Event, Handler, Bus implementations
 
 ### 6. Workflow Layer ✅ COMPLETED
-- **Workflow Controller**: Orchestrates pipeline stages (orchestrator → architect → coder → playtester → debugger)
-- **Pipeline Engine**: Manages stage execution and mode delegation
-- **Task Classification**: Automatic complexity detection (simple, moderate, complex, critical)
-- **Conditional Execution**: Dynamic stage triggering based on task complexity and results
+ - **Workflow Controller**: Orchestrates pipeline stages (orchestrator → architect → coder → playtester → debugger)
+ - **Pipeline Engine**: Manages stage execution and mode delegation
+ - **Task Classification**: Automatic complexity detection (simple, moderate, complex, critical)
+ - **Conditional Execution**: Dynamic stage triggering based on task complexity and results
+
+### 7. Map Rendering & Viewport System ✅ COMPLETED
+ - **Viewport Camera System**: Centers player character on screen with camera offset tracking
+ - **Dynamic Viewport Adjustment**: Camera clamps to map bounds to prevent rendering outside dungeon
+ - **Player Visibility Guarantee**: Player character always rendered within console bounds
+ - **Entity Rendering with Camera**: All entities rendered relative to camera position
 
 ## Data Flow
 
