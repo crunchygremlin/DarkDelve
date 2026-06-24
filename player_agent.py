@@ -11,7 +11,9 @@ from __future__ import annotations
 import ast
 import json
 import re
+import sys
 import time
+import traceback
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Mapping, Optional, Sequence
@@ -21,8 +23,8 @@ import requests
 
 VALID_ACTIONS = ("w", "a", "s", "d", "e", "i")
 RESPONSE_FIELDS = ("macro_goal", "reasoning", "action", "telemetry_notes")
-DEFAULT_ENDPOINT = "https://openrouter.ai/api/v1"
-DEFAULT_MODEL = "cohere/north-mini-code:free"
+DEFAULT_ENDPOINT = "http://localhost:11434"
+DEFAULT_MODEL = "qwen2.5-coder:7b-instruct"
 SAFE_FALLBACK_ACTION = "e"
 
 
@@ -367,9 +369,10 @@ class PlayerAgent:
                     break
                 time.sleep(min(2.0, 0.5 * (attempt + 1)))
 
-        raise RuntimeError(
-            f"LLM generate request failed after {attempts} attempts: {last_error}"
-        )
+        # Include full traceback with line numbers for debugging
+        error_msg = f"LLM generate request failed after {attempts} attempts: {last_error}\n\nTraceback:\n{traceback.format_exc()}"
+        print(error_msg, file=sys.stderr)
+        raise RuntimeError(error_msg)
 
     def decide(
         self,
@@ -379,19 +382,24 @@ class PlayerAgent:
         instruction_text: Optional[str] = None,
     ) -> PlayerDecision:
         """Request, parse, validate, and record one player decision."""
-
-        active_history = list(history if history is not None else self.history)[-5:]
-        system_prompt = self.build_system_prompt()
-        user_prompt = self.build_user_prompt(
-            map_text,
-            stats,
-            active_history,
-            instruction_text=instruction_text,
-        )
-        raw_response = self.request_ollama(system_prompt, user_prompt)
-        decision = self.parse_response(raw_response, active_history)
-        self.record_turn(decision)
-        return decision
+        try:
+            active_history = list(history if history is not None else self.history)[-5:]
+            system_prompt = self.build_system_prompt()
+            user_prompt = self.build_user_prompt(
+                map_text,
+                stats,
+                active_history,
+                instruction_text=instruction_text,
+            )
+            raw_response = self.request_ollama(system_prompt, user_prompt)
+            decision = self.parse_response(raw_response, active_history)
+            self.record_turn(decision)
+            return decision
+        except Exception as e:
+            # Include full traceback with line numbers for debugging
+            error_msg = f"Error in PlayerAgent.decide: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
+            print(error_msg, file=sys.stderr)
+            raise
 
     def parse_response(
         self,
@@ -399,27 +407,32 @@ class PlayerAgent:
         history: Optional[Sequence[Mapping[str, Any]]] = None,
     ) -> PlayerDecision:
         """Sanitize, validate, and normalize a model response."""
-
-        del history  # Kept for API symmetry with decide().
-        data, issues = self.sanitize_json_response(raw_response)
-        normalized, validation_issues = self.validate_response(data)
-        issues.extend(validation_issues)
-        fallback_used = any(
-            "fallback" in issue.lower() or "falling back" in issue.lower()
-            for issue in issues
-        )
-        telemetry_notes = normalized["telemetry_notes"]
-        if issues:
-            telemetry_notes = append_note(telemetry_notes, "; ".join(issues))
-        return PlayerDecision(
-            macro_goal=normalized["macro_goal"],
-            reasoning=normalized["reasoning"],
-            action=normalized["action"],
-            telemetry_notes=telemetry_notes,
-            raw_response=raw_response,
-            issues=issues,
-            fallback_used=fallback_used,
-        )
+        try:
+            del history  # Kept for API symmetry with decide().
+            data, issues = self.sanitize_json_response(raw_response)
+            normalized, validation_issues = self.validate_response(data)
+            issues.extend(validation_issues)
+            fallback_used = any(
+                "fallback" in issue.lower() or "falling back" in issue.lower()
+                for issue in issues
+            )
+            telemetry_notes = normalized["telemetry_notes"]
+            if issues:
+                telemetry_notes = append_note(telemetry_notes, "; ".join(issues))
+            return PlayerDecision(
+                macro_goal=normalized["macro_goal"],
+                reasoning=normalized["reasoning"],
+                action=normalized["action"],
+                telemetry_notes=telemetry_notes,
+                raw_response=raw_response,
+                issues=issues,
+                fallback_used=fallback_used,
+            )
+        except Exception as e:
+            # Include full traceback with line numbers for debugging
+            error_msg = f"Error in PlayerAgent.parse_response: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
+            print(error_msg, file=sys.stderr)
+            raise
 
     def sanitize_json_response(self, raw_response: str) -> tuple[Dict[str, Any], List[str]]:
         """Extract a JSON object where possible and report sanitization issues."""

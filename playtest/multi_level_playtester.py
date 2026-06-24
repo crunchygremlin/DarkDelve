@@ -11,6 +11,7 @@ import re
 import subprocess
 import sys
 import time
+import traceback
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
@@ -119,14 +120,14 @@ class MultiLevelPlaytester:
                     
                     for frame in frames:
                         turn_number = self._process_frame(frame, turn_number)
-                        
-                        # Check for level completion
-                        if self.game_state_reader.current_level > len(self.level_snapshots):
-                            self._finalize_level(self.game_state_reader.current_level - 1)
-                        
-                        if self.game_state_reader.current_level > max_l:
-                            status = "max_levels"
-                            break
+                    
+                    # Check for level completion
+                    if self.game_state_reader.current_level > len(self.level_snapshots):
+                        self._finalize_level(self.game_state_reader.current_level - 1)
+                    
+                    if self.game_state_reader.current_level > max_l:
+                        status = "max_levels"
+                        break
                 
                 if status == "max_levels":
                     break
@@ -135,7 +136,8 @@ class MultiLevelPlaytester:
                 
         except Exception as e:
             status = "error"
-            self.errors.append(str(e))
+            # Include full traceback with line numbers for debugging
+            self.errors.append(f"{str(e)}\n\nTraceback:\n{traceback.format_exc()}")
         finally:
             if process and process.poll() is None:
                 process.terminate()

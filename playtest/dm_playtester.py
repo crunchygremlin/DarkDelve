@@ -9,6 +9,7 @@ import json
 import os
 import sys
 import time
+import traceback
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, Any, List, Optional, Tuple
@@ -123,7 +124,8 @@ class DMPlaytester:
             
         except Exception as e:
             passed = False
-            error = str(e)
+            # Include full traceback with line numbers for debugging
+            error = f"{str(e)}\n\nTraceback:\n{traceback.format_exc()}"
             details = {}
         
         duration_ms = (time.time() - start_time) * 1000

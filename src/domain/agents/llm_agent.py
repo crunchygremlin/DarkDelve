@@ -209,7 +209,7 @@ class RandomAgent(Agent):
     
     def perceive(self, game_state: "AgentGameState") -> PerceptionResult:
         """Perceive the current game state."""
-        from .state import PerceptionResult
+        from .base import PerceptionResult
         
         return PerceptionResult(
             entity_id=self.entity_id,

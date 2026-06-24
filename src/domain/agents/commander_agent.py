@@ -68,7 +68,7 @@ class CommanderAgent(Agent):
     
     def perceive(self, game_state: "AgentGameState") -> PerceptionResult:
         """Perceive the current game state."""
-        from .state import PerceptionResult
+        from .base import PerceptionResult
         
         # Get nearby entities
         nearby = game_state.get_nearby_entities(radius=20)

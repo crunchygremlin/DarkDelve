@@ -7,9 +7,11 @@ the existing EnergySystem, LLM infrastructure, and game components.
 
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, TYPE_CHECKING
+import sys
 import threading
 import queue
 import time
+import traceback
 
 if TYPE_CHECKING:
     from .base import Agent
@@ -66,68 +68,90 @@ class AgentTurnProcessor:
         Returns:
             True if the turn was processed, False otherwise
         """
-        # If no agent, use default AI
-        if not agent:
-            return self._process_default_ai_turn(actor)
-        
-        # Build game state for agent
-        game_state = self._build_agent_game_state()
-        game_context = self._build_game_context()
-        
-        # Let agent act
-        result = agent.act(game_state, game_context)
-        
-        # Execute the action
-        return self._execute_agent_action(actor, result.action if result else None)
+        try:
+            # If no agent, use default AI
+            if not agent:
+                return self._process_default_ai_turn(actor)
+            
+            # Build game state for agent
+            game_state = self._build_agent_game_state()
+            game_context = self._build_game_context()
+            
+            # Let agent act
+            result = agent.act(game_state, game_context)
+            
+            # Execute the action
+            return self._execute_agent_action(actor, result.action if result else None)
+        except Exception as e:
+            # Include full traceback with line numbers for debugging
+            error_msg = f"Error in process_actor_turn for {actor.name if hasattr(actor, 'name') else 'unknown'}: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
+            print(error_msg, file=sys.stderr)
+            raise
     
     def _build_agent_game_state(self) -> "AgentGameState":
         """Build an AgentGameState from the current game state."""
         from .state import AgentGameState, EntityState, ItemState
         
-        # Build entity states
-        entities = []
-        for e in self.game.entities:
-            entities.append(EntityState(
-                entity_id=e.id,
-                name=e.name,
-                position=(e.x, e.y),
-                health=e.hp,
-                max_health=e.max_hp,
-                is_alive=e.is_alive,
-                is_commander=getattr(e, 'is_commander', False),
-                is_player=e is self.game.player,
-                symbol=getattr(e, 'char', '@'),
-            ))
-        
-        # Build item states
-        items = []
-        for e in self.game.entities:
-            if hasattr(e, 'item') and e.item:
-                items.append(ItemState(
-                    item_id=e.item.id,
-                    name=e.item.name,
-                    item_type=getattr(e.item, 'item_type', 'misc').value,
-                    position=(e.x, e.y),
-                    symbol=getattr(e.item, 'symbol', '?'),
-                    value=getattr(e.item, 'value', 0),
-                ))
-        
-        # Get visible entities and items
-        visible_entities = []
-        visible_items = []
-        if self.game.fov is not None:
+        try:
+            # Build entity states
+            entities = []
             for e in self.game.entities:
-                if self.game.fov[e.x, e.y]:
-                    visible_entities.append(EntityState(
-                        entity_id=e.id,
-                        name=e.name,
+                entities.append(EntityState(
+                    entity_id=e.id,
+                    name=e.name,
+                    position=(e.x, e.y),
+                    health=e.hp,
+                    max_health=e.max_hp,
+                    is_alive=e.is_alive,
+                    is_commander=getattr(e, 'is_commander', False),
+                    is_player=e is self.game.player,
+                    symbol=getattr(e, 'char', '@'),
+                ))
+            
+            # Build item states
+            items = []
+            for e in self.game.entities:
+                if hasattr(e, 'item') and e.item:
+                    items.append(ItemState(
+                        item_id=e.item.id,
+                        name=e.item.name,
+                        item_type=getattr(e.item, 'item_type', 'misc').value,
                         position=(e.x, e.y),
-                        health=e.hp,
-                        max_health=e.max_hp,
-                        is_alive=e.is_alive,
-                        is_commander=getattr(e, 'is_commander', False),
-                        is_player=e is self.game.player,
+                        symbol=getattr(e.item, 'symbol', '?'),
+                        value=getattr(e.item, 'value', 0),
                     ))
+            
+            # Get visible entities and items
+            visible_entities = []
+            visible_items = []
+            if self.game.fov is not None:
+                for e in self.game.entities:
+                    # Explicit bool conversion to avoid NumPy array truth ambiguity
+                    # Use .item() to safely extract scalar from numpy array
+                    try:
+                        fov_value = self.game.fov[e.x, e.y]
+                        # Handle case where indexing might return an array instead of scalar
+                        if hasattr(fov_value, 'item'):
+                            fov_value = fov_value.item()
+                        if bool(fov_value):
+                            visible_entities.append(EntityState(
+                                entity_id=e.id,
+                                name=e.name,
+                                position=(e.x, e.y),
+                                health=e.hp,
+                                max_health=e.max_hp,
+                                is_alive=e.is_alive,
+                                is_commander=getattr(e, 'is_commander', False),
+                                is_player=e is self.game.player,
+                            ))
+                    except (IndexError, ValueError):
+                        # Skip entities with invalid positions
+                        continue
+        except Exception as e:
+            # Include full traceback with line numbers for debugging
+            error_msg = f"Error in _build_agent_game_state: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
+            print(error_msg, file=sys.stderr)
+            raise
         
         return AgentGameState(
             turn=self.game.turn,
@@ -204,7 +228,7 @@ class AgentTurnProcessor:
         """Execute a movement action."""
         from .actions import ActionType
         
-        if not self.game.dungeon_map:
+        if self.game.dungeon_map is None:
             return False
         
         dx, dy = 0, 0
@@ -269,44 +293,69 @@ def create_agent_game_state_snapshot(game: Any) -> "AgentGameState":
     """
     from .state import AgentGameState, EntityState, ItemState
     
-    entities = []
-    for e in game.entities:
-        entities.append(EntityState(
-            entity_id=e.id,
-            name=e.name,
-            position=(e.x, e.y),
-            health=e.hp,
-            max_health=e.max_hp,
-            is_alive=e.is_alive,
-            is_commander=getattr(e, 'is_commander', False),
-            is_player=e is game.player,
-        ))
-    
-    items = []
-    for e in game.entities:
-        if hasattr(e, 'item') and e.item:
-            items.append(ItemState(
-                item_id=e.item.id,
-                name=e.item.name,
-                item_type=getattr(e.item, 'item_type', 'misc').value,
-                position=(e.x, e.y),
-            ))
-    
-    visible_entities = []
-    visible_items = []
-    if game.fov is not None:
+    try:
+        entities = []
         for e in game.entities:
-            if game.fov[e.x, e.y]:
-                visible_entities.append(EntityState(
-                    entity_id=e.id,
-                    name=e.name,
+            entities.append(EntityState(
+                entity_id=e.id,
+                name=e.name,
+                position=(e.x, e.y),
+                health=e.hp,
+                max_health=e.max_hp,
+                is_alive=e.is_alive,
+                is_commander=getattr(e, 'is_commander', False),
+                is_player=e is game.player,
+            ))
+        
+        items = []
+        for e in game.entities:
+            if hasattr(e, 'item') and e.item:
+                items.append(ItemState(
+                    item_id=e.item.id,
+                    name=e.item.name,
+                    item_type=getattr(e.item, 'item_type', 'misc').value,
                     position=(e.x, e.y),
-                    health=e.hp,
-                    max_health=e.max_hp,
-                    is_alive=e.is_alive,
-                    is_commander=getattr(e, 'is_commander', False),
-                    is_player=e is game.player,
                 ))
+        
+        visible_entities = []
+        visible_items = []
+        # Populate visibility lists only when the field‑of‑view map is available.
+        if game.fov is not None:
+            for e in game.entities:
+                # Explicit bool conversion to avoid NumPy array truth ambiguity
+                # Use .item() to safely extract scalar from numpy array
+                try:
+                    fov_value = game.fov[e.x, e.y]
+                    # Handle case where indexing might return an array instead of scalar
+                    if hasattr(fov_value, 'item'):
+                        fov_value = fov_value.item()
+                    if bool(fov_value):
+                        visible_entities.append(EntityState(
+                            entity_id=e.id,
+                            name=e.name,
+                            position=(e.x, e.y),
+                            health=e.hp,
+                            max_health=e.max_hp,
+                            is_alive=e.is_alive,
+                            is_commander=getattr(e, 'is_commander', False),
+                            is_player=e is game.player,
+                        ))
+                        # If the entity carries an item, include it in the visible items list.
+                        if hasattr(e, 'item') and e.item:
+                            visible_items.append(ItemState(
+                                item_id=e.item.id,
+                                name=e.item.name,
+                                item_type=getattr(e.item, 'item_type', 'misc').value,
+                                position=(e.x, e.y),
+                            ))
+                except (IndexError, ValueError):
+                    # Skip entities with invalid positions
+                    continue
+    except Exception as e:
+        # Include full traceback with line numbers for debugging
+        error_msg = f"Error in create_agent_game_state_snapshot: {str(e)}\n\nTraceback:\n{traceback.format_exc()}"
+        print(error_msg, file=sys.stderr)
+        raise
     
     return AgentGameState(
         turn=game.turn,

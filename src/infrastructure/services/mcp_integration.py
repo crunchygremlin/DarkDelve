@@ -5,6 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+import traceback
 
 from ollama_playtester import (
     ConsoleFrame,
@@ -53,6 +54,7 @@ class MCPPlaytester:
         telemetry_store: Optional[TelemetryStore] = None,
         instruction_bus: Optional[InstructionBus] = None,
         auto_initialize: bool = True,
+        render_to_stdout: bool = True,
     ) -> None:
         """Create a library playtester.
 
@@ -65,6 +67,7 @@ class MCPPlaytester:
             telemetry_store: Optional telemetry writer.
             instruction_bus: Optional instruction bus.
             auto_initialize: Whether ``run()`` should call ``game.initialize()``.
+            render_to_stdout: Whether to render the game to stdout (default True, use --hideui to disable).
         """
 
         self.config = config or (load_config(str(config_path)) if config_path else load_config())
@@ -81,6 +84,7 @@ class MCPPlaytester:
         self.telemetry_store = telemetry_store or TelemetryStore()
         self.instruction_bus = instruction_bus or InstructionBus(self.config.instruction_path)
         self.auto_initialize = auto_initialize
+        self.render_to_stdout = render_to_stdout
 
     def run(self) -> MCPPlaytestResult:
         """Run the playtest loop until exit, crash, error, or max turns."""
@@ -114,7 +118,7 @@ class MCPPlaytester:
                 )
                 self.game.main_loop(
                     action=decision.action,
-                    render_to_stdout=False,
+                    render_to_stdout=self.render_to_stdout,
                     frame_text=frame_text,
                 )
 
@@ -127,7 +131,8 @@ class MCPPlaytester:
 
         except Exception as exc:  # pragma: no cover - exercised by integration runs
             status = "error"
-            error_message = str(exc)
+            # Include full traceback with line numbers for debugging
+            error_message = f"{str(exc)}\n\nTraceback:\n{traceback.format_exc()}"
 
         finally:
             if status in {"crash", "error"}:
