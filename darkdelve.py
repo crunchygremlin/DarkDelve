@@ -863,7 +863,8 @@ class DungeonGenerator:
         room_min = self.dungeon_config['room_min_size']
         room_max = self.dungeon_config['room_max_size']
         
-        dungeon_map = np.zeros((width, height), dtype=bool, order="F")
+        # Start with all walls (True), then carve out rooms and corridors
+        dungeon_map = np.ones((width, height), dtype=bool, order="F")
         rooms = []
         entities = []
         player_start = (width // 2, height // 2)
@@ -887,14 +888,15 @@ class DungeonGenerator:
             if overlap:
                 continue
             
-            dungeon_map[x1+1:x2, y1+1:y2] = True
+            # Carve out the room (set to False = floor)
+            dungeon_map[x1+1:x2, y1+1:y2] = False
             
             if len(rooms) == 0:
                 player_start = (center_x, center_y)
             else:
                 prev_center = (rooms[-1][4], rooms[-1][5])
                 for tx, ty in tunnel_between(prev_center, (center_x, center_y)):
-                    dungeon_map[tx, ty] = True
+                    dungeon_map[tx, ty] = False
             
             rooms.append((x1, y1, x2, y2, center_x, center_y))
         
@@ -905,8 +907,8 @@ class DungeonGenerator:
             stair_up = (rooms[0][4], rooms[0][5])
         
         return dungeon_map, entities, player_start, stair_down, stair_up
-
-# =============================================================================
+        
+        # =============================================================================
 # PATHFINDING
 # =============================================================================
 
