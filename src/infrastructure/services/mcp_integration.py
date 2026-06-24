@@ -54,7 +54,8 @@ class MCPPlaytester:
         telemetry_store: Optional[TelemetryStore] = None,
         instruction_bus: Optional[InstructionBus] = None,
         auto_initialize: bool = True,
-        render_to_stdout: bool = True,
+        # Default to *not* rendering to stdout for deterministic test output.
+        render_to_stdout: bool = False,
     ) -> None:
         """Create a library playtester.
 

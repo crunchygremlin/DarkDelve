@@ -687,3 +687,58 @@ class GameSession:
 3. Refactor and optimize
 
 This SOLID architecture provides a maintainable, extensible foundation for DarkDelve that can be easily understood and implemented by an LLM assistant while maintaining clean separation of concerns and testability.
+
+## Recent Architecture Improvements (2026)
+
+### Dependency Inversion Principle (DIP) Enhancements
+
+The following improvements have been made to strengthen the Dependency Inversion Principle:
+
+1. **Service Interfaces** (`src/shared/interfaces/service.py`)
+   - `ICombatService`: Interface for combat operations
+   - `IMovementService`: Interface for movement operations
+   - `ISocialService`: Interface for social operations
+   - These interfaces allow domain services to depend on abstractions rather than concrete implementations
+
+2. **Concrete Service Implementations**
+   - `CombatService` now implements `ICombatService`
+   - `MovementService` now implements `IMovementService`
+   - `SocialService` now implements `ISocialService`
+
+3. **ActionDispatcher Refactoring**
+   - Now depends on service interfaces (`ICombatService`, `IMovementService`, `ISocialService`)
+   - Uses dependency injection for all service dependencies
+   - Flee logic extracted to dedicated `FleeStrategy` service
+
+### Event System Standardization
+
+1. **EventType Enum** (`src/shared/events/event.py`)
+   - Standardized event type constants: `HIT`, `MISS`, `CRITICAL_HIT`, `ENTITY_FLED`, `ALLY_CALLED`, `ITEM_PICKED_UP`, etc.
+   - Type-safe event publishing through `EventBus.publish_event_by_type()`
+
+2. **EventBus Enhancement**
+   - Added `publish_event_by_type()` method for convenient string-based event publishing
+   - Maintains backward compatibility with existing event system
+
+### New Services
+
+1. **FleeStrategy** (`src/domain/services/flee_strategy.py`)
+   - Encapsulates flee behavior logic
+   - Separates concerns from `ActionDispatcher`
+   - Improves testability and maintainability
+
+### Testing Improvements
+
+- Added `tests/test_flee_strategy.py` for FleeStrategy unit tests
+- Added `tests/test_service_interfaces.py` for interface compliance tests
+- Updated existing tests to use new event publishing methods
+
+### SOLID Compliance Verification
+
+| Principle | Status | Notes |
+|-----------|--------|-------|
+| SRP | ✅ | Each service has a single responsibility |
+| OCP | ✅ | New node types can be added via strategy pattern |
+| LSP | ✅ | All service implementations follow their interfaces |
+| ISP | ✅ | Interfaces are small and focused |
+| DIP | ✅ | High-level modules depend on abstractions |

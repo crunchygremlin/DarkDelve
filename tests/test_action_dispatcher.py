@@ -302,10 +302,10 @@ class TestActionDispatcher:
         
         result = self.dispatcher.execute(self.attacker, action, self.all_entities)
         
-        # Check that event bus was called
-        self.mock_event_bus.publish_event.assert_called()
+        # Check that event bus was called with publish_event_by_type
+        self.mock_event_bus.publish_event_by_type.assert_called()
         # Should be called with HIT event type
-        call_args = self.mock_event_bus.publish_event.call_args
+        call_args = self.mock_event_bus.publish_event_by_type.call_args
         assert call_args[0][0] == "HIT"
     
     def test_event_publishing_on_flee(self):
@@ -321,11 +321,11 @@ class TestActionDispatcher:
         
         result = self.dispatcher.execute(self.attacker, action, self.all_entities)
         
-        # Check that event bus was called
-        self.mock_event_bus.publish_event.assert_called()
+        # Check that event bus was called with publish_event_by_type
+        self.mock_event_bus.publish_event_by_type.assert_called()
         # Should be called with entity_fled event type
-        call_args = self.mock_event_bus.publish_event.call_args
-        assert call_args[0][0] == "entity_fled"
+        call_args = self.mock_event_bus.publish_event_by_type.call_args
+        assert call_args[0][0] == "ENTITY_FLED"
     
     def test_is_ally_check(self):
         """Test ally detection."""

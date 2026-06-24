@@ -15,11 +15,40 @@ class EventCategory(Enum):
     PLAYER = "player"
 
 
+class EventType(Enum):
+    """Standardized event types for the game system.
+    
+    This enum provides type-safe event identifiers that can be used
+    throughout the codebase instead of raw string literals.
+    """
+    # Combat events
+    HIT = "HIT"
+    MISS = "MISS"
+    CRITICAL_HIT = "CRITICAL_HIT"
+    COMBAT_START = "COMBAT_START"
+    COMBAT_END = "COMBAT_END"
+    
+    # Movement events
+    MOVEMENT = "MOVEMENT"
+    ENTITY_FLED = "ENTITY_FLED"
+    
+    # Social events
+    ALLY_CALLED = "ALLY_CALLED"
+    ITEM_PICKED_UP = "ITEM_PICKED_UP"
+    ITEM_DROPPED = "ITEM_DROPPED"
+    
+    # System events
+    TURN = "TURN"
+    ERROR = "ERROR"
+    CRASH = "CRASH"
+
+
 @dataclass
 class Event:
     """Base event class."""
     event_id: str = field(default_factory=lambda: str(uuid4()))
     category: EventCategory = EventCategory.SYSTEM
+    event_type: Optional[EventType] = None
     data: Dict[str, Any] = field(default_factory=dict)
     timestamp: float = field(default_factory=lambda: __import__('time').time())
 

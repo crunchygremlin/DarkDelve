@@ -8,6 +8,7 @@ from ..entities.item import Item
 from ..components.movement import Movement
 from ..value_objects.position import Position
 from typing import Any
+from src.shared.interfaces.service import IMovementService
 
 
 def distance_between(pos1: Any, pos2: Any) -> float:
@@ -15,11 +16,12 @@ def distance_between(pos1: Any, pos2: Any) -> float:
     return ((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2) ** 0.5
 
 
-class MovementService:
+class MovementService(IMovementService):
     """
     Service for handling entity movement and navigation.
     
     Implements the Service pattern for movement management.
+    Implements IMovementService interface for dependency inversion.
     """
     
     def __init__(self, map_width: int = 100, map_height: int = 100):

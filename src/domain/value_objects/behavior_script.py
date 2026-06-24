@@ -82,6 +82,8 @@ class BehaviorAction:
     """An action node in a behavior tree."""
     action_type: str  # ActionType value
     target: Optional[str] = None  # "player", "nearest_enemy", "leader", entity_id
+    # Optional explicit item identifier for actions that involve items (gift, use, etc.)
+    target_item_id: Optional[str] = None
     parameters: Dict[str, Any] = field(default_factory=dict)
 
 

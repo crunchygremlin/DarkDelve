@@ -175,6 +175,36 @@ class EventBus:
             self.stats["events_failed"] += 1
             return False
     
+    def publish_event_by_type(
+        self,
+        event_type: str,
+        data: Optional[Dict[str, Any]] = None,
+        category: Optional['EventCategory'] = None
+    ) -> bool:
+        """
+        Publish an event by string type identifier.
+        
+        This is a convenience method for publishing events with just a type string,
+        useful for backward compatibility and simple event publishing.
+        
+        Args:
+            event_type: String identifier for the event type
+            data: Optional data payload for the event
+            category: Optional event category (defaults to SYSTEM)
+            
+        Returns:
+            bool: True if event was published successfully, False otherwise
+        """
+        from .base_event import EventCategory
+        from src.shared.events.event import EventType
+        
+        event = Event(
+            category=category or EventCategory.SYSTEM,
+            event_type=EventType(event_type) if event_type in [e.value for e in EventType] else None,
+            data=data or {}
+        )
+        return self.publish_event(event)
+    
     def publish_event_sync(self, event: Event) -> bool:
         """
         Publish and process an event synchronously.

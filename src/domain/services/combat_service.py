@@ -8,13 +8,15 @@ from ..entities.mob import Mob
 from ..components.combat import Combat
 from ..value_objects.combat_event import CombatEvent, CombatEventType
 from ..value_objects.stats import Stats
+from src.shared.interfaces.service import ICombatService
 
 
-class CombatService:
+class CombatService(ICombatService):
     """
     Service for handling combat operations and calculations.
     
     Implements the Service pattern for combat management.
+    Implements ICombatService interface for dependency inversion.
     """
     
     def __init__(self):

@@ -62,7 +62,8 @@ class BehaviorScriptService:
         self,
         node: BehaviorNode,
         perception: PerceptionStatus,
-        entity_state: Dict[str, Any]
+        entity_state: Dict[str, Any],
+        plan_memory: Dict[str, Any] = None,
     ) -> Optional[BehaviorAction]:
         """
         Recursively evaluate a behavior tree node.
@@ -97,7 +98,7 @@ class BehaviorScriptService:
         elif node_type == NodeType.SELECTOR.value:
             # Try children in order until one succeeds
             for child in node.children:
-                result = self._evaluate_node(child, perception, entity_state)
+                result = self._evaluate_node(child, perception, entity_state, plan_memory)
                 if result is not None:
                     return result
             return None
@@ -105,7 +106,7 @@ class BehaviorScriptService:
         elif node_type == NodeType.SEQUENCE.value:
             # Run all children in order, fail if any fails
             for child in node.children:
-                result = self._evaluate_node(child, perception, entity_state)
+                result = self._evaluate_node(child, perception, entity_state, plan_memory)
                 if result is None:
                     # Action failed, sequence fails
                     return None
@@ -114,7 +115,7 @@ class BehaviorScriptService:
         elif node_type == NodeType.PARALLEL.value:
             # Run all children, return first action
             for child in node.children:
-                result = self._evaluate_node(child, perception, entity_state)
+                result = self._evaluate_node(child, perception, entity_state, plan_memory)
                 if result is not None:
                     return result
             return None

@@ -8,17 +8,19 @@ from src.domain.value_objects.social import (
     SocialStructure, SocialRelationship, LoyaltyState,
     SocialStructureType, RelationshipType
 )
+from src.shared.interfaces.service import ISocialService
 
 
 __all__ = ["SocialService"]
 
 
-class SocialService:
+class SocialService(ISocialService):
     """
     Service for managing social structures, loyalty, and wealth distribution.
     
     This service maintains in-memory state of all social structures and loyalty,
     and provides methods for modifying relationships and processing social events.
+    Implements ISocialService interface for dependency inversion.
     """
     
     def __init__(self):
@@ -521,3 +523,38 @@ class SocialService:
         ]
         
         return "\n".join(lines)
+    
+    # Interface implementations for ISocialService
+    
+    def is_ally(self, entity1: Any, entity2: Any) -> bool:
+        """Check if two entities are allies.
+        
+        Args:
+            entity1: First entity
+            entity2: Second entity
+            
+        Returns:
+            bool: True if entities are allies
+        """
+        if not entity1 or not entity2:
+            return False
+        
+        structure = self.get_structure_for_entity(entity1.id)
+        if not structure:
+            return False
+        
+        # Check if both entities are in the same structure
+        return (entity1.id in structure.member_ids or entity1.id == structure.leader_id) and \
+               (entity2.id in structure.member_ids or entity2.id == structure.leader_id)
+    
+    def get_loyalty_score(self, entity_id: str) -> float:
+        """Get loyalty score for an entity.
+        
+        Args:
+            entity_id: ID of the entity
+            
+        Returns:
+            float: Loyalty score (0.0 to 1.0)
+        """
+        loyalty = self._loyalty_states.get(entity_id)
+        return loyalty.loyalty_score if loyalty else 0.5
