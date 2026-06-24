@@ -940,7 +940,7 @@ def find_path(start: Tuple[int, int], goal: Tuple[int, int], dungeon_map: np.nda
             
             if not (0 <= neighbor[0] < dungeon_map.shape[0] and 0 <= neighbor[1] < dungeon_map.shape[1]):
                 continue
-            if not dungeon_map[neighbor[0], neighbor[1]]:
+            if dungeon_map[neighbor[0], neighbor[1]]:  # Wall = blocked, skip
                 continue
             if neighbor in blocked and neighbor != goal:
                 continue
