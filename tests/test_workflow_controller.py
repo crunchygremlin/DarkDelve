@@ -25,48 +25,27 @@ class TestTaskComplexityClassification:
         result = controller.classify_complexity("Rewrite core game loop and save system")
         assert result == TaskComplexity.CRITICAL
 
-class TestPlaytesterTrigger:
-    def test_playtest_always_for_complex(self):
-        controller = WorkflowController()
-        assert controller.should_run_playtester(TaskComplexity.COMPLEX) is True
-    
-    def test_playtest_always_for_critical(self):
-        controller = WorkflowController()
-        assert controller.should_run_playtester(TaskComplexity.CRITICAL) is True
-    
-    def test_playtest_for_moderate_if_coder_succeeds(self):
-        controller = WorkflowController()
-        coder_result = TaskResult(stage="coder", success=True, output="OK")
-        assert controller.should_run_playtester(TaskComplexity.MODERATE, coder_result) is True
-    
-    def test_no_playtest_for_moderate_if_coder_fails(self):
-        controller = WorkflowController()
-        coder_result = TaskResult(stage="coder", success=False, output="FAIL")
-        assert controller.should_run_playtester(TaskComplexity.MODERATE, coder_result) is False
-    
-    def test_no_playtest_for_simple(self):
-        controller = WorkflowController()
-        assert controller.should_run_playtester(TaskComplexity.SIMPLE) is False
-
 class TestDebuggerTrigger:
-    def test_debug_for_critical_on_playtest_failure(self):
-        controller = WorkflowController()
-        play_result = TaskResult(stage="playtester", success=False, output="FAIL", errors=["test failed"])
-        assert controller.should_run_debugger(TaskComplexity.CRITICAL, play_result) is True
-    
-    def test_debug_for_complex_on_playtest_failure(self):
-        controller = WorkflowController()
-        play_result = TaskResult(stage="playtester", success=False, output="FAIL", errors=["test failed"])
-        assert controller.should_run_debugger(TaskComplexity.COMPLEX, play_result) is True
-    
-    def test_no_debug_for_simple(self):
-        controller = WorkflowController()
-        assert controller.should_run_debugger(TaskComplexity.SIMPLE) is False
-    
+    """Tests for debugger trigger logic (playtester removed)."""
     def test_debug_for_critical_on_coder_failure(self):
         controller = WorkflowController()
         code_result = TaskResult(stage="coder", success=False, output="FAIL", errors=["build error"])
         assert controller.should_run_debugger(TaskComplexity.CRITICAL, None, code_result) is True
+    
+    def test_debug_for_complex_on_coder_failure(self):
+        controller = WorkflowController()
+        code_result = TaskResult(stage="coder", success=False, output="FAIL", errors=["build error"])
+        assert controller.should_run_debugger(TaskComplexity.COMPLEX, None, code_result) is True
+    
+    def test_no_debug_for_simple_on_success(self):
+        controller = WorkflowController()
+        code_result = TaskResult(stage="coder", success=True, output="OK")
+        assert controller.should_run_debugger(TaskComplexity.SIMPLE, None, code_result) is False
+    
+    def test_no_debug_for_moderate_on_success(self):
+        controller = WorkflowController()
+        code_result = TaskResult(stage="coder", success=True, output="OK")
+        assert controller.should_run_debugger(TaskComplexity.MODERATE, None, code_result) is False
 
 class TestWorkflowExecution:
     def test_simple_workflow(self):
@@ -81,7 +60,7 @@ class TestWorkflowExecution:
         controller = WorkflowController()
         result = controller.run_workflow("test-002", "Implement multi-level dungeon system")
         assert result.final_success is True
-        assert result.playtest_triggered is True
+        assert result.playtest_triggered is False  # Playtester removed
     
     def test_workflow_summary(self):
         controller = WorkflowController()
@@ -102,8 +81,8 @@ class TestPipeline:
     def test_enable_stage(self):
         from src.application.workflow import Pipeline
         pipeline = Pipeline()
-        pipeline.enable_stage("playtester")
-        assert "playtester" in pipeline.get_enabled_stages()
+        pipeline.enable_stage("debugger")
+        assert "debugger" in pipeline.get_enabled_stages()
     
     def test_disable_stage(self):
         from src.application.workflow import Pipeline

@@ -60,10 +60,10 @@ class TestGameLogic(unittest.TestCase):
         return game
 
     def test_game_config_has_playtest_flag(self):
-        """The game config should expose an opt-in in-process playtester flag."""
+        """The game config should expose an opt-in in-process playtester flag (now disabled)."""
         self.assertIn("playtest", CONFIG)
         self.assertEqual(CONFIG["playtest"]["config_path"], "playtest/playtest_config.yaml")
-        self.assertIs(CONFIG["playtest"]["enabled"], True)
+        self.assertIs(CONFIG["playtest"]["enabled"], False)  # Playtester disabled
 
     def test_game_initialization(self):
         """Test game initialization"""

@@ -1,6 +1,7 @@
 """
 Workflow Controller
-Manages the orchestration pipeline: orchestrator → architect → coder → playtester → debugger
+Manages the orchestration pipeline: orchestrator → architect → coder → debugger
+Playtester stage removed - using new communication and debug methods.
 Determines when to trigger each stage based on task complexity and results.
 """
 
@@ -69,14 +70,13 @@ class WorkflowController:
     """
     
     def __init__(self):
-        self.current_workflow: Optional[WorkflowResult] = None
-        self.stage_handlers = {
-            WorkflowStage.ORCHESTRATOR.value: self._run_orchestrator,
-            WorkflowStage.ARCHITECT.value: self._run_architect,
-            WorkflowStage.CODER.value: self._run_coder,
-            WorkflowStage.PLAYTESTER.value: self._run_playtester,
-            WorkflowStage.DEBUGGER.value: self._run_debugger,
-        }
+            self.current_workflow: Optional[WorkflowResult] = None
+            self.stage_handlers = {
+                WorkflowStage.ORCHESTRATOR.value: self._run_orchestrator,
+                WorkflowStage.ARCHITECT.value: self._run_architect,
+                WorkflowStage.CODER.value: self._run_coder,
+                WorkflowStage.DEBUGGER.value: self._run_debugger,
+            }
     
     def classify_complexity(self, task_description: str) -> TaskComplexity:
         """Classify task complexity based on description."""
@@ -116,19 +116,22 @@ class WorkflowController:
         return False
     
     def should_run_debugger(self, complexity: TaskComplexity,
-                            playtest_result: Optional[TaskResult] = None,
-                            coder_result: Optional[TaskResult] = None) -> bool:
-        """Determine if debugger should run."""
-        # Run if critical and any previous stage failed
-        if complexity == TaskComplexity.CRITICAL:
-            if playtest_result and not playtest_result.success:
-                return True
-            if coder_result and not coder_result.success:
-                return True
-        # Run if complex and playtest failed
-        if complexity == TaskComplexity.COMPLEX and playtest_result and not playtest_result.success:
-            return True
-        return False
+                                playtest_result: Optional[TaskResult] = None,
+                                coder_result: Optional[TaskResult] = None) -> bool:
+            """Determine if debugger should run."""
+            # Run if critical and any previous stage failed
+            if complexity == TaskComplexity.CRITICAL:
+                if playtest_result and not playtest_result.success:
+                    return True
+                if coder_result and not coder_result.success:
+                    return True
+            # Run if complex and any previous stage failed
+            if complexity == TaskComplexity.COMPLEX:
+                if playtest_result and not playtest_result.success:
+                    return True
+                if coder_result and not coder_result.success:
+                    return True
+            return False
     
     def run_workflow(self, task_id: str, task_description: str) -> WorkflowResult:
         """Run the full workflow pipeline for a task."""
@@ -163,21 +166,8 @@ class WorkflowController:
         result.stages_completed.append(WorkflowStage.CODER.value)
         result.stage_results.append(code_result)
         
-        # Stage 4: Playtester (moderate+ with conditions)
-        if self.should_run_playtester(complexity, code_result):
-            play_result = self._run_playtester(task_id, task_description)
-            result.stages_completed.append(WorkflowStage.PLAYTESTER.value)
-            result.stage_results.append(play_result)
-            result.playtest_triggered = True
-            
-            # Stage 5: Debugger (on failure)
-            if self.should_run_debugger(complexity, play_result, code_result):
-                debug_result = self._run_debugger(task_id, task_description, play_result)
-                result.stages_completed.append(WorkflowStage.DEBUGGER.value)
-                result.stage_results.append(debug_result)
-                result.debugger_triggered = True
-        elif not code_result.success:
-            # Coder failed but playtester not triggered — run debugger
+        # Stage 4: Debugger (on failure - playtester removed)
+        if not code_result.success:
             debug_result = self._run_debugger(task_id, task_description, None, code_result)
             result.stages_completed.append(WorkflowStage.DEBUGGER.value)
             result.stage_results.append(debug_result)

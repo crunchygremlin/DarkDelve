@@ -11,11 +11,10 @@ from dataclasses import dataclass, field
 @dataclass
 class PipelineConfig:
     """Configuration for the pipeline."""
-    auto_playtest: bool = True
+    auto_playtest: bool = False  # Disabled - using new communication/debug methods
     auto_debug: bool = True
     max_retries: int = 3
     test_command: str = "python -m pytest tests/ --tb=short -q"
-    playtest_command: str = "python playtest/run_playtest.py --levels 3 --turns 100"
     context_budget_tokens: int = 8192
     
 @dataclass

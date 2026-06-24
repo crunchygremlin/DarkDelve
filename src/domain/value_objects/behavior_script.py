@@ -65,6 +65,7 @@ class ActionType(Enum):
     HIDE = "hide"
     BLOCK = "block"
     HEAL_ALLY = "heal_ally"
+    MOVE_TO = "move_to"
 
 
 @dataclass
@@ -95,7 +96,6 @@ class BehaviorNode:
     children: List['BehaviorNode'] = field(default_factory=list)
     description: str = ""
 
-
 @dataclass
 class BehaviorScript:
     """A complete behavior script for an entity."""
@@ -106,6 +106,27 @@ class BehaviorScript:
     valid_actions: List[str] = field(default_factory=list)
     created_at: float = 0.0
     version: int = 1
+    # Multi-step plan support
+    is_plan: bool = False  # True if this is a multi-step plan vs single-decision
+    plan_name: str = ""  # "attack_player", "defend_position", "search_and_destroy"
+    plan_memory: Dict[str, Any] = field(default_factory=dict)
+    # plan_memory stores: current_step, last_search_pos, attack_count, etc.
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Serialize the script to a dictionary."""
+        return {
+            "entity_id": self.entity_id,
+            "script_id": self.script_id,
+            "root_node": self.root_node.__dict__ if self.root_node else None,
+            "valid_conditions": self.valid_conditions,
+            "valid_actions": self.valid_actions,
+            "created_at": self.created_at,
+            "version": self.version,
+            "is_plan": self.is_plan,
+            "plan_name": self.plan_name,
+            "plan_memory": self.plan_memory,
+        }
+
 
 
 # Catalog of conditions/actions per mob type
