@@ -159,3 +159,67 @@ result = agent_manager.process_turn(actor, game_state, game_context)
 - Memory system for agents
 - Learning from player behavior
 - Multi-agent communication protocols
+
+## Implemented Features (as of this update)
+
+### 1. MCP Toolkit (`src/infrastructure/services/mcp_toolkit.py`)
+A new module providing tools for LLM-driven game manipulation:
+- `create_mob(mob_type, position, name)` - Spawn new monsters
+- `add_item(entity_id, item_id)` - Add items to entity inventories
+- `modify_stat(entity_id, stat, delta)` - Modify entity stats (health, strength, etc.)
+- `request_map_section(x, y, width, height)` - Request map data slices
+- `write_live_config(key, value)` - Update persistent `llm_state.json`
+- `read_live_config(key)` - Read from live config
+- `list_entities()` - List all entities in the game
+- `send_message(message, recipient)` - Send messages to player or log
+
+### 2. LLM Agent Enhancements (`src/domain/agents/llm_agent.py`)
+- **Context-size protection**: Automatic prompt truncation when token count exceeds 8k limit
+- **Map-request API**: `request_map_section()` method for on-demand map data
+- **Token budget management**: Configurable `max_context_tokens` in `LLMAgentConfig`
+
+### 3. Behavior Script Validation (`src/domain/services/plan_generator.py`)
+- Scripts are validated against `MOB_BEHAVIOR_CATALOG` for each mob type
+- Invalid conditions/actions are logged and ignored
+- Catalog defines valid conditions/actions per mob type (goblin, goblin_king, wolf, spider, mercenary, undead, default)
+
+### 4. Plan Memory Updates (`src/domain/services/behavior_script_service.py`)
+- Multi-step plans now track:
+  - `current_step` - Current position in the behavior tree
+  - `last_search_pos` - Last known player position
+  - `attack_count` - Number of attacks in current plan
+  - `current_health` - Current health percentage
+  - `visible_threats` - Count of visible threats
+  - `player_seen` / `player_heard` - Player detection status
+  - `last_known_player_pos` - Last recorded player position
+
+### 5. Condition Evaluation Logging (`src/domain/services/behavior_script_service.py`)
+- Failed condition evaluations are logged with details:
+  - Condition type, actual value, operator, expected value
+  - Helps debug why a behavior branch was not taken
+
+### 6. EventBus Integration (`src/domain/services/agent_communication.py`)
+- All message types now publish events:
+  - `order_issued` - When an order is sent
+  - `orders_requested` - When a subordinate requests orders
+  - `status_reported` - When a subordinate reports status
+  - `alert_sent` - When an alert is broadcast
+
+### 7. Action Dispatcher (`src/domain/services/action_dispatcher.py`)
+All action handlers are now implemented:
+- `ATTACK`, `FLEE`, `PATROL`, `MOVE_TO`, `CALL_ALLIES`
+- `FOLLOW_LEADER`, `GUARD_POSITION`, `PICKUP_ITEM`
+- `GIFT_ITEM`, `GIVE_ORDERS`, `WAIT`, `SEARCH`
+- `HIDE`, `USE_ITEM`, `TRADE`, `PROMOTE_MINION`
+
+### 8. Hybrid Communication Architecture
+The system now supports three communication modes:
+1. **JSON Command Snippets** - Turn-based actions via `AgentCommunication`
+2. **MCP Tool Set** - Rich programmatic access for world manipulation
+3. **Live Config File** - Persistent state in `llm_state.json`
+
+This enables:
+- Real-time player-like actions
+- World editing (spawn mobs, modify stats, add items)
+- Map queries for context-limited LLM prompts
+- IDE debugging and playtesting

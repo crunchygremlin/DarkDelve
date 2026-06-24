@@ -6,7 +6,7 @@ to make decisions based on game state.
 """
 
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Optional, TYPE_CHECKING
+from typing import Any, Dict, List, Optional, Tuple, TYPE_CHECKING
 import json
 import random
 
@@ -15,6 +15,11 @@ from .actions import AgentAction, ActionType, ActionResult
 
 if TYPE_CHECKING:
     from .state import AgentGameState
+
+
+# Token budget limit (approximate, based on 4 chars per token for English)
+MAX_TOKEN_BUDGET = 8000
+TOKEN_BUFFER = 1000  # Reserve buffer for response
 
 
 @dataclass
@@ -27,6 +32,7 @@ class LLMAgentConfig:
     max_tokens: int = 512
     timeout: float = 30.0
     system_prompt: Optional[str] = None
+    max_context_tokens: int = MAX_TOKEN_BUDGET
     
     def __post_init__(self):
         self.endpoint = self.endpoint.rstrip("/")
@@ -38,6 +44,11 @@ class LLMAgent(Agent):
     
     This agent perceives the game state, constructs a prompt for the LLM,
     and parses the response to determine an action.
+    
+    Supports:
+    - Context-size protection (dynamic truncation)
+    - Map requests via MCP toolkit
+    - Token budget management
     """
     
     DEFAULT_SYSTEM_PROMPT = """You are an AI agent in a roguelike dungeon. Your goal is to survive and explore.
@@ -54,11 +65,13 @@ Respond with JSON only:
         entity: Any,
         agent_type: AgentType = AgentType.NPC,
         name: Optional[str] = None,
-        config: Optional[LLMAgentConfig] = None
+        config: Optional[LLMAgentConfig] = None,
+        mcp_toolkit: Optional[Any] = None
     ):
         super().__init__(entity, agent_type, name)
         self.config = config or LLMAgentConfig()
         self._history: List[Dict[str, Any]] = []
+        self._mcp_toolkit = mcp_toolkit
     
     def perceive(self, game_state: "AgentGameState") -> PerceptionResult:
         """Perceive the current game state."""
@@ -111,8 +124,44 @@ Respond with JSON only:
             action=action
         )
     
+    def _estimate_tokens(self, text: str) -> int:
+        """Estimate token count for a string (rough approximation: 4 chars per token)."""
+        return max(1, len(text) // 4)
+    
+    def _truncate_prompt(self, prompt: str, max_tokens: int) -> str:
+        """Truncate prompt to fit within token budget, preserving system prompt and recent history."""
+        lines = prompt.split("\n")
+        system_prompt_lines = []
+        history_lines = []
+        current_state_lines = []
+        
+        in_history = False
+        for line in lines:
+            if line.startswith("Recent history:"):
+                in_history = True
+            if in_history:
+                history_lines.append(line)
+            elif line.startswith("Current state:"):
+                in_history = False
+                current_state_lines.append(line)
+            else:
+                system_prompt_lines.append(line)
+        
+        # Keep system prompt and current state, truncate history
+        truncated_history = []
+        token_count = 0
+        for h in reversed(history_lines):
+            if token_count + self._estimate_tokens(h) < max_tokens - TOKEN_BUFFER:
+                truncated_history.insert(0, h)
+                token_count += self._estimate_tokens(h)
+            else:
+                break
+        
+        result_lines = system_prompt_lines + ["\nRecent history:"] + truncated_history + current_state_lines
+        return "\n".join(result_lines)
+    
     def _build_prompt(self, perception: PerceptionResult) -> str:
-        """Build a prompt from the perception result."""
+        """Build a prompt from the perception result with context-size protection."""
         lines = [
             self.config.system_prompt or self.DEFAULT_SYSTEM_PROMPT,
             "",
@@ -125,7 +174,22 @@ Respond with JSON only:
             for h in self._history[-3:]:
                 lines.append(f"  Action: {h.get('action', 'unknown')}")
         
-        return "\n".join(lines)
+        prompt = "\n".join(lines)
+        
+        # Check token count and truncate if necessary
+        token_count = self._estimate_tokens(prompt)
+        if token_count > self.config.max_context_tokens - TOKEN_BUFFER:
+            prompt = self._truncate_prompt(prompt, self.config.max_context_tokens - TOKEN_BUFFER)
+        
+        return prompt
+    
+    def request_map_section(self, x: int, y: int, width: int, height: int) -> Optional[List[List[bool]]]:
+        """Request a map section via MCP toolkit."""
+        if self._mcp_toolkit:
+            result = self._mcp_toolkit.request_map_section(x, y, width, height)
+            if result.success and result.value:
+                return result.value.get("section")
+        return None
     
     def _query_llm(self, prompt: str) -> str:
         """Query the LLM for a response."""

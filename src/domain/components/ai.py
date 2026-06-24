@@ -200,23 +200,37 @@ class AI(Component):
         
         target_pos = Position(int(new_x), int(new_y))
         self._move_towards(target_pos, entity_pos)
-        
-    def _move_towards(self, target: Position, entity_pos: Position) -> None:
-        """Move entity towards target"""
-        # This would normally call movement component
-        # For now, just update position directly
-        dx = target.x - entity_pos.x
-        dy = target.y - entity_pos.y
-        
-        # Normalize to unit movement
-        distance = (dx**2 + dy**2)**0.5
-        if distance > 0:
-            dx = dx / distance
-            dy = dy / distance
+        def _move_towards(self, target: Position, entity_pos: Position, entity: Any) -> None:
+            """Move entity towards target"""
+            # This method should be called by behavior engine
+            # The actual movement should be handled by the movement component
+            # through the behavior script execution
+            # For now, we'll keep the old logic but mark it as deprecated
+            # TODO: Remove this method when behavior engine is implemented
+            # NOTE: This method directly modifies entity position, which is not the intended behavior.
+            # The LLM should only update behavior scripts, not directly move monsters.
+            # The proper implementation should use the movement component through the behavior engine.
+            # We'll log a warning to indicate this is deprecated behavior
+            import warnings
+            warnings.warn(
+                "AI._move_towards is deprecated. Movement should be handled by the movement component through the behavior engine.",
+                DeprecationWarning,
+                stacklevel=2
+            )
+            # Keep the old logic for backward compatibility
+            dx = target.x - entity_pos.x
+            dy = target.y - entity_pos.y
             
-        # Update position (this should be done via movement component)
-        entity_pos.x += dx
-        entity_pos.y += dy
+            # Normalize to unit movement
+            distance = (dx**2 + dy**2)**0.5
+            if distance > 0:
+                dx = dx / distance
+                dy = dy / distance
+                
+            # Update position
+            entity_pos.x += dx
+            entity_pos.y += dy
+                
         
     def _attack_target(self, entity: Any, target_id: str) -> None:
         """Attack the target"""

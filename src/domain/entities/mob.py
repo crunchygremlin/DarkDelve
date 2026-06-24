@@ -67,10 +67,16 @@ class Mob(Entity):
             self.stats.charisma = 10
             self.health = 20
             self.max_health = 20
-            
-    def move_to(self, new_position: Position) -> None:
-        """Move mob to new position"""
-        self.position = new_position
+            def move_to(self, new_position: Position) -> None:
+                """Move mob to new position"""
+                # Use movement component if available
+                movement_comp = self.get_component("movement")
+                if movement_comp:
+                    movement_comp.set_position(new_position)
+                else:
+                    # Fallback to direct position update
+                    self.position = new_position
+                    
         
     def take_damage(self, amount: int) -> None:
         """Take damage"""
@@ -92,15 +98,15 @@ class Mob(Entity):
     def get_defense(self) -> int:
         """Get defense value"""
         return self.stats.constitution // 2 + self.combat.get_bonus_defense()
-        
-    def update(self, delta_time: float) -> None:
-        """Update mob state"""
-        # Update AI behavior
-        self.ai.update(delta_time, self)
-        
-        # Regenerate health slowly
-        if self.health < self.max_health:
-            self.heal(1)
+        def update(self, delta_time: float) -> None:
+            """Update mob state"""
+            # Update AI behavior
+            self.ai.update(delta_time, self)
+            
+            # Regenerate health slowly
+            if self.health < self.max_health:
+                self.heal(1)
+                
             
     def get_drops(self) -> List[str]:
         """Get possible loot drops"""

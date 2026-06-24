@@ -52,7 +52,11 @@ class BehaviorScriptService:
         if not script.root_node:
             return None
         
-        return self._evaluate_node(script.root_node, perception, entity_state)
+        # For multi-step plans, update plan memory with current perception
+        if script.is_plan:
+            self._update_plan_memory(script, perception, entity_state)
+        
+        return self._evaluate_node(script.root_node, perception, entity_state, script.plan_memory)
     
     def _evaluate_node(
         self,
@@ -121,7 +125,8 @@ class BehaviorScriptService:
         self,
         conditions: List[BehaviorCondition],
         perception: PerceptionStatus,
-        entity_state: Dict[str, Any]
+        entity_state: Dict[str, Any],
+        plan_memory: Dict[str, Any] = None
     ) -> bool:
         """
         Evaluate a list of conditions.
@@ -130,12 +135,16 @@ class BehaviorScriptService:
             conditions: List of conditions to evaluate
             perception: Current perception status
             entity_state: Current entity state dict
+            plan_memory: Plan memory for multi-step plans
             
         Returns:
             bool: True if all conditions pass
         """
+        if plan_memory is None:
+            plan_memory = {}
+        
         for condition in conditions:
-            if not self._evaluate_condition(condition, perception, entity_state):
+            if not self._evaluate_condition(condition, perception, entity_state, plan_memory):
                 return False
         return True
     
@@ -143,7 +152,8 @@ class BehaviorScriptService:
         self,
         condition: BehaviorCondition,
         perception: PerceptionStatus,
-        entity_state: Dict[str, Any]
+        entity_state: Dict[str, Any],
+        plan_memory: Dict[str, Any] = None
     ) -> bool:
         """
         Evaluate a single condition against perception and state.
@@ -152,38 +162,94 @@ class BehaviorScriptService:
             condition: The condition to evaluate
             perception: Current perception status
             entity_state: Current entity state dict
+            plan_memory: Plan memory for multi-step plans
             
         Returns:
             bool: True if condition passes
         """
+        if plan_memory is None:
+            plan_memory = {}
+        
         condition_type = condition.condition_type.lower()
-        value = self._get_condition_value(condition_type, perception, entity_state, condition)
+        value = self._get_condition_value(condition_type, perception, entity_state, condition, plan_memory)
         
         # Apply operator
         operator = condition.operator
         expected = condition.value
         
+        result = False
         if operator == "==":
-            return value == expected
+            result = value == expected
         elif operator == "!=":
-            return value != expected
+            result = value != expected
         elif operator == ">":
-            return value > expected
+            result = value > expected
         elif operator == ">=":
-            return value >= expected
+            result = value >= expected
         elif operator == "<":
-            return value < expected
+            result = value < expected
         elif operator == "<=":
-            return value <= expected
+            result = value <= expected
         
-        return False
+        # Log condition evaluation failure
+        if not result:
+            print(f"[BehaviorScriptService] Condition '{condition_type}' failed: value={value}, operator={operator}, expected={expected}")
+        
+        return result
+    
+    def _update_plan_memory(
+        self,
+        script: BehaviorScript,
+        perception: PerceptionStatus,
+        entity_state: Dict[str, Any]
+    ) -> None:
+        """
+        Update plan memory for multi-step plans.
+        
+        Stores relevant state information for tracking progress across turns.
+        
+        Args:
+            script: The behavior script (plan) being executed
+            perception: Current perception status
+            entity_state: Current entity state dict
+        """
+        memory = script.plan_memory
+        
+        # Track current step
+        if "current_step" not in memory:
+            memory["current_step"] = 0
+        
+        # Track last search position
+        if perception.player_last_known_position:
+            memory["last_search_pos"] = perception.player_last_known_position
+        
+        # Track attack count
+        if "attack_count" not in memory:
+            memory["attack_count"] = 0
+        if entity_state.get("in_combat", False):
+            memory["attack_count"] += 1
+        
+        # Track health for emergency detection
+        memory["current_health"] = entity_state.get("health_pct", 1.0)
+        
+        # Track visible threats count
+        memory["visible_threats"] = len(perception.visible_threats)
+        
+        # Track if player was seen/heard
+        memory["player_seen"] = perception.can_see_player
+        memory["player_heard"] = perception.can_hear_player
+        
+        # Update last known player position
+        if perception.can_see_player and perception.player_last_known_position:
+            memory["last_known_player_pos"] = perception.player_last_known_position
     
     def _get_condition_value(
         self,
         condition_type: str,
         perception: PerceptionStatus,
         entity_state: Dict[str, Any],
-        condition: BehaviorCondition
+        condition: BehaviorCondition,
+        plan_memory: Dict[str, Any] = None
     ) -> Any:
         """
         Extract the relevant value from perception/state for a condition.
@@ -193,10 +259,14 @@ class BehaviorScriptService:
             perception: Current perception status
             entity_state: Current entity state dict
             condition: The condition object (for accessing value/parameters)
+            plan_memory: Plan memory for multi-step plans
             
         Returns:
             Any: The condition value
         """
+        if plan_memory is None:
+            plan_memory = {}
+        
         if condition_type == "can_see_player":
             return perception.can_see_player
         
@@ -266,6 +336,13 @@ class BehaviorScriptService:
             if flag_name:
                 return perception.custom_flags.get(flag_name, False)
             return False
+        
+        # Check plan_memory for tracked values
+        elif condition_type == "attack_count_above":
+            return plan_memory.get("attack_count", 0)
+        
+        elif condition_type == "visible_threats_above":
+            return plan_memory.get("visible_threats", 0)
         
         return False
     
