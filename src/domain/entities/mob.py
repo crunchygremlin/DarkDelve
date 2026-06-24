@@ -5,6 +5,7 @@ from ..value_objects.stats import Stats
 from ..components.inventory import Inventory
 from ..components.ai import AI
 from ..components.combat import Combat
+from ..components.movement import Movement
 
 
 class Mob(Entity):
@@ -18,6 +19,7 @@ class Mob(Entity):
         self.inventory = Inventory()
         self.ai = AI()
         self.combat = Combat()
+        self.movement = Movement()
         
         # Add components
         self.add_component("inventory", self.inventory)
@@ -25,6 +27,7 @@ class Mob(Entity):
         self.add_component("combat", self.combat)
         self.add_component("stats", self.stats)
         self.add_component("position", self.position)
+        self.add_component("movement", self.movement)
         
         # Set default stats based on mob type
         self._set_default_stats()
@@ -67,17 +70,17 @@ class Mob(Entity):
             self.stats.charisma = 10
             self.health = 20
             self.max_health = 20
-            def move_to(self, new_position: Position) -> None:
-                """Move mob to new position"""
-                # Use movement component if available
-                movement_comp = self.get_component("movement")
-                if movement_comp:
-                    movement_comp.set_position(new_position)
-                else:
-                    # Fallback to direct position update
-                    self.position = new_position
-                    
-        
+            
+    def move_to(self, new_position: Position) -> None:
+        """Move mob to new position"""
+        # Use movement component if available
+        movement_comp = self.get_component("movement")
+        if movement_comp:
+            movement_comp.set_position(new_position)
+        else:
+            # Fallback to direct position update
+            self.position = new_position
+            
     def take_damage(self, amount: int) -> None:
         """Take damage"""
         self.health = max(0, self.health - amount)
@@ -98,15 +101,21 @@ class Mob(Entity):
     def get_defense(self) -> int:
         """Get defense value"""
         return self.stats.constitution // 2 + self.combat.get_bonus_defense()
-        def update(self, delta_time: float) -> None:
-            """Update mob state"""
-            # Update AI behavior
-            self.ai.update(delta_time, self)
+        
+    def update(self, delta_time: float) -> None:
+        """Update mob state"""
+        # Update AI behavior
+        self.ai.update(delta_time, self)
+        
+        # Update movement component
+        movement_comp = self.get_component("movement")
+        if movement_comp:
+            movement_comp.update(delta_time, self)
+        
+        # Regenerate health slowly
+        if self.health < self.max_health:
+            self.heal(1)
             
-            # Regenerate health slowly
-            if self.health < self.max_health:
-                self.heal(1)
-                
             
     def get_drops(self) -> List[str]:
         """Get possible loot drops"""

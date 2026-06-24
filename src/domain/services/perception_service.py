@@ -355,6 +355,11 @@ class PerceptionService:
             if distance > modifiers.sight_range:
                 continue
             
+            # Check if target is invisible and entity cannot see invisible
+            is_invisible = getattr(other, 'is_invisible', False)
+            if is_invisible and not modifiers.see_invisible:
+                continue
+            
             # Check line of sight
             can_see, _ = self._compute_sight(entity, other_pos, modifiers, game_map)
             if can_see:

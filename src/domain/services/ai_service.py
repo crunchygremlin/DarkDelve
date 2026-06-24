@@ -9,22 +9,14 @@ from ..entities.item import Item
 from ..components.ai import AI, AIState, AIBehavior
 from ..components.movement import Movement
 from ..components.combat import Combat
+from ..value_objects.position import Position
 from typing import Any
+import time
 
 
 def distance_between(pos1: Any, pos2: Any) -> float:
     """Calculate distance between two positions."""
     return ((pos1.x - pos2.x) ** 2 + (pos1.y - pos2.y) ** 2) ** 0.5
-
-
-class Position:
-    """Simple position class for AI calculations."""
-    def __init__(self, x: int, y: int):
-        self.x = x
-        self.y = y
-    
-    def distance_to(self, other: 'Position') -> float:
-        return distance_between(self, other)
 
 
 class AIStrategy(Enum):
@@ -257,7 +249,12 @@ class AIService:
             new_position = Position(entity.position.x + dx, entity.position.y + dy)
             
             if self.can_move_to(entity, new_position):
-                entity.position = new_position
+                # Use movement component if available, otherwise update position directly
+                movement_comp = entity.get_component("movement") if hasattr(entity, 'get_component') else None
+                if movement_comp:
+                    movement_comp.set_position(new_position)
+                else:
+                    entity.position = new_position
                 self.set_action_cooldown(entity, "move", 1.0)
     
     def find_nearest_enemy(self, entity: Any, entities: List[Any]) -> Optional[Any]:
@@ -317,7 +314,12 @@ class AIService:
         Returns:
             bool: True if attack is possible, False otherwise
         """
-        if not hasattr(entity, 'combat') or not entity.combat.can_attack():
+        if not hasattr(entity, 'combat'):
+            return False
+        
+        # Check if combat component can attack (requires current_time)
+        current_time = time.time()
+        if not entity.combat.can_attack(current_time):
             return False
         
         # Check range
@@ -371,7 +373,12 @@ class AIService:
             new_position = Position(entity.position.x + move_x, entity.position.y + move_y)
             
             if self.can_move_to(entity, new_position):
-                entity.position = new_position
+                # Use movement component if available
+                movement_comp = entity.get_component("movement") if hasattr(entity, 'get_component') else None
+                if movement_comp:
+                    movement_comp.set_position(new_position)
+                else:
+                    entity.position = new_position
                 self.set_action_cooldown(entity, "move", 0.5)
     
     def move_away_from_target(self, entity: Any, target_position: Position) -> None:
@@ -398,7 +405,12 @@ class AIService:
             new_position = Position(entity.position.x + move_x, entity.position.y + move_y)
             
             if self.can_move_to(entity, new_position):
-                entity.position = new_position
+                # Use movement component if available
+                movement_comp = entity.get_component("movement") if hasattr(entity, 'get_component') else None
+                if movement_comp:
+                    movement_comp.set_position(new_position)
+                else:
+                    entity.position = new_position
                 self.set_action_cooldown(entity, "move", 0.5)
     
     def can_move_to(self, entity: Any, position: Position) -> bool:
@@ -417,12 +429,12 @@ class AIService:
             return False
         
         # Check if entity has movement capability
-        if not hasattr(entity, 'movement') or not entity.movement.can_move():
-            return False
-        
-        # Check movement range
-        distance = entity.position.distance_to(position)
-        return distance <= entity.movement.max_move_distance
+        movement_comp = entity.get_component("movement") if hasattr(entity, 'get_component') else None
+        if movement_comp:
+            return movement_comp.can_move()
+        else:
+            # Fallback: check if entity has position attribute
+            return hasattr(entity, 'position')
     
     def set_patrol_route(self, entity: Any, route: List[Position]) -> None:
         """

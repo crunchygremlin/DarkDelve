@@ -10,6 +10,8 @@ class Combat(Component):
         super().__init__(component_id)
         self.attack_power = 10
         self.defense = 5
+        self.attack_range = 1  # Default melee range
+        self.damage = 5  # Default damage value
         self.critical_chance = 0.1  # 10% chance
         self.critical_multiplier = 2.0
         self.attack_speed = 1.0  # attacks per second
@@ -155,6 +157,14 @@ class Combat(Component):
         """Set defense"""
         self.defense = max(0, defense)
         
+    def set_attack_range(self, range_val: int) -> None:
+        """Set attack range"""
+        self.attack_range = max(0, range_val)
+        
+    def set_damage(self, damage: int) -> None:
+        """Set damage"""
+        self.damage = max(0, damage)
+        
     def set_critical_chance(self, chance: float) -> None:
         """Set critical hit chance (0.0 to 1.0)"""
         self.critical_chance = max(0.0, min(1.0, chance))
@@ -203,6 +213,8 @@ class Combat(Component):
         data.update({
             "attack_power": self.attack_power,
             "defense": self.defense,
+            "attack_range": self.attack_range,
+            "damage": self.damage,
             "critical_chance": self.critical_chance,
             "critical_multiplier": self.critical_multiplier,
             "attack_speed": self.attack_speed,
@@ -220,6 +232,8 @@ class Combat(Component):
         combat.enabled = data.get("enabled", True)
         combat.attack_power = data.get("attack_power", 10)
         combat.defense = data.get("defense", 5)
+        combat.attack_range = data.get("attack_range", 1)
+        combat.damage = data.get("damage", 5)
         combat.critical_chance = data.get("critical_chance", 0.1)
         combat.critical_multiplier = data.get("critical_multiplier", 2.0)
         combat.attack_speed = data.get("attack_speed", 1.0)

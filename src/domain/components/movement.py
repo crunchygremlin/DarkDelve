@@ -9,6 +9,7 @@ class Movement(Component):
     def __init__(self, component_id: Optional[str] = None):
         super().__init__(component_id)
         self.speed = 5.0  # tiles per second
+        self.max_move_distance = 10.0  # maximum distance that can be moved in one action
         self.position = Position(0, 0)
         self.target_position: Optional[Position] = None
         self.path: List[Position] = []
@@ -20,6 +21,10 @@ class Movement(Component):
         self.can_move_diagonally = True
         self.move_cost_modifier = 1.0
         self.teleport_cooldown = 0.0
+        
+    def can_move(self) -> bool:
+        """Check if entity can move (cooldown expired)."""
+        return self.move_cooldown <= 0
         
     def set_position(self, position: Position) -> None:
         """Set current position"""
@@ -199,6 +204,7 @@ class Movement(Component):
         data = super().to_dict()
         data.update({
             "speed": self.speed,
+            "max_move_distance": self.max_move_distance,
             "position": self.position.to_dict(),
             "target_position": self.target_position.to_dict() if self.target_position else None,
             "path": [pos.to_dict() for pos in self.path],
@@ -219,6 +225,7 @@ class Movement(Component):
         movement = cls()
         movement.enabled = data.get("enabled", True)
         movement.speed = data.get("speed", 5.0)
+        movement.max_move_distance = data.get("max_move_distance", 10.0)
         movement.position = Position.from_dict(data.get("position", {"x": 0, "y": 0}))
         movement.target_position = Position.from_dict(data["target_position"]) if data.get("target_position") else None
         movement.path = [Position.from_dict(pos) for pos in data.get("path", [])]
