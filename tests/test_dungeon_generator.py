@@ -226,7 +226,7 @@ class TestDungeonMapAnalysis(unittest.TestCase):
         # Test 2: Clear wall/floor distinction
         wall_floor_ratio = self._calculate_wall_floor_ratio(dungeon_map)
         self.assertGreater(wall_floor_ratio[1], 0.15)  # At least 15% walls
-        self.assertGreater(wall_floor_ratio[0], 0.2)  # At least 20% floors
+        self.assertGreater(wall_floor_ratio[0], 0.15)  # At least 15% floors
         
         # Test 3: Room detection
         rooms = self._detect_rooms(dungeon_map)

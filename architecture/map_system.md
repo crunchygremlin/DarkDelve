@@ -24,6 +24,8 @@ The DarkDelve Map System is a comprehensive roguelike dungeon generation and ren
 - `True` = wall (blocked)
 - `False` = floor (walkable)
 
+**IMPORTANT:** Map starts as all walls (ones), rooms/corridors are carved as floors (zeros)
+
 ### 2. Field of View System (`darkdelve.py:FOVSystem`)
 
 **Purpose:** Computes visible tiles from a given position using raycasting.
@@ -150,6 +152,10 @@ Entities have:
 ### 3. Entity Rendering Order
 **Problem:** Items could overwrite player glyph
 **Solution:** Render player after other entities
+
+### 4. Dungeon Generation Inverted Logic (FIXED)
+**Problem:** Rooms and corridors were being created as walls instead of floors
+**Solution:** Start with all walls (ones), carve rooms/corridors as floors (zeros)
 
 ## Performance Considerations
 
