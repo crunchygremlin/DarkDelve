@@ -84,7 +84,13 @@ class AI(Component):
             self._find_target(entity, entity_pos)
             
         if self.target_id:
-            self._handle_chasing_state(delta_time, entity, entity_pos)
+            # Check if target is visible before chasing
+            if self._can_see_target(entity, entity_pos):
+                self._handle_chasing_state(delta_time, entity, entity_pos)
+            else:
+                # Target not visible - clear target and go idle
+                self.target_id = None
+                self.behavior_state = "idle"
             
     def _update_defensive_ai(self, delta_time: float, entity: Any, entity_pos: Position) -> None:
         """Update defensive AI behavior"""
@@ -141,6 +147,13 @@ class AI(Component):
     def _handle_chasing_state(self, delta_time: float, entity: Any, entity_pos: Position) -> None:
         """Handle chasing state"""
         if self.target_id:
+            # Check if target is visible before attacking
+            if not self._can_see_target(entity, entity_pos):
+                # Target not visible - switch to searching state
+                self.behavior_state = "searching"
+                self._handle_searching_state(delta_time, entity_pos)
+                return
+                
             target_pos = self._get_entity_position(entity, self.target_id)
             if target_pos:
                 distance = entity_pos.distance_to(target_pos)
@@ -200,36 +213,37 @@ class AI(Component):
         
         target_pos = Position(int(new_x), int(new_y))
         self._move_towards(target_pos, entity_pos)
-        def _move_towards(self, target: Position, entity_pos: Position, entity: Any) -> None:
-            """Move entity towards target"""
-            # This method should be called by behavior engine
-            # The actual movement should be handled by the movement component
-            # through the behavior script execution
-            # For now, we'll keep the old logic but mark it as deprecated
-            # TODO: Remove this method when behavior engine is implemented
-            # NOTE: This method directly modifies entity position, which is not the intended behavior.
-            # The LLM should only update behavior scripts, not directly move monsters.
-            # The proper implementation should use the movement component through the behavior engine.
-            # We'll log a warning to indicate this is deprecated behavior
-            import warnings
-            warnings.warn(
-                "AI._move_towards is deprecated. Movement should be handled by the movement component through the behavior engine.",
-                DeprecationWarning,
-                stacklevel=2
-            )
-            # Keep the old logic for backward compatibility
-            dx = target.x - entity_pos.x
-            dy = target.y - entity_pos.y
+        
+    def _move_towards(self, target: Position, entity_pos: Position) -> None:
+        """Move entity towards target"""
+        # This method should be called by behavior engine
+        # The actual movement should be handled by the movement component
+        # through the behavior script execution
+        # For now, we'll keep the old logic but mark it as deprecated
+        # TODO: Remove this method when behavior engine is implemented
+        # NOTE: This method directly modifies entity position, which is not the intended behavior.
+        # The LLM should only update behavior scripts, not directly move monsters.
+        # The proper implementation should use the movement component through the behavior engine.
+        # We'll log a warning to indicate this is deprecated behavior
+        import warnings
+        warnings.warn(
+            "AI._move_towards is deprecated. Movement should be handled by the movement component through the behavior engine.",
+            DeprecationWarning,
+            stacklevel=2
+        )
+        # Keep the old logic for backward compatibility
+        dx = target.x - entity_pos.x
+        dy = target.y - entity_pos.y
+        
+        # Normalize to unit movement
+        distance = (dx**2 + dy**2)**0.5
+        if distance > 0:
+            dx = dx / distance
+            dy = dy / distance
             
-            # Normalize to unit movement
-            distance = (dx**2 + dy**2)**0.5
-            if distance > 0:
-                dx = dx / distance
-                dy = dy / distance
-                
-            # Update position
-            entity_pos.x += dx
-            entity_pos.y += dy
+        # Update position
+        entity_pos.x += dx
+        entity_pos.y += dy
                 
         
     def _attack_target(self, entity: Any, target_id: str) -> None:
@@ -238,10 +252,18 @@ class AI(Component):
         pass
         
     def _can_see_target(self, entity: Any, entity_pos: Position) -> bool:
-        """Check if target is visible"""
+        """Check if target is visible via perception component"""
         if not self.target_id:
             return False
             
+        # First check perception component if available
+        perception_comp = entity.get_component("perception") if hasattr(entity, 'get_component') else None
+        if perception_comp and perception_comp.current_status:
+            # Use the perception status to determine if player is visible
+            if perception_comp.current_status.can_see_player:
+                return True
+            
+        # Fallback to distance-based check
         target_pos = self._get_entity_position(entity, self.target_id)
         if not target_pos:
             return False
