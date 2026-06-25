@@ -2,3 +2,4 @@ __pycache__/
 .env
 playtest/telemetry/
 saves
+cache/content.db
