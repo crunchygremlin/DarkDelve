@@ -2047,6 +2047,7 @@ class Game:
                     # Apply speed scaling based on tier:
                     # Player speed = 100. Monsters are slower to give player advantage.
                     # Minion: 50% of player speed, Soldier: 60%, Elite: 70%, Boss: 80%
+                    # Use the HIGHER of: tier-based speed, or template speed
                     tier_speed_scale = {
                         MobTier.MINION: 0.50,
                         MobTier.SOLDIER: 0.60,
@@ -2054,7 +2055,8 @@ class Game:
                         MobTier.BOSS: 0.80,
                     }
                     speed_scale = tier_speed_scale.get(template.tier, 0.50)
-                    monster_speed = max(1, int(template.speed * speed_scale))
+                    tier_based_speed = max(1, int(self.player.speed * speed_scale))
+                    monster_speed = max(template.speed, tier_based_speed)
 
                     entity = Entity(
                         x=x, y=y,
