@@ -843,12 +843,16 @@ class EnergySystem:
         actors = [e for e in self.entities if e["energy"] >= 100 and e["entity"].is_alive and e["entity"] is not skip_entity]
         if not actors:
             return None
-        # Pick the actor with the highest speed among those at max energy.
-        # This ensures faster actors (e.g., player speed=100) get more turns
-        # than slower ones (e.g., minion speed=50) when energy is tied.
-        max_energy = max(e["energy"] for e in actors)
-        top_actors = [e for e in actors if e["energy"] == max_energy]
-        actor = max(top_actors, key=lambda e: e["speed"])
+        # Pick the fastest actor among those eligible.
+        # Speed determines turn order: faster actors always go first.
+        # When speeds are equal, pick randomly to ensure fairness.
+        # Energy is only an eligibility threshold (>= 100 to act).
+        # This creates natural speed-based turn frequency:
+        # - Player (speed=100) acts every frame (gains 100, spends 100)
+        # - Minion (speed=50) acts every 2 frames (gains 50/frame, needs 100)
+        max_speed = max(e["speed"] for e in actors)
+        top_actors = [e for e in actors if e["speed"] == max_speed]
+        actor = random.choice(top_actors)
         actor["energy"] -= 100
         return actor["entity"]
 
@@ -2140,14 +2144,14 @@ class Game:
             player_acted_this_frame = False
 
             while actors_processed < max_actors_per_tick:
-                actor = self.energy_system.next_actor()
+                # Skip the player on subsequent iterations to prevent duplicate picks
+                skip = self.player if player_acted_this_frame else None
+                actor = self.energy_system.next_actor(skip_entity=skip)
                 if not actor:
                     break
 
                 if actor is self.player:
                     player_acted_this_frame = True
-                    # Process player action, then break to prevent duplicate picks
-                    # (next_actor would deduct energy again without an action)
                     self.turn += 1
                     self.state.turn = self.turn
                     self.combat_log.new_turn()
@@ -2180,10 +2184,7 @@ class Game:
                     # Check for level up
                     self.check_level_up()
 
-                    # Player acts once per tick; break to prevent next_actor
-                    # from picking them again and wasting energy
                     actors_processed += 1
-                    break
                 else:
                     # Monster turn - use agent system if available, otherwise default AI
                     agent = self.agent_manager.get_agent_for_entity(actor)

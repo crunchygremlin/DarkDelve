@@ -26,51 +26,49 @@ class TestMonsterMovementRegression(unittest.TestCase):
     """Regression test: monsters must get turns, not just the player."""
 
     def test_energy_system_gives_monsters_turns(self):
-        """After enough ticks, monsters should accumulate energy and get a turn."""
+        """After enough ticks, monsters should accumulate energy and get a turn.
+        
+        The simple system: each tick, all eligible actors (energy >= 100) get a turn,
+        sorted by speed (fastest first). Each spends 100 energy.
+        """
         player = Entity(name="Player", speed=100, hp=23, max_hp=23)
-        monster = Entity(name="Goblin", speed=20, hp=10, max_hp=10)
+        monster = Entity(name="Goblin", speed=50, hp=10, max_hp=10)
 
         es = EnergySystem()
         es.add_entity(player, initial_energy=100)
         es.add_entity(monster, initial_energy=0)
 
-        # Tick energy once (simulates one main_loop call)
+        # Tick 1: player=200, goblin=50. Player goes first (faster).
         es.tick_energy()
-
-        # First actor should be player (energy 100+100=200 vs monster 0+20=20)
         actor1 = es.next_actor()
         self.assertIs(actor1, player)
+        # Player energy: 200-100=100. Goblin still 50.
 
-        # After player's turn, player energy = 200-100 = 100, monster = 20
-        # Tick again: player = 100+100 = 200, monster = 20+20 = 40
+        # Tick 2: player=200, goblin=100. Player still faster.
         es.tick_energy()
         actor2 = es.next_actor()
-        self.assertIs(actor2, player)  # Player still faster
+        self.assertIs(actor2, player)
+        # Player energy: 200-100=100. Goblin=100.
 
-        # Eventually monster should get a turn
-        # After 5 ticks: player energy cycles, monster accumulates
-        # Tick 3: player=200-100+100=200, monster=40+20=60 → player
-        # Tick 4: player=200-100+100=200, monster=60+20=80 → player
-        # Tick 5: player=200-100+100=200, monster=80+20=100 → player (200 > 100)
-        # Tick 6: player=200-100+100=200, monster=100+20=120 → player (200 > 120)
-        # ... player always wins with speed=100. Let's use a faster monster.
-        fast_monster = Entity(name="Scout", speed=120, hp=5, max_hp=5)
+        # In main_loop, after player acts, loop continues with skip=player.
+        # Monster needs energy >= 100 to be eligible.
+        # Give monster initial_energy=100 so it's eligible after one tick.
         es2 = EnergySystem()
         es2.add_entity(player, initial_energy=100)
-        es2.add_entity(fast_monster, initial_energy=0)
-
-        es2.tick_energy()
-        # Player: 100+100=200, Scout: 0+120=120 → player first
-        actor = es2.next_actor()
-        self.assertIs(actor, player)
-
-        es2.tick_energy()
-        # Player: 200-100+100=200, Scout: 120+120=240 → scout!
-        actor = es2.next_actor()
-        self.assertIs(actor, fast_monster)
+        es2.add_entity(monster, initial_energy=100)
+        es2.tick_energy()  # player=200, goblin=150
+        a1 = es2.next_actor()  # Player (faster, speed=100 > 50)
+        self.assertIs(a1, player)
+        a2 = es2.next_actor(skip_entity=player)  # Goblin (player skipped, energy=150 >= 100)
+        self.assertIs(a2, monster)
 
     def test_monster_gets_turn_before_player_two_player_turns(self):
-        """A fast monster should get a turn between two player turns."""
+        """A fast monster should get a turn before a slower player.
+        
+        With speed-based priority, faster actors always go first.
+        A speed=120 monster goes before a speed=100 player.
+        The player gets a turn in the same frame (via skip_entity).
+        """
         player = Entity(name="Player", speed=100, hp=23, max_hp=23)
         monster = Entity(name="Fast Goblin", speed=120, hp=10, max_hp=10)
 
@@ -78,15 +76,15 @@ class TestMonsterMovementRegression(unittest.TestCase):
         es.add_entity(player, initial_energy=100)
         es.add_entity(monster, initial_energy=0)
 
-        # Turn 1: player
+        # Tick 1: player=200, goblin=120. Goblin faster (120 > 100).
         es.tick_energy()
         a1 = es.next_actor()
-        self.assertIs(a1, player)
+        self.assertIs(a1, monster)
 
-        # Turn 2: monster (240 > 200)
-        es.tick_energy()
-        a2 = es.next_actor()
-        self.assertIs(a2, monster)
+        # In main_loop, after goblin acts, loop continues with skip=goblin.
+        # Player (energy=200) is eligible and gets a turn.
+        a2 = es.next_actor(skip_entity=monster)
+        self.assertIs(a2, player)
 
     def test_slow_monster_still_gets_turn(self):
         """A slow monster (speed=15) should eventually get a turn."""
