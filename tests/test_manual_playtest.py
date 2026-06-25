@@ -1,11 +1,56 @@
 #!/usr/bin/env python3
 """
-Manual playtest — controls the game directly by pressing keys.
-This is where the IDE LLM drives the game through MCP-like commands:
-rendering frames, reading state, and sending key inputs.
+=============================================================================
+MANUAL PLAYTEST — LLM-Driven Game Testing
+=============================================================================
 
-Run with: python -m pytest tests/test_manual_playtest.py -v -s
-Or standalone: python tests/test_manual_playtest.py
+This file is where the IDE LLM (or a human) drives the game directly,
+simulating what a player would do: pressing keys, reading the screen,
+and observing results.
+
+HOW LLM MANUAL TESTING WORKS:
+----------------------------
+1. The LLM creates a ManualPlaytest instance (or uses the class-level one)
+2. It calls render() to see the current game screen (ASCII map + stats)
+3. It reads get_stats() to check HP, AC, position, depth, etc.
+4. It calls get_monsters() to see where monsters are
+5. It decides what key to press (w/a/s/d/e) based on what it sees
+6. It calls press(key) to send the command
+7. It observes the result and decides the next action
+
+This is the MCP-like interface — instead of tools, the LLM uses Python
+methods to interact with the game in real-time.
+
+RUNNING THE TESTS:
+------------------
+  python -m pytest tests/test_manual_playtest.py -v -s
+  python tests/test_manual_playtest.py
+
+The -s flag shows print output so you can see what the LLM "sees".
+
+KEYS:
+  w = move up (north)
+  a = move left (west)
+  s = move down (south)
+  d = move right (east)
+  e = wait one turn
+  i = open inventory
+  c = character screen
+  , = pick up item
+  > = descend stairs
+  < = ascend stairs
+  ESC = open menu
+
+TIPS FOR LLM TESTING:
+---------------------
+- Always call render() first to see the current state
+- Use get_monsters() to track monster positions before/after actions
+- Use press('e') to wait and let monsters move (to observe their speed)
+- Use move_toward(x, y) to navigate to a specific position
+- Compare monster distances before/after to verify they're approaching
+- The player should move 1.5-2x faster than monsters (speed advantage)
+
+=============================================================================
 """
 
 import unittest
