@@ -310,14 +310,8 @@ class RandomAgent(Agent):
                 action_type=ActionType.MOVE_TO,
                 target_position=perception.player_position
             )
-        if perception.visible_entities and random.random() < 0.3:
-            # Attack a visible entity
-            target = random.choice(perception.visible_entities)
-            return AgentAction(
-                action_type=ActionType.ATTACK,
-                target_id=target.get("id")
-            )
-        elif perception.visible_items and random.random() < 0.3:
+        # Player unknown — wander randomly (don't attack other monsters)
+        if perception.visible_items and random.random() < 0.3:
             # Move towards an item
             item = random.choice(perception.visible_items)
             pos = item.get("position", (0, 0))
