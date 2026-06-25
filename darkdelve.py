@@ -2032,13 +2032,25 @@ class Game:
                 y = random.randint(1, self.dungeon_map.shape[1] - 2)
                 # FIX: Spawn monsters on floors (False), not walls (True)
                 if not self.dungeon_map[x, y] and not any(e.x == x and e.y == y for e in self.entities):
+                    # Apply speed scaling based on tier:
+                    # Player speed = 100. Monsters are slower to give player advantage.
+                    # Minion: 50% of player speed, Soldier: 60%, Elite: 70%, Boss: 80%
+                    tier_speed_scale = {
+                        MobTier.MINION: 0.50,
+                        MobTier.SOLDIER: 0.60,
+                        MobTier.ELITE: 0.70,
+                        MobTier.BOSS: 0.80,
+                    }
+                    speed_scale = tier_speed_scale.get(template.tier, 0.50)
+                    monster_speed = max(1, int(template.speed * speed_scale))
+
                     entity = Entity(
                         x=x, y=y,
                         char=template.symbol, color=template.color,
                         name=template.name, blocks=True,
                         hp=template.hp, max_hp=template.hp,
                         power=template.power, defense=template.defense,
-                        speed=template.speed,
+                        speed=monster_speed,
                         intel_tier=self._tier_value(template.tier),
                         is_commander=template.tier == MobTier.BOSS,
                     )
