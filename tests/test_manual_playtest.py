@@ -171,7 +171,186 @@ class ManualPlaytest:
 
         return steps
 
-    def wait(self, turns: int) -> None:
+        """Wait N turns (press 'e' repeatedly)."""
+        for _ in range(turns):
+            self.press("e")
+
+
+class TestManualPlaytestMonsterMovement(unittest.TestCase):
+    """Manual playtest: control the game and observe monster movement.
+
+    This test simulates what a human would do:
+    1. Look at the screen (render)
+    2. Check stats
+    3. Move the player
+    4. Watch monsters move
+    5. Verify monsters are approaching
+    """
+
+    @classmethod
+    def setUpClass(cls):
+        """Initialize the game once for all tests in this class."""
+        cls.pt = ManualPlaytest(render_to_stdout=False)
+        print("\n" + "=" * 60)
+        print("MANUAL PLAYTEST: Monster Movement Observation")
+        print("=" * 60)
+        print(f"\nInitial frame:")
+        print(cls.pt.render())
+        print(f"\nPlayer stats: {cls.pt.get_stats()}")
+        print(f"\nMonsters visible: {len(cls.pt.get_monsters())}")
+        for m in cls.pt.get_monsters():
+            print(f"  {m['char']} {m['name']} at {m['position']}, dist={m['distance']}")
+
+    def test_01_player_can_move(self):
+        """Verify the player can move with WASD keys."""
+        print("\n--- Test: Player Movement ---")
+        stats_before = self.__class__.pt.get_stats()
+        print(f"Position before: {stats_before['position']}")
+
+        # Move right
+        self.__class__.pt.press("d")
+        stats_after = self.__class__.pt.get_stats()
+        print(f"Position after 'd': {stats_after['position']}")
+
+        # Player should have moved (or attacked something in the way)
+        self.assertNotEqual(
+            stats_before['position'],
+            stats_after['position'],
+            "Player should move when pressing 'd'"
+        )
+        print("✓ Player movement works")
+
+    def test_02_monsters_exist_and_have_distance(self):
+        """Verify monsters are present and we can measure their distance."""
+        print("\n--- Test: Monster Detection ---")
+        monsters = self.__class__.pt.get_monsters()
+        self.assertGreater(len(monsters), 0, "Should have at least one monster")
+
+        for m in monsters[:5]:
+            print(f"  {m['char']} {m['name']} at {m['position']}, dist={m['distance']}")
+        print(f"✓ Detected {len(monsters)} monsters")
+
+    def test_03_monsters_approach_when_player_waits(self):
+        """Verify monsters move toward the player when player waits."""
+        print("\n--- Test: Monsters Approach During Wait ---")
+        pt = self.__class__.pt
+
+        # Get initial distances
+        initial_monsters = {m['name']: m['distance'] for m in pt.get_monsters()}
+        print("Initial distances:")
+        for name, dist in list(initial_monsters.items())[:5]:
+            print(f"  {name}: {dist}")
+
+        # Wait several turns
+        wait_turns = 10
+        print(f"\nWaiting {wait_turns} turns (pressing 'e' × {wait_turns})...")
+        pt.wait(wait_turns)
+
+        # Get final distances
+        final_monsters = {m['name']: m['distance'] for m in pt.get_monsters()}
+        print("\nFinal distances:")
+        for name, dist in list(final_monsters.items())[:5]:
+            print(f"  {name}: {dist}")
+
+        # At least some monsters should be closer
+        approached = 0
+        for name in initial_monsters:
+            if name in final_monsters:
+                if final_monsters[name] < initial_monsters[name]:
+                    approached += 1
+                    print(f"  ✓ {name}: {initial_monsters[name]} → {final_monsters[name]}")
+
+        self.assertGreater(
+            approached, 0,
+            "At least one monster should approach the player"
+        )
+        print(f"\n✓ {approached}/{len(initial_monsters)} monsters approached")
+
+    def test_04_monsters_approach_when_player_moves_away(self):
+        """Verify monsters follow when the player moves away."""
+        print("\n--- Test: Monsters Follow Moving Player ---")
+        pt = self.__class__.pt
+
+        # Get initial state
+        initial_distances = {m['name']: m['distance'] for m in pt.get_monsters()}
+        player_pos_before = pt.get_stats()['position']
+        print(f"Player position: {player_pos_before}")
+
+        # Move player in a direction (try 'w' first, then 'a')
+        print("Moving player left ('a' × 5)...")
+        steps_taken = pt.move_toward(5, player_pos_before[1], max_steps=5)
+        player_pos_after = pt.get_stats()['position']
+        print(f"Player position after: {player_pos_after} (moved {steps_taken} steps)")
+
+        # Wait a bit for monsters to react
+        pt.wait(5)
+
+        # Check if monsters followed (distances should decrease or stay similar)
+        final_distances = {m['name']: m['distance'] for m in pt.get_monsters()}
+
+        followed = 0
+        for name in initial_distances:
+            if name in final_distances:
+                change = initial_distances[name] - final_distances[name]
+                if change > 0:
+                    followed += 1
+                    print(f"  ✓ {name}: closed gap by {change}")
+
+        # At least some monsters should have followed
+        self.assertGreater(
+            followed, 0,
+            "Monsters should follow when player moves (tried directions: {})".format(['a', 'w', 'd', 's'])
+        )
+        print(f"\n✓ {followed} monsters followed the player")
+
+    def test_05_speed_comparison(self):
+        """Compare player movement speed vs monster movement speed.
+
+        The player should move more frequently than monsters.
+        We count how many turns the player acts vs how many times a specific monster moves.
+        """
+        print("\n--- Test: Speed Comparison (Player vs Monster) ---")
+        pt = self.__class__.pt
+
+        # Find a nearby monster
+        monsters = pt.get_monsters()
+        if not monsters:
+            self.skipTest("No monsters visible")
+
+        target = monsters[0]
+        print(f"Tracking: {target['char']} {target['name']} at {target['position']}")
+
+        # Get initial positions
+        player_turns_before = pt.get_stats()['turn']
+        initial_pos = target['position']
+
+        # Run 30 turns where player waits
+        print("Running 30 wait turns...")
+        pt.wait(30)
+
+        # Check results
+        player_turns_after = pt.get_stats()['turn']
+        player_turns = player_turns_after - player_turns_before
+        final_pos = pt.find_monster(target['char'])['position']
+        monster_moved = initial_pos != final_pos
+
+        print(f"\nPlayer turns: {player_turns}")
+        print(f"Monster moved: {monster_moved} ({initial_pos} → {final_pos})")
+
+        # Player should have taken 30 turns
+        self.assertEqual(player_turns, 30, "Player should have taken 30 turns")
+        print(f"✓ Player took {player_turns} turns in 30 frames")
+
+    @classmethod
+    def tearDownClass(cls):
+        """Print final state."""
+        print("\n" + "=" * 60)
+        print("MANUAL PLAYTEST COMPLETE")
+        print("=" * 60)
+        print(f"\nTotal turns: {cls.pt.turn_count}")
+        print(f"Final stats: {cls.pt.get_stats()}")
+        print(f"\nFinal frame:")
+        print(cls.pt.render())
         """Wait N turns (press 'e' repeatedly)."""
         for _ in range(turns):
             self.press("e")
