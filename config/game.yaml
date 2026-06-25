@@ -165,9 +165,24 @@ durability:
   crit_loss: 5
   degradation_threshold: 0.5
   repair_stations:
-    - shrine
-    - forge
+  - shrine
+  - forge
 damage:
   critical_multiplier: 1.5
   armor_minimum: 1
   resistance_default: 0.0
+
+# Floor 1 (Dungeon Entrance) Configuration
+floor1:
+  corpse_chance: 0.5
+  guard_patrol_count: 3
+  den_count: 4
+  roaming_creature_count: 5
+  main_path_width: 3
+  guard_group_size:
+  - 2
+  - 3
+  den_group_size:
+  - 2
+  - 4
+  cleanup_crew_threshold: 3

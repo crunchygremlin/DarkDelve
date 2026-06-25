@@ -1,0 +1,125 @@
+# Floor 1 Monster Templates
+# All monsters are weaker than starting player (HP <= 15, Power <= 3)
+
+floor1_monsters:
+  # === GUARD SQUAD (from lower levels, patrol in groups) ===
+  dungeon_guard:
+    name: "Dungeon Guard"
+    symbol: "g"
+    color: [100, 150, 200]
+    hp: 8
+    power: 2
+    defense: 1
+    speed: 60
+    ai_type: "patrol"
+    role: "guard"
+    loyalty: 0.35
+    group_size: [2, 3]
+    
+  guard_sergeant:
+    name: "Guard Sergeant"
+    symbol: "s"
+    color: [120, 170, 220]
+    hp: 12
+    power: 3
+    defense: 2
+    speed: 55
+    ai_type: "tactical"
+    role: "leader"
+    loyalty: 0.4
+    commands: ["dungeon_guard"]
+    
+  # === DEN CREATURES (territorial, fear guards, collect loot) ===
+  giant_spider:
+    name: "Giant Spider"
+    symbol: "x"
+    color: [80, 80, 80]
+    hp: 6
+    power: 2
+    defense: 0
+    speed: 70
+    ai_type: "ambush"
+    role: "worker"
+    loyalty: 1.0
+    fears_guards: true
+    loot_behavior: "collect"
+    
+  spider_queen:
+    name: "Spider Queen"
+    symbol: "X"
+    color: [100, 50, 50]
+    hp: 15
+    power: 3
+    defense: 1
+    speed: 50
+    ai_type: "hive_leader"
+    role: "leader"
+    loyalty: 1.0
+    commands: ["giant_spider"]
+    fears_guards: true
+    
+  cave_rat:
+    name: "Cave Rat"
+    symbol: "r"
+    color: [139, 90, 43]
+    hp: 3
+    power: 1
+    defense: 0
+    speed: 90
+    ai_type: "swarm"
+    role: "minion"
+    loyalty: 0.8
+    fears_guards: true
+    group_size: [3, 5]
+    
+  rat_king:
+    name: "Rat King"
+    symbol: "R"
+    color: [160, 100, 50]
+    hp: 8
+    power: 2
+    defense: 0
+    speed: 80
+    ai_type: "pack_leader"
+    role: "leader"
+    loyalty: 0.85
+    commands: ["cave_rat"]
+    fears_guards: true
+    
+  # === SCAVENGER & FORAGERS (solitary, not grouped) ===
+  troll_scavenger:
+    name: "Troll Scavenger"
+    symbol: "T"
+    color: [100, 150, 100]
+    hp: 10
+    power: 3
+    defense: 1
+    speed: 45
+    ai_type: "scavenger"
+    role: "solitary"
+    loyalty: 0.0
+    collects_items: true
+    
+  fungal_creeper:
+    name: "Fungal Creeper"
+    symbol: "f"
+    color: [50, 100, 50]
+    hp: 4
+    power: 1
+    defense: 0
+    speed: 30
+    ai_type: "stationary"
+    role: "solitary"
+    loyalty: 0.0
+    
+  cave_bat:
+    name: "Cave Bat"
+    symbol: "b"
+    color: [60, 60, 80]
+    hp: 4
+    power: 1
+    defense: 0
+    speed: 120
+    ai_type: "erratic"
+    role: "solitary"
+    loyalty: 0.0

@@ -1748,10 +1748,17 @@ class InputHandler:
     def handle_event(self, event: tcod.event.Event, player: Entity, dungeon_map: np.ndarray, entities: List[Entity], state: GameState, game: 'Game') -> bool:
         if isinstance(event, tcod.event.Quit):
             return True  # Quit game
-        
+
         if isinstance(event, tcod.event.KeyDown):
             key = event.sym
-            
+
+            # When a UI overlay (menu, inventory, character) is showing, the
+            # overlay's own event loop owns all key input.  Do not process
+            # movement or action keys here or the player will move/act while
+            # the overlay is open.
+            if game.showing_menu or game.showing_inventory or game.showing_character:
+                return False
+
             # Movement
             dx, dy = 0, 0
             if key == tcod.event.KeySym.W: dy = -1
@@ -1978,6 +1985,71 @@ class Game:
         self.state.depth = depth
         self.state.branch = branch
         
+        # Use specialized floor 1 generator for entrance level
+        if depth == 1:
+            self._generate_floor1()
+        else:
+            self._generate_standard_level(depth, branch)
+    
+    def _generate_floor1(self):
+        """Generate floor 1 (dungeon entrance) with specialized layout."""
+        from src.application.services.floor1_generator import Floor1Generator
+        from src.application.services.floor1_spawner import Floor1Spawner
+        
+        # Generate floor data
+        floor1_gen = Floor1Generator(self.config)
+        floor1_data = floor1_gen.generate()
+        
+        # Apply map
+        self.dungeon_map = floor1_data.dungeon_map
+        self.stair_down_pos = floor1_data.stair_down
+        self.stair_up_pos = floor1_data.entrance  # Go back up = entrance
+        
+        # Place player at entrance
+        self.player.x, self.player.y = floor1_data.entrance
+        self.player.home_position = floor1_data.entrance
+        
+        # Spawn entities
+        spawner = Floor1Spawner(self.player, self.config, self.dungeon_map)
+        self.entities = [self.player]
+        self.entities.extend(spawner.spawn_all(floor1_data, None))
+        
+        # Generate minimal items (most loot is in dens)
+        items = self.content_generator.generate_items("martial", 5)
+        for item in items:
+            for _ in range(20):
+                x = random.randint(1, self.dungeon_map.shape[0] - 2)
+                y = random.randint(1, self.dungeon_map.shape[1] - 2)
+                # Only place on floor, not on entities, and not on main path
+                main_path_set = set(floor1_data.main_path)
+                if (not self.dungeon_map[x, y]
+                        and not any(e.x == x and e.y == y for e in self.entities)
+                        and (x, y) not in main_path_set):
+                    entity = Entity(
+                        x=x, y=y,
+                        char=item.symbol, color=COLORS['item'],
+                        name=item.name, blocks=False,
+                        hp=1, max_hp=1, power=0, defense=0,
+                        speed=0, intel_tier=0, is_commander=False,
+                    )
+                    entity.item = item
+                    self.entities.append(entity)
+                    break
+        
+        # Initialize energy system
+        self.energy_system = EnergySystem()
+        for entity in self.entities:
+            initial_energy = 100 if entity is self.player else 0
+            self.energy_system.add_entity(entity, initial_energy=initial_energy)
+        
+        # Initialize FOV
+        self.fov = self.fov_system.compute(self.dungeon_map, self.player.x, self.player.y)
+        self.explored = self.fov_system.explored.copy()
+        
+        self.add_message("You enter the dungeon entrance. The air smells of damp stone and something rotten.")
+    
+    def _generate_standard_level(self, depth: int, branch: str):
+        """Generate standard dungeon level (depth > 1)."""
         # Generate theme
         self.current_theme = self.content_generator.generate_level_theme(depth, branch)
         self.add_message(f"Entering {self.current_theme.name}: {self.current_theme.description}")
@@ -2264,15 +2336,20 @@ class Game:
         if self.player is None:
             return False
 
+        # Open menu action
+        if normalized == "m":
+            self.show_menu()
+            return False
+
         # Handle menu navigation if menu is showing
         if self.showing_menu:
             if normalized in {"\x1b", "escape"}:
                 self.showing_menu = False
                 return False
-            elif normalized in {"\x1b[a", "up", "w"}:
+            elif normalized in {"\x1b[a", "up"}:
                 self.menu_selection = (self.menu_selection - 1) % 3
                 return False
-            elif normalized in {"\x1b[b", "down", "s"}:
+            elif normalized in {"\x1b[b", "down"}:
                 self.menu_selection = (self.menu_selection + 1) % 3
                 return False
             elif normalized in {"\r", "\n", "enter", " "}:
@@ -2392,13 +2469,26 @@ class Game:
             " ": (tcod.event.Scancode.SPACE, tcod.event.KeySym.SPACE),
             "\r": (tcod.event.Scancode.RETURN, tcod.event.KeySym.RETURN),
             "\n": (tcod.event.Scancode.RETURN, tcod.event.KeySym.RETURN),
+            # Standard arrow keys (CSI sequences)
             "\x1b[A": (tcod.event.Scancode.UP, tcod.event.KeySym.UP),
             "\x1b[B": (tcod.event.Scancode.DOWN, tcod.event.KeySym.DOWN),
             "\x1b[C": (tcod.event.Scancode.RIGHT, tcod.event.KeySym.RIGHT),
             "\x1b[D": (tcod.event.Scancode.LEFT, tcod.event.KeySym.LEFT),
+            # Application mode arrow keys (SS3 sequences)
+            "\x1bOA": (tcod.event.Scancode.UP, tcod.event.KeySym.UP),
+            "\x1bOB": (tcod.event.Scancode.DOWN, tcod.event.KeySym.DOWN),
+            "\x1bOC": (tcod.event.Scancode.RIGHT, tcod.event.KeySym.RIGHT),
+            "\x1bOD": (tcod.event.Scancode.LEFT, tcod.event.KeySym.LEFT),
+            # Additional variants
+            "\x1b[1;5A": (tcod.event.Scancode.UP, tcod.event.KeySym.UP),   # Ctrl+Up
+            "\x1b[1;5B": (tcod.event.Scancode.DOWN, tcod.event.KeySym.DOWN), # Ctrl+Down
+            "\x1b[1;5C": (tcod.event.Scancode.RIGHT, tcod.event.KeySym.RIGHT), # Ctrl+Right
+            "\x1b[1;5D": (tcod.event.Scancode.LEFT, tcod.event.KeySym.LEFT),  # Ctrl+Left
             "\x1b": (tcod.event.Scancode.ESCAPE, tcod.event.KeySym.ESCAPE),
         }
         if key not in keymap:
+            # Debug: log unknown keys
+            print(f"DEBUG: Unknown key sequence: {repr(key)}")
             return None
         scancode, sym = keymap[key]
         return tcod.event.KeyDown(scancode=scancode, sym=sym, mod=tcod.event.Modifier.NONE)
@@ -2408,15 +2498,37 @@ class Game:
             import select
             import termios
             import tty
+            import os
 
             fd = sys.stdin.fileno()
             old_settings = termios.tcgetattr(fd)
             try:
                 tty.setraw(fd)
-                key = sys.stdin.read(1)
+                # Read first byte
+                key = os.read(fd, 1).decode('utf-8', errors='ignore')
                 if key == "\x1b":
-                    while select.select([sys.stdin], [], [], 0.05)[0]:
-                        key += sys.stdin.read(1)
+                    # Read all available bytes immediately (non-blocking)
+                    # Use a short timeout loop to catch the full escape sequence
+                    import time
+                    start_time = time.time()
+                    while time.time() - start_time < 0.2:  # 200ms total timeout
+                        ready, _, _ = select.select([fd], [], [], 0.01)
+                        if ready:
+                            more = os.read(fd, 1).decode('utf-8', errors='ignore')
+                            if more:
+                                key += more
+                            else:
+                                break
+                        # If we have a complete escape sequence, break early
+                        if key.endswith(('A', 'B', 'C', 'D', 'H', 'F', '~')) and len(key) >= 3:
+                            break
+                    # If we still only have \x1b, try one more blocking read
+                    if key == "\x1b":
+                        ready, _, _ = select.select([fd], [], [], 0.1)
+                        if ready:
+                            more = os.read(fd, 1).decode('utf-8', errors='ignore')
+                            if more:
+                                key += more
             finally:
                 termios.tcsetattr(fd, termios.TCSADRAIN, old_settings)
             return key
@@ -2523,6 +2635,7 @@ class Game:
     
     def show_inventory(self):
         self.showing_inventory = True
+        self.inventory_selection = 0
         while self.showing_inventory:
             self.render_inventory()
             for event in self._wait_for_events():
@@ -2530,11 +2643,25 @@ class Game:
                     if event.sym in (tcod.event.KeySym.ESCAPE, tcod.event.KeySym.I):
                         self.showing_inventory = False
                     elif event.sym == tcod.event.KeySym.UP:
-                        pass  # Scroll up
+                        if self.player and self.player.inventory:
+                            item_count = len(self.player.inventory.items)
+                            if item_count > 0:
+                                self.inventory_selection = (self.inventory_selection - 1) % item_count
                     elif event.sym == tcod.event.KeySym.DOWN:
-                        pass  # Scroll down
+                        if self.player and self.player.inventory:
+                            item_count = len(self.player.inventory.items)
+                            if item_count > 0:
+                                self.inventory_selection = (self.inventory_selection + 1) % item_count
                     elif event.sym in (tcod.event.KeySym.RETURN, tcod.event.KeySym.KP_ENTER):
-                        pass  # Use/equip item
+                        if self.player and self.player.inventory:
+                            item = self.player.inventory.get_item(self.inventory_selection)
+                            if item:
+                                if item.equipped:
+                                    self.player.inventory.unequip(item.id)
+                                else:
+                                    slots = self.player.inventory._get_valid_slots_for_item(item)
+                                    if slots:
+                                        self.player.inventory.equip(item.id, slots[0])
     
     def show_character(self):
         self.showing_character = True
@@ -2544,6 +2671,11 @@ class Game:
                 if isinstance(event, tcod.event.KeyDown):
                     if event.sym in (tcod.event.KeySym.ESCAPE, tcod.event.KeySym.C):
                         self.showing_character = False
+                    elif event.sym in (tcod.event.KeySym.UP, tcod.event.KeySym.DOWN,
+                                        tcod.event.KeySym.LEFT, tcod.event.KeySym.RIGHT,
+                                        tcod.event.KeySym.W, tcod.event.KeySym.S,
+                                        tcod.event.KeySym.A, tcod.event.KeySym.D):
+                        pass  # Arrow/WASD reserved for future character sheet navigation
     
     def show_menu(self):
         self.showing_menu = True
@@ -2619,9 +2751,10 @@ class Game:
         
         lines.append("\n▼ BACKPACK:")
         if self.player.inventory.items:
-            for item in self.player.inventory.items:
+            for idx, item in enumerate(self.player.inventory.items):
                 status = " (E)" if item.equipped else ""
-                lines.append(f"  □ {item.display_name(self.player.identified_types)}{status}")
+                prefix = "▶ " if idx == self.inventory_selection else "  "
+                lines.append(f"{prefix}□ {item.display_name(self.player.identified_types)}{status}")
         else:
             lines.append("  (empty)")
         
