@@ -7,8 +7,8 @@ from ..value_objects.position import Position
 class Item(Entity):
     """Item entity class"""
     
-    def __init__(self, item_id: Optional[str] = None, name: str = "Item", 
-                 item_type: str = "generic", description: str = "", 
+    def __init__(self, item_id: Optional[str] = None, name: str = "Item",
+                 item_type: str = "generic", description: str = "",
                  value: int = 0, weight: float = 1.0):
         super().__init__(entity_id=item_id, name=name)
         self.item_type = item_type
@@ -22,6 +22,31 @@ class Item(Entity):
         self.equipment_slot = None
         self.consumable = False
         self.effects = []
+        self._effect = ""  # For healing/damage effects like "heal+20"
+        self.attack_bonus = 0
+        self.defense_bonus = 0
+        self.health_bonus = 0
+        self.speed_bonus = 0
+        
+    @property
+    def is_equipment(self) -> bool:
+        """Check if item is equipment (weapon, armor, accessory)"""
+        return self.item_type in ["weapon", "armor", "accessory"]
+    
+    @property
+    def is_usable(self) -> bool:
+        """Check if item is usable (consumable)"""
+        return self.consumable or self.item_type in ["potion", "scroll", "food"]
+    
+    @property
+    def effect(self) -> str:
+        """Get the item's effect string"""
+        return self._effect
+    
+    @effect.setter
+    def effect(self, value: str) -> None:
+        """Set the item's effect string"""
+        self._effect = value
         
     def set_position(self, position: Position) -> None:
         """Set item position"""

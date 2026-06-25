@@ -130,9 +130,17 @@ class AttackCommand(BaseCommand):
             return False
         
         # Check if attacker is in range (assuming 5 tiles for now)
-        distance = Position(self.attacker.x, self.attacker.y).distance_to(Position(self.target.x, self.target.y))
-        if distance > 5:
-            return False
+        # Use Position component instead of direct x/y attributes
+        attacker_pos = self.attacker.get_component("position")
+        target_pos = self.target.get_component("position")
+        
+        if attacker_pos and target_pos:
+            distance = attacker_pos.distance_to(target_pos)
+            if distance > 5:
+                return False
+        else:
+            # If position components not available, allow the attack
+            pass
         
         return True
     

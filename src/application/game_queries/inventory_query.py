@@ -188,6 +188,35 @@ class InventoryQuery(BaseQuery):
                 error_message=f"Item with ID {item_id} not found"
             )
         
+        # Handle case where get_item_by_id returns item_id string instead of Item object
+        # In this case, we return basic info from the inventory
+        if isinstance(item, str):
+            return QueryResult(
+                success=True,
+                data={
+                    "item_id": item,
+                    "item_name": item,
+                    "item_type": "unknown",
+                    "description": "",
+                    "weight": 1.0,
+                    "value": 0,
+                    "count": self.player.get_item_count(item),
+                    "equipped": False,
+                    "is_equipment": False,
+                    "is_consumable": False,
+                    "is_droppable": True,
+                    "is_pickupable": True,
+                    "is_usable": False
+                },
+                metadata={
+                    "attack_bonus": 0,
+                    "defense_bonus": 0,
+                    "health_bonus": 0,
+                    "speed_bonus": 0,
+                    "effect": ""
+                }
+            )
+        
         return QueryResult(
             success=True,
             data={
