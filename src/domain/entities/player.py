@@ -335,15 +335,10 @@ class Player(Entity):
         Returns:
             int: The damage dealt to the target
         """
-        # Get attack power from equipped weapon or base
+        # Get attack power from base and equipment bonuses
         attack_power = self.attack_power
         
-        # Check for equipped weapon in main_hand
-        main_hand_item = self.equipment.get_equipped_item("main_hand")
-        if main_hand_item and hasattr(main_hand_item, 'attack_bonus'):
-            attack_power += main_hand_item.attack_bonus
-        
-        # Also check equipment bonuses
+        # Add attack bonuses from equipment (already tracked in equipment.bonuses)
         attack_power += self.equipment.get_bonus("attack")
         
         # Calculate damage
