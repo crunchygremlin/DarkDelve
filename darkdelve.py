@@ -344,8 +344,11 @@ class CombatEvent:
     result: HitResult
     damage: int = 0
     flavor_text: str = ""
+    out_of_range: bool = False
     
     def __str__(self) -> str:
+        if getattr(self, 'out_of_range', False):
+            return f"{self.attacker_name} is out of range to attack {self.defender_name}!"
         roll_text = f"[Roll: {self.total_roll} vs AC {self.target_ac}]"
         if self.result == HitResult.CRITICAL:
             return f"{self.attacker_name} strikes critically! {roll_text} CRITICAL HIT! Damage: {self.damage}"
@@ -755,10 +758,32 @@ class CombatResolver:
     def resolve_attack(
         attacker: Entity,
         defender: Entity,
-        weapon_dice: str = "1d6"
+        weapon_dice: str = "1d6",
+        max_range: int = 1
     ) -> CombatEvent:
+        # Range guard: melee attacks only work at adjacent distance
+        distance = abs(attacker.x - defender.x) + abs(attacker.y - defender.y)
+        if distance > max_range:
+            return CombatEvent(
+                turn=0,
+                attacker_name=attacker.name,
+                defender_name=defender.name,
+                to_hit_bonus=attacker.to_hit_bonus,
+                target_ac=defender.armor_class,
+                d20_roll=0,
+                total_roll=0,
+                result=HitResult.MISS,
+                damage=0,
+                out_of_range=True,
+            )
+
         d20_roll = random.randint(1, 20)
-        total_roll = d20_roll + attacker.to_hit_bonus
+        # Base to-hit includes power//2 and dex modifier (if available)
+        base_to_hit = getattr(attacker, 'power', 0) // 2
+        dex_mod = 0
+        if hasattr(attacker, 'stats') and isinstance(attacker.stats, dict):
+            dex_mod = (attacker.stats.get('dex', 10) - 10) // 2
+        total_roll = d20_roll + base_to_hit + dex_mod + attacker.to_hit_bonus
         
         if d20_roll == 20:
             result = HitResult.CRITICAL
@@ -815,17 +840,21 @@ class EnergySystem:
         self.entities = [e for e in self.entities if e["entity"] is not entity]
     
     def next_actor(self) -> Optional[Entity]:
-        while True:
-            for e in self.entities:
-                e["energy"] += e["speed"]
-            
-            actors = [e for e in self.entities if e["energy"] >= 100 and e["entity"].is_alive]
-            if not actors:
-                continue
-            
-            actor = max(actors, key=lambda e: e["energy"])
-            actor["energy"] -= 100
-            return actor["entity"]
+        actors = [e for e in self.entities if e["energy"] >= 100 and e["entity"].is_alive]
+        if not actors:
+            return None
+        # Pick randomly among the highest-energy actors to avoid always
+        # selecting the first entity (typically the player) on ties.
+        max_energy = max(e["energy"] for e in actors)
+        top_actors = [e for e in actors if e["energy"] == max_energy]
+        actor = random.choice(top_actors)
+        actor["energy"] -= 100
+        return actor["entity"]
+
+    def tick_energy(self) -> None:
+        """Increment energy for all entities once per game tick."""
+        for e in self.entities:
+            e["energy"] += e["speed"]
     
     def get_player_turn_fraction(self, player: Entity) -> float:
         for e in self.entities:
@@ -976,14 +1005,12 @@ class FOVSystem:
         # transparency arrays in the same [x, y] order, so invert the map directly.
         transparency_array = ~dungeon_map
         
-        # Ensure our player position integer lookups fit within the array dimensions.
-        # numpy shape returns (rows, cols) = (height, width) for 2D arrays
-        height, width = dungeon_map.shape
-        safe_x = max(0, min(int(player_x), width - 1))
-        safe_y = max(0, min(int(player_y), height - 1))
+        # dungeon_map.shape is (num_x, num_y) — first index is x, second is y.
+        num_x, num_y = dungeon_map.shape
+        safe_x = max(0, min(int(player_x), num_x - 1))
+        safe_y = max(0, min(int(player_y), num_y - 1))
         
-        # tcod's pov argument is (row, column). Because our row is the dungeon x
-        # coordinate and our column is the dungeon y coordinate, pass (x, y).
+        # tcod's pov argument is (row, column) = (x, y) for our array layout.
         fov = tcod.map.compute_fov(
             transparency=transparency_array,
             pov=(safe_x, safe_y),
@@ -2083,54 +2110,69 @@ class Game:
         frame_text: Optional[str] = None,
     ) -> Optional[str]:
         try:
-            # Get next actor
-            actor = self.energy_system.next_actor()
-            if not actor:
-                return None
+            # Advance energy for all actors once per tick, then process all ready actors
+            self.energy_system.tick_energy()
 
-            if actor is self.player:
-                self.turn += 1
-                self.state.turn = self.turn
-                self.combat_log.new_turn()
+            # Process all actors that have enough energy (player + monsters)
+            # The player acts first if ready, then all monsters in energy order
+            actors_processed = 0
+            max_actors_per_tick = len(self.entities)  # safety limit
 
-                # Render before input so the agent sees the current state.
-                if frame_text is None:
-                    frame_text = self.render_frame_text()
-                if render_to_stdout:
-                    self.renderer.present()
+            while actors_processed < max_actors_per_tick:
+                actor = self.energy_system.next_actor()
+                if not actor:
+                    break
 
-                if action is None:
-                    # Handle input
-                    events = self._wait_for_events()
-                    for event in events:
-                        if self.input_handler.handle_event(event, self.player, self.dungeon_map, self.entities, self.state, self):
+                if actor is self.player:
+                    self.turn += 1
+                    self.state.turn = self.turn
+                    self.combat_log.new_turn()
+
+                    # Render before input so the agent sees the current state.
+                    if frame_text is None:
+                        frame_text = self.render_frame_text()
+                    if render_to_stdout:
+                        self.renderer.present()
+
+                    if action is None:
+                        # Handle input
+                        events = self._wait_for_events()
+                        for event in events:
+                            if self.input_handler.handle_event(event, self.player, self.dungeon_map, self.entities, self.state, self):
+                                self.running = False
+                                break
+                    else:
+                        if self.process_action(action):
                             self.running = False
-                            break
+
+                    if not self.running:
+                        return frame_text
+
+                    # Process player turn effects
+                    self.player.tick_effects()
+                    if self.config['gameplay'].get('hunger_enabled', True):
+                        self.survival.tick(self.player)
+
+                    # Check for level up
+                    self.check_level_up()
+
+                    # Player acts once per tick but monsters continue below
+                    actors_processed += 1
                 else:
-                    if self.process_action(action):
-                        self.running = False
+                    # Monster turn - use agent system if available, otherwise default AI
+                    agent = self.agent_manager.get_agent_for_entity(actor)
+                    if agent and self.turn_processor:
+                        # Use AgentTurnProcessor for agent-controlled entities
+                        self.turn_processor.process_actor_turn(actor, agent)
+                    else:
+                        # Fall back to default AI
+                        self.monster_turn(actor)
+                    actor.tick_effects()
+                    actors_processed += 1
 
-                if not self.running:
-                    return frame_text
-
-                # Process player turn effects
-                self.player.tick_effects()
-                if self.config['gameplay'].get('hunger_enabled', True):
-                    self.survival.tick(self.player)
-
-                # Check for level up
-                self.check_level_up()
-
-            else:
-                # Monster turn - use agent system if available, otherwise default AI
-                agent = self.agent_manager.get_agent_for_entity(actor)
-                if agent and self.turn_processor:
-                    # Use AgentTurnProcessor for agent-controlled entities
-                    self.turn_processor.process_actor_turn(actor, agent)
-                else:
-                    # Fall back to default AI
-                    self.monster_turn(actor)
-                actor.tick_effects()
+            # Render after all monster turns so the player can see movement
+            if render_to_stdout and actors_processed > 0:
+                self.renderer.present()
 
             # Process LLM responses (for commander entities that use the legacy system)
             process_llm_responses(self.entities)

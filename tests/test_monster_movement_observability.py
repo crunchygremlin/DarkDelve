@@ -16,6 +16,8 @@ from darkdelve import (
     Game, Entity, COLORS, EnergySystem, CombatLog, FOVSystem,
     Inventory, ItemType, EquipmentSlot, GameState
 )
+from src.domain.agents.integration import AgentTurnProcessor
+from src.domain.agents import RandomAgent, AgentType, AgentManager
 
 
 class TestMonsterMovementObservability(unittest.TestCase):
@@ -104,7 +106,13 @@ class TestMonsterMovementObservability(unittest.TestCase):
         self.game.combat_log = CombatLog()
         self.game.turn = 0
         self.game.state = GameState()
-        
+
+        # Set up agent system so monsters use RandomAgent instead of legacy monster_turn
+        self.game.turn_processor = AgentTurnProcessor(self.game)
+        self.game.agent_manager = AgentManager()
+        agent = RandomAgent(monster, agent_type=AgentType.MONSTER)
+        self.game.agent_manager.register_agent(agent)
+
         return monster
     
     def test_monster_moves_toward_player_open_space(self):
@@ -422,6 +430,133 @@ class TestMonsterCorridorNavigation(unittest.TestCase):
         print(f"\nFinal distance: {final_distance}")
         self.assertLess(final_distance, initial_distance,
                        "Monster should be closer to player after navigating through corridor")
+
+
+class TestMultipleMonstersMovement(unittest.TestCase):
+    """Test that multiple monsters all move toward the player consistently."""
+
+    def setUp(self):
+        self.game = Game()
+
+    def _distance(self, e1, e2):
+        return abs(e1.x - e2.x) + abs(e1.y - e2.y)
+
+    def _create_player(self, x, y):
+        return Entity(
+            x=x, y=y, char="@", color=COLORS['player'],
+            name="Test Player", blocks=True,
+            hp=1000, max_hp=1000, power=5, defense=10, speed=100,
+            stats={'str': 10, 'dex': 10, 'con': 10, 'int': 10, 'wis': 10, 'cha': 10},
+            nutrition=1000, max_nutrition=2000,
+            inventory=Inventory(max_weight=100),
+        )
+
+    def _create_monster(self, x, y, name="Goblin", char='g', hp=10, speed=100):
+        return Entity(
+            x=x, y=y, char=char, color=COLORS['enemy_normal'],
+            name=name, blocks=True,
+            hp=hp, max_hp=hp, power=3, defense=1, speed=speed,
+        )
+
+    def _setup_game(self, player_x, player_y, monster_positions):
+        """Set up game with player and multiple monsters."""
+        self.game.player = self._create_player(player_x, player_y)
+        monsters = []
+        for i, (mx, my) in enumerate(monster_positions):
+            m = self._create_monster(mx, my, name=f"Goblin_{i}")
+            monsters.append(m)
+
+        # Large open room
+        dungeon_map = np.ones((80, 43), dtype=bool)
+        for x in range(10, 70):
+            for y in range(5, 38):
+                dungeon_map[x, y] = False
+
+        self.game.dungeon_map = dungeon_map
+        self.game.entities = [self.game.player] + monsters
+
+        self.game.energy_system = EnergySystem()
+        self.game.energy_system.add_entity(self.game.player, initial_energy=100)
+        for m in monsters:
+            self.game.energy_system.add_entity(m, initial_energy=0)
+
+        self.game.fov_system = FOVSystem(radius=15)
+        self.game.fov = self.game.fov_system.compute(dungeon_map, player_x, player_y)
+        self.game.explored = self.game.fov_system.explored.copy()
+        self.game.combat_log = CombatLog()
+        self.game.turn = 0
+        self.game.state = GameState()
+
+        # Set up agent system so monsters use RandomAgent instead of legacy monster_turn
+        self.game.turn_processor = AgentTurnProcessor(self.game)
+        self.game.agent_manager = AgentManager()
+        for m in monsters:
+            agent = RandomAgent(m, agent_type=AgentType.MONSTER)
+            self.game.agent_manager.register_agent(agent)
+
+        return monsters
+
+    def test_five_monsters_all_move_toward_player(self):
+        """Test that 5 monsters all converge on the player from different directions."""
+        player_x, player_y = 40, 20
+        monster_positions = [
+            (20, 20),   # West, distance 20
+            (60, 20),   # East, distance 20
+            (40, 5),    # North, distance 15
+            (40, 35),   # South, distance 15
+            (25, 10),   # NW diagonal, distance ~21
+        ]
+        monsters = self._setup_game(player_x, player_y, monster_positions)
+
+        initial_distances = [self._distance(m, self.game.player) for m in monsters]
+        positions_history = [[(m.x, m.y)] for m in monsters]
+
+        print(f"\n=== Test: 5 monsters converge on player ===")
+        print(f"Player at ({player_x}, {player_y})")
+        for i, (m, d) in enumerate(zip(monsters, initial_distances)):
+            print(f"  Monster {i} ({m.name}): ({m.x}, {m.y}), distance={d}")
+
+        max_turns = 200
+        for turn in range(max_turns):
+            self.game.main_loop(action='e', render_to_stdout=False)
+
+            for i, m in enumerate(monsters):
+                positions_history[i].append((m.x, m.y))
+
+            # Check if all monsters are adjacent (distance 1)
+            all_adjacent = all(
+                self._distance(m, self.game.player) <= 1 for m in monsters
+            )
+            if all_adjacent:
+                print(f"All monsters reached the player by turn {turn + 1}")
+                break
+
+        # Print final state
+        print(f"\nFinal state after {min(turn + 1, max_turns)} turns:")
+        for i, m in enumerate(monsters):
+            final_dist = self._distance(m, self.game.player)
+            print(f"  Monster {i} ({m.name}): ({m.x}, {m.y}), distance={final_dist}")
+            self.assertLess(
+                final_dist, initial_distances[i],
+                f"Monster {i} ({m.name}) should be closer to player"
+            )
+
+        # Verify all monsters moved
+        for i, m in enumerate(monsters):
+            moved = any(
+                pos != positions_history[i][0]
+                for pos in positions_history[i]
+            )
+            self.assertTrue(moved, f"Monster {i} ({m.name}) should have moved")
+
+        # Print movement traces (sampled every 10 turns)
+        print(f"\nMovement trace (sampled):")
+        for i in range(len(monsters)):
+            sampled = positions_history[i][::10]
+            if positions_history[i][-1] not in sampled:
+                sampled.append(positions_history[i][-1])
+            trace_str = " -> ".join(f"({x},{y})" for x, y in sampled)
+            print(f"  Monster {i}: {trace_str}")
 
 
 if __name__ == '__main__':

@@ -282,11 +282,34 @@ class RandomAgent(Agent):
             visible_items=[i.to_dict() for i in game_state.visible_items],
             health=self.entity.hp,
             max_health=self.entity.max_hp,
+            player_position=game_state.player_position,
         )
     
     def decide(self, perception: PerceptionResult) -> AgentAction:
-        """Make a random decision."""
-        # Simple random decision making
+        """Make a decision - move toward player, attack if adjacent, or wander."""
+        # Check if player is visible (is_player flag in the visible entities dict)
+        player_visible = any(
+            e.get("is_player") for e in perception.visible_entities
+        )
+        if player_visible:
+            # Move toward player's visible position
+            player_entity = next(
+                (e for e in perception.visible_entities if e.get("is_player")),
+                None
+            )
+            if player_entity:
+                pos = player_entity.get("position")
+                if pos:
+                    return AgentAction(
+                        action_type=ActionType.MOVE_TO,
+                        target_position=pos
+                    )
+        elif perception.player_position is not None:
+            # Player not visible but we know their last known position — move there
+            return AgentAction(
+                action_type=ActionType.MOVE_TO,
+                target_position=perception.player_position
+            )
         if perception.visible_entities and random.random() < 0.3:
             # Attack a visible entity
             target = random.choice(perception.visible_entities)

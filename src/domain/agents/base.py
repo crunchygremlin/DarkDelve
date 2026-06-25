@@ -40,6 +40,7 @@ class PerceptionResult:
     game_state: Optional[Dict[str, Any]] = None
     fov: Optional[List[List[bool]]] = None
     dungeon_map: Optional[List[List[bool]]] = None
+    player_position: Optional[tuple[int, int]] = None
     
     @property
     def health_percent(self) -> float:

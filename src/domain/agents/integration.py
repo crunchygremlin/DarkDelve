@@ -12,6 +12,7 @@ import threading
 import queue
 import time
 import traceback
+import math
 
 if TYPE_CHECKING:
     from .base import Agent
@@ -192,11 +193,12 @@ class AgentTurnProcessor:
         }
     
     def _process_default_ai_turn(self, actor: Any) -> bool:
-        """Process a turn for an entity without an agent."""
-        # Use existing monster AI logic
-        if hasattr(self.game, 'monster_turn'):
-            self.game.monster_turn(actor)
-            return True
+        """Process a turn for an entity without an agent.
+
+        The legacy ``monster_turn`` fallback has been removed. If an entity
+        does not have an associated LLM agent we simply skip its turn.
+        """
+        # No fallback AI – skip turn
         return False
     
     def _execute_agent_action(self, actor: Any, action: Optional["AgentAction"]) -> bool:
@@ -243,11 +245,10 @@ class AgentTurnProcessor:
         elif action.action_type == ActionType.MOVE_TO and action.target_position:
             dx = action.target_position[0] - actor.x
             dy = action.target_position[1] - actor.y
-            # Normalize
+            # Normalize to single step using copysign to preserve direction
             if dx != 0 or dy != 0:
-                dist = (dx**2 + dy**2) ** 0.5
-                dx = int(dx / dist)
-                dy = int(dy / dist)
+                dx = int(math.copysign(1, dx)) if dx != 0 else 0
+                dy = int(math.copysign(1, dy)) if dy != 0 else 0
         
         # Check for target entity
         new_x = actor.x + dx
@@ -260,8 +261,17 @@ class AgentTurnProcessor:
                 break
         
         if target_entity:
-            self.game.attack(actor, target_entity)
-            return True
+            # Only attack if the target is the player or an enemy; otherwise try to move around
+            if target_entity is self.game.player or self._is_hostile(actor, target_entity):
+                self.game.attack(actor, target_entity)
+                return True
+            # Path is blocked by a non-enemy entity; try alternative step
+            alt_dx, alt_dy = self._find_alternative_step(actor, dx, dy)
+            if (alt_dx, alt_dy) != (0, 0):
+                alt_x = actor.x + alt_dx
+                alt_y = actor.y + alt_dy
+                return actor.move_to(alt_x, alt_y, self.game.dungeon_map, self.game.entities)
+            return False
         elif self.game.dungeon_map is not None:
             return actor.move_to(new_x, new_y, self.game.dungeon_map, self.game.entities)
         
@@ -283,6 +293,60 @@ class AgentTurnProcessor:
             self.game.attack(actor, target)
             return True
         return False
+    
+    def _is_hostile(self, actor: Any, target: Any) -> bool:
+        """Check if the actor considers the target hostile.
+        
+        For monsters, the player is always hostile. Other monsters are allies.
+        """
+        if target is self.game.player:
+            return True
+        # Both are monsters — they are allies, not hostile
+        if hasattr(actor, 'mob_type') and hasattr(target, 'mob_type'):
+            return False
+        return True
+    
+    def _find_alternative_step(self, actor: Any, orig_dx: int, orig_dy: int) -> tuple:
+        """Find an alternative step when the preferred direction is blocked.
+        
+        Tries perpendicular directions to navigate around obstacles.
+        Returns (0, 0) if no valid alternative exists.
+        """
+        # Try the perpendicular axis first (e.g., if blocked moving NW, try N or W)
+        candidates = []
+        if orig_dx != 0 and orig_dy != 0:
+            # Diagonal: try each component separately
+            candidates.append((orig_dx, 0))
+            candidates.append((0, orig_dy))
+        elif orig_dx != 0:
+            # Horizontal: try vertical alternatives
+            candidates.append((orig_dx, 1))
+            candidates.append((orig_dx, -1))
+        elif orig_dy != 0:
+            # Vertical: try horizontal alternatives
+            candidates.append((1, orig_dy))
+            candidates.append((-1, orig_dy))
+        
+        for cdx, cdy in candidates:
+            nx = actor.x + cdx
+            ny = actor.y + cdy
+            # Check the position is walkable and unblocked (no actual movement)
+            if self.game.dungeon_map is not None:
+                try:
+                    if self.game.dungeon_map[nx, ny]:
+                        continue  # Wall
+                except (IndexError, IndexError):
+                    continue  # Out of bounds
+            # Check no blocking entity
+            blocked = False
+            for e in self.game.entities:
+                if e is not actor and e.is_alive and e.x == nx and e.y == ny and e.blocks:
+                    blocked = True
+                    break
+            if not blocked:
+                return (cdx, cdy)
+        
+        return (0, 0)
 
 
 def create_agent_game_state_snapshot(game: Any) -> "AgentGameState":

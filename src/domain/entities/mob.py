@@ -3,9 +3,10 @@ from .entity import Entity
 from ..value_objects.position import Position
 from ..value_objects.stats import Stats
 from ..components.inventory import Inventory
-from ..components.ai import AI
 from ..components.combat import Combat
 from ..components.movement import Movement
+from ..components.perception_component import PerceptionComponent
+from ..value_objects.perception import PerceptionModifiers
 
 
 class Mob(Entity):
@@ -17,17 +18,18 @@ class Mob(Entity):
         self.mob_type = mob_type
         self.stats = Stats()
         self.inventory = Inventory()
-        self.ai = AI()
         self.combat = Combat()
         self.movement = Movement()
         
         # Add components
         self.add_component("inventory", self.inventory)
-        self.add_component("ai", self.ai)
         self.add_component("combat", self.combat)
         self.add_component("stats", self.stats)
         self.add_component("position", self.position)
         self.add_component("movement", self.movement)
+        # Attach a perception component so AI can respect visibility rules.
+        perception = PerceptionComponent(entity_id=self.id, modifiers=PerceptionModifiers("default"))
+        self.add_component("perception", perception)
         
         # Set default stats based on mob type
         self._set_default_stats()
@@ -105,7 +107,6 @@ class Mob(Entity):
     def update(self, delta_time: float) -> None:
         """Update mob state"""
         # Update AI behavior
-        self.ai.update(delta_time, self)
         
         # Update movement component
         movement_comp = self.get_component("movement")
@@ -137,5 +138,4 @@ class Mob(Entity):
             "stats": self.stats.to_dict(),
             "inventory": self.inventory.to_dict(),
             "combat": self.combat.to_dict(),
-            "ai": self.ai.to_dict()
         }

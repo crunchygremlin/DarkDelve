@@ -431,9 +431,9 @@ class TestCombatIntegration(unittest.TestCase):
         
     def test_combat_with_multiple_enemies(self):
         """Test combat with multiple enemies"""
-        # Create additional enemies
+        # Create additional enemy at adjacent position (within melee range)
         enemy2 = Entity(
-            x=7, y=5,
+            x=5, y=6,
             char="o",
             color=COLORS['enemy_weak'],
             name="Orc",
@@ -464,6 +464,33 @@ class TestCombatIntegration(unittest.TestCase):
         self.assertGreater(self.enemy.max_hp - self.enemy.hp, 0)
         self.assertGreater(enemy2.max_hp - enemy2.hp, 0)
         self.assertEqual(len(combat_log.events), 2)
+
+    def test_respects_max_range(self):
+        """Melee attacks beyond max_range (Manhattan distance > 1) must miss."""
+        far_enemy = Entity(
+            x=5, y=7,  # distance 2 from player at (5,5)
+            char="o", color=COLORS['enemy_weak'], name="Far Orc",
+            blocks=True,
+        )
+        resolver = CombatResolver()
+        with patch('random.randint', return_value=20):
+            event = resolver.resolve_attack(self.player, far_enemy)
+        self.assertTrue(getattr(event, 'out_of_range', False))
+        self.assertEqual(event.damage, 0)
+        self.assertEqual(event.result, HitResult.MISS)
+
+    def test_adjacent_attack_works(self):
+        """Adjacent enemies (distance 1) must still be attackable."""
+        adj_enemy = Entity(
+            x=6, y=5,  # distance 1 from player at (5,5)
+            char="g", color=COLORS['enemy_normal'], name="Adjacent Goblin",
+            blocks=True, inventory=Inventory(max_weight=100),
+        )
+        resolver = CombatResolver()
+        with patch('random.randint', return_value=20):
+            event = resolver.resolve_attack(self.player, adj_enemy)
+        self.assertFalse(getattr(event, 'out_of_range', False))
+        self.assertIn(event.result, (HitResult.HIT, HitResult.CRITICAL))
 
 
 if __name__ == '__main__':
