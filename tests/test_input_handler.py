@@ -17,6 +17,9 @@ class DummyGame:
         self.use_stairs_down = MagicMock(name="use_stairs_down")
         self.use_stairs_up = MagicMock(name="use_stairs_up")
         self.show_menu = MagicMock(name="show_menu")
+        self.showing_menu = False
+        self.showing_inventory = False
+        self.showing_character = False
 
 
 @pytest.fixture
@@ -112,3 +115,20 @@ def test_movement_and_wait_keys_do_not_call_game_methods(handler, dummy_player, 
         dummy_game.show_menu,
     ]:
         method.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "overlay_flag",
+    ["showing_menu", "showing_inventory", "showing_character"],
+)
+def test_movement_keys_blocked_when_overlay_is_showing(handler, dummy_player, dummy_game, dummy_state, overlay_flag):
+    setattr(dummy_game, overlay_flag, True)
+    event = make_key_event(tcod.event.KeySym.UP)
+    result = handler.handle_event(event, dummy_player, None, [], dummy_state, dummy_game)
+    assert result is False
+    dummy_game.pickup_item.assert_not_called()
+    dummy_game.show_inventory.assert_not_called()
+    dummy_game.show_character.assert_not_called()
+    dummy_game.use_stairs_down.assert_not_called()
+    dummy_game.use_stairs_up.assert_not_called()
+    dummy_game.show_menu.assert_not_called()

@@ -218,7 +218,7 @@ class Floor1Generator:
         creature_types = ['troll_scavenger', 'cave_bat', 'fungal_creeper']
         
         attempts = 0
-        while len(spawns) < roaming_count and attempts < 100:
+        while len(spawns) < roaming_count and attempts < 200:
             x = random.randint(1, self.width - 2)
             y = random.randint(1, self.height - 2)
             
@@ -226,7 +226,7 @@ class Floor1Generator:
             if not dungeon_map[x, y] and (x, y) not in main_path_set:
                 # Check distance from main path
                 min_dist = min(abs(x - px) + abs(y - py) for px, py in main_path)
-                if min_dist > 5:  # At least 5 tiles from main path
+                if min_dist > 3:  # At least 3 tiles from main path
                     creature_type = random.choice(creature_types)
                     spawns.append((x, y, creature_type))
             

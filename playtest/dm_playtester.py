@@ -115,6 +115,8 @@ class DMPlaytester:
                 result = self.run_difficulty_scaling_test(scenario)
             elif scenario.test_type == "social":
                 result = self.run_loyalty_test(scenario)
+            elif scenario.test_type == "floor1_generation":
+                result = self.run_floor1_generation_test(scenario)
             else:
                 result = {"passed": False, "error": f"Unknown test type: {scenario.test_type}"}
             
@@ -136,6 +138,66 @@ class DMPlaytester:
             details=details,
             error=error
         )
+
+    def run_floor1_generation_test(self, scenario: DMTestScenario) -> dict:
+        """Run floor 1 generation test: verify entities, positions, and constraints."""
+        try:
+            from darkdelve import Game
+            game = Game()
+            game.initialize()
+            
+            entities = game.entities
+            player = game.player
+            
+            # Check guards exist
+            guards = [e for e in entities if e.name == 'Dungeon Guard']
+            sergeants = [e for e in entities if e.name == 'Guard Sergeant']
+            
+            # Check dens exist (spider queens or rat kings = den leaders)
+            den_leaders = [e for e in entities if e.name in ('Spider Queen', 'Rat King')]
+            
+            # Check no two blocking entities share a position
+            blocking = [e for e in entities if e.blocks]
+            positions = [(e.x, e.y) for e in blocking]
+            no_overlaps = len(positions) == len(set(positions))
+            
+            # Check all entities on floor tiles
+            no_wall_spawns = True
+            for e in entities:
+                if 0 <= e.x < game.dungeon_map.shape[0] and 0 <= e.y < game.dungeon_map.shape[1]:
+                    if game.dungeon_map[e.x, e.y]:  # True = wall
+                        no_wall_spawns = False
+                        break
+            
+            # Check monsters weaker than player
+            monsters_weaker = True
+            for e in entities:
+                if e is player:
+                    continue
+                if e.max_hp > player.max_hp + 5 or e.power > player.power:
+                    monsters_weaker = False
+                    break
+            
+            passed = (
+                len(guards) > 0 and
+                len(sergeants) > 0 and
+                len(den_leaders) > 0 and
+                no_overlaps and
+                no_wall_spawns and
+                monsters_weaker
+            )
+            
+            return {
+                "passed": passed,
+                "guards_count": len(guards),
+                "sergeants_count": len(sergeants),
+                "den_leaders_count": len(den_leaders),
+                "no_overlaps": no_overlaps,
+                "no_wall_spawns": no_wall_spawns,
+                "monsters_weaker": monsters_weaker,
+            }
+        except Exception as e:
+            return {"passed": False, "error": str(e)}
 
     def run_behavior_generation_test(self, scenario: DMTestScenario) -> dict:
         """Run behavior generation test."""

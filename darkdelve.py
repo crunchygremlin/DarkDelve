@@ -2035,7 +2035,17 @@ class Game:
                     entity.item = item
                     self.entities.append(entity)
                     break
-        
+
+        # Register AI agents for floor 1 monsters
+        for entity in self.entities:
+            if entity is self.player:
+                continue
+            if getattr(entity, 'is_commander', False):
+                agent = CommanderAgent(entity, home_position=(entity.x, entity.y))
+            else:
+                agent = RandomAgent(entity, agent_type=AgentType.MONSTER)
+            self.agent_manager.register_agent(agent)
+
         # Initialize energy system
         self.energy_system = EnergySystem()
         for entity in self.entities:
@@ -2169,7 +2179,17 @@ class Game:
                     entity.item = item
                     self.entities.append(entity)
                     break
-        
+
+        # Register AI agents for floor 1 monsters
+        for entity in self.entities:
+            if entity is self.player:
+                continue
+            if getattr(entity, 'is_commander', False):
+                agent = CommanderAgent(entity, home_position=(entity.x, entity.y))
+            else:
+                agent = RandomAgent(entity, agent_type=AgentType.MONSTER)
+            self.agent_manager.register_agent(agent)
+
         # Initialize energy system
         self.energy_system = EnergySystem()
         for entity in self.entities:

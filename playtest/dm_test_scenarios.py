@@ -216,6 +216,20 @@ TEST_SCENARIOS: List[DMTestScenario] = [
             "loot_modifiers_correct": True,
         }
     ),
+    DMTestScenario(
+        name="floor1_generation_test",
+        description="Initialize game, verify floor 1 has guards, sergeants, dens, no overlaps, no wall spawns, monsters weaker than player",
+        test_type="floor1_generation",
+        setup={},
+        expected_outcomes={
+            "guards_exist": True,
+            "sergeants_exist": True,
+            "dens_exist": True,
+            "no_overlaps": True,
+            "no_wall_spawns": True,
+            "monsters_weaker": True,
+        }
+    ),
 ]
 
 

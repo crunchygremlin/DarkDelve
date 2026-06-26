@@ -55,6 +55,10 @@ class FakeGame:
         self.initialize_calls = 0
         self.actions: list[tuple[str, bool, str | None]] = []
         self.frames: list[str] = []
+        self.showing_menu = False
+        self.menu_selection = 0
+        self.save_and_quit_calls = 0
+        self.quit_no_save_calls = 0
 
     def initialize(self) -> None:
         self.initialize_calls += 1
@@ -71,6 +75,27 @@ class FakeGame:
         frame_text: str | None = None,
     ) -> None:
         self.actions.append((action, render_to_stdout, frame_text))
+        if action == "m":
+            self.showing_menu = True
+            self.menu_selection = 0
+        elif self.showing_menu:
+            if action == "escape":
+                self.showing_menu = False
+            elif action == "up":
+                self.menu_selection = (self.menu_selection - 1) % 3
+            elif action == "down":
+                self.menu_selection = (self.menu_selection + 1) % 3
+            elif action == "enter":
+                if self.menu_selection == 0:
+                    self.showing_menu = False
+                elif self.menu_selection == 1:
+                    self.save_and_quit_calls += 1
+                    self.showing_menu = False
+                    self.running = False
+                elif self.menu_selection == 2:
+                    self.quit_no_save_calls += 1
+                    self.showing_menu = False
+                    self.running = False
 
 
 def _config(tmp_path: Path) -> PlaytestConfig:
@@ -129,3 +154,85 @@ def test_mcp_playtester_can_initialize_game(tmp_path: Path):
 
     assert result.status == "max_turns"
     assert game.initialize_calls == 1
+
+
+def test_mcp_agent_navigates_menu_to_save_and_quit(tmp_path: Path):
+    """Agent opens menu, navigates to Save & Quits, and triggers save_and_quit."""
+    game = FakeGame()
+    agent = FakePlayerAgent(actions=["m", "down", "enter"])
+    config = PlaytestConfig(
+        max_turns=5,
+        telemetry_path=tmp_path / "playtest_telemetry.json",
+        instruction_path=tmp_path / "instructions.json",
+    )
+
+    result = MCPPlaytester(
+        config=config,
+        game=game,
+        agent=agent,
+        instruction_bus=FakeInstructionBus(),
+        auto_initialize=False,
+    ).run()
+
+    assert result.status == "exit"
+    assert game.save_and_quit_calls == 1
+    assert game.quit_no_save_calls == 0
+    assert game.showing_menu is False
+    assert [d.action for d in agent.decisions] == ["m", "down", "enter"]
+
+
+def test_mcp_agent_navigates_menu_to_quit_no_save(tmp_path: Path):
+    """Agent opens menu, navigates down twice to Quit (No Save), and triggers quit_no_save."""
+    game = FakeGame()
+    agent = FakePlayerAgent(actions=["m", "down", "down", "enter"])
+    config = PlaytestConfig(
+        max_turns=5,
+        telemetry_path=tmp_path / "playtest_telemetry.json",
+        instruction_path=tmp_path / "instructions.json",
+    )
+
+    result = MCPPlaytester(
+        config=config,
+        game=game,
+        agent=agent,
+        instruction_bus=FakeInstructionBus(),
+        auto_initialize=False,
+    ).run()
+
+    assert result.status == "exit"
+    assert game.save_and_quit_calls == 0
+    assert game.quit_no_save_calls == 1
+    assert game.showing_menu is False
+    assert [d.action for d in agent.decisions] == ["m", "down", "down", "enter"]
+
+
+def test_mcp_agent_cancels_menu_with_escape(tmp_path: Path):
+    """Agent opens menu and cancels with Escape without triggering quit."""
+    game = FakeGame()
+    agent = FakePlayerAgent(actions=["m", "escape"])
+    config = PlaytestConfig(
+        max_turns=5,
+        telemetry_path=tmp_path / "playtest_telemetry.json",
+        instruction_path=tmp_path / "instructions.json",
+    )
+
+    result = MCPPlaytester(
+        config=config,
+        game=game,
+        agent=agent,
+        instruction_bus=FakeInstructionBus(),
+        auto_initialize=False,
+    ).run()
+
+    assert result.status == "max_turns"
+    assert game.save_and_quit_calls == 0
+    assert game.quit_no_save_calls == 0
+    assert [d.action for d in agent.decisions][:2] == ["m", "escape"]
+
+
+def test_menu_actions_are_valid_player_actions():
+    """New menu actions are accepted by the player agent validator."""
+    from player_agent import VALID_ACTIONS
+
+    for action in ("m", "up", "down", "enter", "escape"):
+        assert action in VALID_ACTIONS

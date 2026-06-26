@@ -21,7 +21,7 @@ from typing import Any, Dict, List, Mapping, Optional, Sequence
 import requests
 
 
-VALID_ACTIONS = ("w", "a", "s", "d", "e", "i")
+VALID_ACTIONS = ("w", "a", "s", "d", "e", "i", "m", "up", "down", "enter", "escape")
 RESPONSE_FIELDS = ("macro_goal", "reasoning", "action", "telemetry_notes")
 DEFAULT_ENDPOINT = "http://localhost:11434"
 DEFAULT_MODEL = "qwen2.5-coder:7b-instruct"
@@ -49,6 +49,11 @@ Allowed actions:
 - d = move right or attack right
 - e = wait one turn
 - i = open or close inventory
+- m = open the menu (pause)
+- up = move menu selection up
+- down = move menu selection down
+- enter = confirm menu selection
+- escape = close menu / cancel
 
 Never output multiple actions. Never output control characters. Do not ask for
 clarification; choose the safest useful action from the current frame.
@@ -61,7 +66,7 @@ Return one JSON object and nothing else. The object must match this schema:
 {
   "macro_goal": "string",
   "reasoning": "string",
-  "action": "w|a|s|d|e|i",
+  "action": "w|a|s|d|e|i|m|up|down|enter|escape",
   "telemetry_notes": "string"
 }
 
@@ -227,7 +232,7 @@ class PlayerAgent:
             self._format_stats(stats),
             "Recent 5-turn history:",
             self._format_history(history),
-            "Choose exactly one action from w, a, s, d, e, or i.",
+            "Choose exactly one action from w, a, s, d, e, i, m, up, down, enter, or escape.",
         ]
         if instruction_text:
             sections.insert(1, "Active playtest instructions:\n" + instruction_text)

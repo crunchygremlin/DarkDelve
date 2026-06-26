@@ -1,0 +1,120 @@
+{
+  "test_suite": "equip_use_combat",
+  "passed": 8,
+  "failed": 0,
+  "total": 8,
+  "tests": [
+    {
+      "name": "Equip weapon via Player.equip_item",
+      "passed": true,
+      "error": "",
+      "details": {
+        "equip_returned": true,
+        "equipped_item": "sword_001",
+        "player_equipped_items": {
+          "main_hand": "sword_001"
+        }
+      }
+    },
+    {
+      "name": "EquipCommand with Item object",
+      "passed": true,
+      "error": "",
+      "details": {
+        "success": true,
+        "error": null,
+        "data": {
+          "player_id": "1cad4964-6225-47fc-b4f5-39d5020e6ab6",
+          "item_id": "sword_002",
+          "item_name": "Steel Sword",
+          "item_type": "weapon",
+          "equipment_slot": "main_hand"
+        }
+      }
+    },
+    {
+      "name": "Drink potion via UseCommand",
+      "passed": true,
+      "error": "",
+      "details": {
+        "success": true,
+        "error": null,
+        "player_health_after": 70,
+        "data": {
+          "player_id": "65bc2763-6a93-48f9-a2fb-8b69a12f86b7",
+          "item_id": "potion_heal",
+          "item_name": "Health Potion",
+          "item_type": "potion",
+          "effect_applied": "heal+20"
+        }
+      }
+    },
+    {
+      "name": "InventoryQuery.get_item_info",
+      "passed": true,
+      "error": "",
+      "details": {
+        "item_info": {
+          "item_id": "potion_heal",
+          "item_name": "potion_heal",
+          "item_type": "unknown",
+          "description": "",
+          "weight": 1.0,
+          "value": 0,
+          "count": 1,
+          "equipped": false,
+          "is_equipment": false,
+          "is_consumable": false,
+          "is_droppable": true,
+          "is_pickupable": true,
+          "is_usable": false
+        },
+        "error": null
+      }
+    },
+    {
+      "name": "Attack with equipped weapon",
+      "passed": true,
+      "error": "",
+      "details": {
+        "equip_success": true,
+        "attack_success": true,
+        "damage_dealt": 11,
+        "player_base_attack": 10,
+        "target_remaining_hp": 19,
+        "error": null
+      }
+    },
+    {
+      "name": "Armor reduces damage",
+      "passed": true,
+      "error": "",
+      "details": {
+        "equip_success": true,
+        "damage_without_armor": 10,
+        "damage_with_armor": 9,
+        "armor_reduced_damage": true,
+        "player_no_armor_hp": 90,
+        "player_with_armor_hp": 91
+      }
+    },
+    {
+      "name": "Player.use_item method exists",
+      "passed": true,
+      "error": "",
+      "details": {
+        "use_item_returned": true,
+        "health_after": 70
+      }
+    },
+    {
+      "name": "Player.attack method exists",
+      "passed": true,
+      "error": "",
+      "details": {
+        "attack_returned": 10,
+        "mob_health_after": 20
+      }
+    }
+  ]
+}

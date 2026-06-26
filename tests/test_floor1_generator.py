@@ -164,3 +164,33 @@ class TestMonsterTemplates:
         for key, template in MONSTER_TEMPLATES.items():
             assert template['hp'] <= 15, f"{key} has too much HP"
             assert template['power'] <= 3, f"{key} has too much power"
+
+class TestFloor1ToFloor2Transition:
+    
+    def test_floor1_to_floor2_transition(self, config):
+        """Verify descending from floor 1 to floor 2 works without crashes."""
+        from darkdelve import Game
+        
+        game = Game()
+        game.initialize()
+        
+        # Verify we are on floor 1
+        assert game.state.depth == 1
+        
+        # Generate floor 2
+        game.generate_level(2, "main")
+        
+        # Verify floor 2 has entities
+        assert len(game.entities) > 0, "Floor 2 should have entities"
+        
+        # Verify floor 2 has a valid map
+        assert game.dungeon_map is not None, "Floor 2 should have a dungeon map"
+        assert game.dungeon_map.shape[0] > 0, "Floor 2 map should have width"
+        assert game.dungeon_map.shape[1] > 0, "Floor 2 map should have height"
+        
+        # Verify depth updated
+        assert game.state.depth == 2, "State depth should be 2 after transition"
+        
+        # Verify player still exists and is alive
+        assert game.player is not None, "Player should exist on floor 2"
+        assert game.player.is_alive, "Player should be alive on floor 2"

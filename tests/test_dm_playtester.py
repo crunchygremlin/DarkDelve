@@ -52,7 +52,7 @@ class TestDMTestScenario:
     def test_get_all_scenarios(self):
         """Test getting all scenarios."""
         scenarios = get_all_scenarios()
-        assert len(scenarios) == 10
+        assert len(scenarios) == 11
         assert all(isinstance(s, DMTestScenario) for s in scenarios)
 
     def test_get_scenarios_by_type(self):
@@ -80,7 +80,7 @@ class TestDMPlaytester:
         assert "passed" in results
         assert "failed" in results
         assert "results" in results
-        assert results["total"] == 10
+        assert results["total"] == 11
 
     def test_run_scenario_returns_result(self):
         """Test that run_scenario returns a TestResult."""
@@ -216,6 +216,6 @@ class TestScenariosContent:
         """Test that all scenarios have valid test types."""
         valid_types = {"behavior_generation", "level_design", "item_creation", 
                        "narrative", "durability", "damage", "context", 
-                       "full_pipeline", "difficulty", "social"}
+                       "full_pipeline", "difficulty", "social", "floor1_generation"}
         for scenario in TEST_SCENARIOS:
             assert scenario.test_type in valid_types, f"Invalid type: {scenario.test_type}"

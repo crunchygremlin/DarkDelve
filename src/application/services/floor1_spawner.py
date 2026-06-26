@@ -5,8 +5,10 @@ Spawns all entities for floor 1 based on Floor1Data.
 """
 
 import random
+from pathlib import Path
 from typing import List, Tuple, Optional, Set
 import numpy as np
+import yaml
 
 from darkdelve import Entity, COLORS, MobTier, Item, ItemType
 
@@ -52,6 +54,29 @@ MONSTER_TEMPLATES = {
 }
 
 
+def load_templates(config: dict = None) -> dict:
+    """Load monster templates from YAML config, fall back to hardcoded defaults."""
+    yaml_path = Path(__file__).parent.parent.parent / "config" / "floor1_monsters.yaml"
+    try:
+        with open(yaml_path) as f:
+            data = yaml.safe_load(f)
+        raw = data.get('floor1_monsters', {})
+        templates = {}
+        for key, val in raw.items():
+            templates[key] = {
+                'name': val['name'],
+                'symbol': val['symbol'],
+                'color': tuple(val['color']),
+                'hp': int(val['hp']),
+                'power': int(val['power']),
+                'defense': int(val['defense']),
+                'speed': int(val.get('speed', 60)),
+            }
+        return templates
+    except Exception:
+        return MONSTER_TEMPLATES
+
+
 class Floor1Spawner:
     """Spawns entities for floor 1."""
     
@@ -60,6 +85,7 @@ class Floor1Spawner:
         self.config = config
         self.dungeon_map = dungeon_map
         self.occupied_positions: Set[Tuple[int, int]] = set()
+        self.templates = load_templates(config)
     
     def spawn_all(self, floor1_data, roster) -> List[Entity]:
         """Spawn all entities for floor 1."""
@@ -141,7 +167,7 @@ class Floor1Spawner:
                 
                 # First guard is sergeant, rest are regular
                 template_key = 'guard_sergeant' if i == 0 else 'dungeon_guard'
-                template = MONSTER_TEMPLATES[template_key]
+                template = self.templates[template_key]
                 
                 entity = self._create_monster_entity(template, x, y)
                 entity.is_commander = (i == 0)  # Sergeant commands
@@ -165,23 +191,16 @@ class Floor1Spawner:
                 else:
                     template_key = den.creature_type
                 
-                # Find a position that's not occupied
-                attempts = 0
-                while attempts < 50:
-                    angle = random.uniform(0, 2 * 3.14159)
-                    dist = random.randint(0, max(1, den.radius - 1))
-                    x = int(cx + dist * np.cos(angle))
-                    y = int(cy + dist * np.sin(angle))
-                    
-                    # Check if position is valid and not occupied
-                    if self._is_valid_position(x, y) and (x, y) not in self.occupied_positions:
-                        break
-                    attempts += 1
+                # Find a random position near den center
+                angle = random.uniform(0, 2 * 3.14159)
+                dist = random.randint(0, max(1, den.radius - 1))
+                preferred_x = int(cx + dist * np.cos(angle))
+                preferred_y = int(cy + dist * np.sin(angle))
                 
-                # Mark position as occupied
-                self.occupied_positions.add((x, y))
+                # Use _find_valid_position to guarantee no overlap
+                x, y = self._find_valid_position(preferred_x, preferred_y)
                 
-                template = MONSTER_TEMPLATES[template_key]
+                template = self.templates[template_key]
                 entity = self._create_monster_entity(template, x, y)
                 entity.home_position = (x, y)  # Stay near den
                 entities.append(entity)
@@ -196,7 +215,7 @@ class Floor1Spawner:
             # Find valid position
             x, y = self._find_valid_position(x, y)
             
-            template = MONSTER_TEMPLATES[creature_type]
+            template = self.templates[creature_type]
             entity = self._create_monster_entity(template, x, y)
             entities.append(entity)
         
