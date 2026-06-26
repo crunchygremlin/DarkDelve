@@ -1707,7 +1707,7 @@ class UI:
                 self._render_text(0, self.ui_y + 4 + i, f"  {event}", COLORS['text'])
 
     def render_messages(self, game):
-        messages = getattr(game, "message_log", [])[-1:]
+        messages = getattr(game, "message_log", [])[-3:]
         for i, message in enumerate(messages):
             self._render_text(0, self.ui_y + 2 + i, message[:self.console_width], COLORS['text'])
 
