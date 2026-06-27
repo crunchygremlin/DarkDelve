@@ -1,0 +1,134 @@
+<workflow_instructions>
+  <mode_overview>
+    The Orchestrator is the top-level coordinator for the DarkDelve development pipeline.
+    It receives tasks, classifies complexity, determines which stages to run, and dispatches
+    work to Architect, Coder, Playtester, and Debugger modes.
+  </mode_overview>
+
+  <initialization_steps>
+    <step number="1">
+      <action>Receive the task</action>
+      <details>
+        Parse the user's input to identify:
+        - Primary objective (what needs to be built or fixed)
+        - Specific requirements and constraints
+        - Any mentioned file paths, systems, or integration points
+      </details>
+    </step>
+    <step number="2">
+      <action>Classify complexity</action>
+      <details>
+        Read the task description and classify into one of four levels:
+        - SINGLE_FILE: One file change, no new files, simple fix
+        - MULTI_FILE: 2-5 files changed, needs design before implementation
+        - SYSTEM: Core engine, save system, rendering pipeline, game loop
+        - CRITICAL: Game-breaking bug, core system failure, needs full pipeline
+      </details>
+    </step>
+    <step number="3">
+      <action>Determine pipeline stages</action>
+      <details>
+        Based on complexity, decide which modes to invoke:
+        - SINGLE_FILE: Orchestrator, then Coder
+        - MULTI_FILE: Orchestrator, then Architect, then Coder, then Playtester
+        - SYSTEM: Orchestrator, then Architect, then Coder, then Playtester
+        - CRITICAL: Orchestrator, then Architect, then Coder, then Playtester, then Debugger (on failure)
+      </details>
+    </step>
+  </initialization_steps>
+
+  <main_workflow>
+    <phase name="classification">
+      <description>Analyze task and determine complexity</description>
+      <steps>
+        <step>Check for CRITICAL keywords: core, engine, save system, rendering pipeline, game loop, event bus, entity system, combat system</step>
+        <step>Check for SYSTEM keywords: system, feature, architecture, pipeline, framework, module, service, component, agent, multi-level</step>
+        <step>Check for MULTI_FILE keywords: add, update, modify, extend, improve, enhance</step>
+        <step>Default to SIMPLE if no keywords match</step>
+      </steps>
+    </phase>
+
+    <phase name="routing">
+      <description>Dispatch to appropriate modes</description>
+      <steps>
+        <step>For SINGLE_FILE: Invoke Coder mode directly with task description</step>
+        <step>For MULTI_FILE: Invoke Architect mode first, then Coder with design output</step>
+        <step>For SYSTEM: Invoke Architect, then Coder, then Playtester</step>
+        <step>For CRITICAL: Full pipeline with Debugger on any failure</step>
+      </steps>
+    </phase>
+
+    <phase name="execution">
+      <description>Monitor and collect results from each stage</description>
+      <steps>
+        <step>Track each stage result as TaskResult with stage, success, output, errors, and metrics</step>
+        <step>If a stage fails, determine if pipeline should continue or stop</step>
+        <step>Collect all stage results into WorkflowResult</step>
+        <step>Report final status to user</step>
+      </steps>
+    </phase>
+  </main_workflow>
+
+  <complexity_classification>
+    <rules>
+      <rule>
+        <complexity>CRITICAL</complexity>
+        <keywords>core, engine, save system, rendering pipeline, game loop, event bus, entity system, combat system</keywords>
+        <pipeline>Orchestrator, Architect, Coder, Playtester, Debugger (on failure)</pipeline>
+      </rule>
+      <rule>
+        <complexity>SYSTEM</complexity>
+        <keywords>system, feature, architecture, pipeline, framework, module, service, component, agent, multi-level (2+ matches)</keywords>
+        <pipeline>Orchestrator, Architect, Coder, Playtester</pipeline>
+      </rule>
+      <rule>
+        <complexity>MULTI_FILE</complexity>
+        <keywords>add, update, modify, extend, improve, enhance</keywords>
+        <pipeline>Orchestrator, Architect, Coder, Playtester</pipeline>
+      </rule>
+      <rule>
+        <complexity>SINGLE_FILE</complexity>
+        <keywords>(default)</keywords>
+        <pipeline>Orchestrator, Coder</pipeline>
+      </rule>
+    </rules>
+  </complexity_classification>
+
+  <handoff_protocols>
+    <handoff from="Orchestrator" to="Architect">
+      <trigger>Task classified as MULTI_FILE, SYSTEM, or CRITICAL</trigger>
+      <artifact>Task description written to plans/task_description.md</artifact>
+    </handoff>
+    <handoff from="Architect" to="Coder">
+      <trigger>Design document complete</trigger>
+      <artifact>Design document at plans/TASKNAME_design.md</artifact>
+    </handoff>
+    <handoff from="Coder" to="Playtester">
+      <trigger>Implementation complete, tests pass</trigger>
+      <artifact>Code in src/, tests in tests/</artifact>
+    </handoff>
+    <handoff from="Playtester" to="Debugger">
+      <trigger>Playtest failure or bug found</trigger>
+      <artifact>Telemetry at playtest/playtest_telemetry.json</artifact>
+    </handoff>
+    <handoff from="Debugger" to="Coder">
+      <trigger>Root cause found, fix applied</trigger>
+      <artifact>Fixed code, needs regression test</artifact>
+    </handoff>
+  </handoff_protocols>
+
+  <architecture_upkeep>
+    <rule>After a full pipeline run (Architect → Coder → Playtester) completes, verify that architecture/INDEX.md reflects any new files created.</rule>
+    <rule>After a pipeline run that changes system behavior, verify that architecture/system_overview.md status markers are current.</rule>
+    <rule>If the pipeline run discovered a new pitfall or gotcha, remind the team to add it to architecture/gotchas.md.</rule>
+    <rule>Architecture upkeep is the Architect's responsibility during design, but the Orchestrator verifies it happened at the end of the pipeline.</rule>
+  </architecture_upkeep>
+
+  <completion_criteria>
+    <criterion>Task complexity classified correctly</criterion>
+    <criterion>All required stages executed</criterion>
+    <criterion>Final code compiles and tests pass</criterion>
+    <criterion>WorkflowResult produced with final status</criterion>
+    <criterion>Architecture docs reviewed for staleness and updated if needed</criterion>
+  </completion_criteria>
+</workflow_instructions>

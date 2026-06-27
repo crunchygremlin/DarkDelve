@@ -1,23 +1,28 @@
 # DarkDelve Implementation Guide
 
-## Step-by-Step Refactoring Process
+> **DEPRECATED** — This guide describes an older directory structure
+> (`src/config/`, `src/core/`, `src/systems/`) that was never implemented.
+> The actual codebase uses a SOLID layered architecture:
+> `src/domain/`, `src/application/`, `src/infrastructure/`, `src/presentation/`, `src/shared/`.
+>
+> For the authoritative module layout, see [`module_design.md`](module_design.md).
+> For the step-by-step refactoring plan with correct paths, see [`implementation_plan.md`](implementation_plan.md).
+> For the current architecture overview, see [`system_overview.md`](system_overview.md).
 
-This guide provides a clear, step-by-step process for refactoring the monolithic DarkDelve codebase into a modular structure. The process is designed to be followed by an LLM assistant (Qwen 7b Coder).
+---
 
-## Phase 1: Setup and Preparation
+## Step-by-Step Refactoring Process (Historical Reference)
 
-### Step 1: Create Project Structure
+This guide is retained for historical context. It describes the original refactoring
+intention. Do NOT follow the directory paths below — they are outdated.
+
+## Phase 1: Setup and Preparation (Original Plan)
+
+### Step 1: Create Project Structure (Original)
 ```bash
-mkdir -p src/{config,core,systems,content,data,ui,persistence,utils}
-touch src/__init__.py
-touch src/config/__init__.py
-touch src/core/__init__.py
-touch src/systems/__init__.py
-touch src/content/__init__.py
-touch src/data/__init__.py
-touch src/ui/__init__.py
-touch src/persistence/__init__.py
-touch src/utils/__init__.py
+# OUTDATED — actual structure is:
+mkdir -p src/{domain,application,infrastructure,presentation,shared}
+mkdir -p src/{domain/{entities,components,value_objects,services},application/{game_commands,game_queries,game_session,event_system},infrastructure/{repositories,external,persistence,configuration},presentation/{views,controllers,renderers},shared/{interfaces,exceptions,utils,events}}
 ```
 
 ### Step 2: Extract Configuration

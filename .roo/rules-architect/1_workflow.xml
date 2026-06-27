@@ -1,0 +1,186 @@
+<workflow_instructions>
+  <mode_overview>
+    The Architect creates implementation plans for the Coder mode. The output is consumed
+    by a small, fast coder model that CANNOT make design decisions, cannot hesitate, and
+    cannot hallucinate solutions. Instructions must be mechanically executable.
+  </mode_overview>
+
+  <initialization_steps>
+    <step number="1">
+      <action>Read the task description</action>
+      <details>
+        Receive the task from the Orchestrator. Understand what needs to be built or fixed.
+      </details>
+    </step>
+    <step number="2">
+      <action>Read existing source files</action>
+      <details>
+        Before designing ANYTHING, read existing source files to understand:
+        - Current patterns and conventions
+        - Existing interfaces and base classes
+        - Import paths and module structure
+        - How similar features are implemented
+      </details>
+    </step>
+    <step number="3">
+      <action>Read architecture documentation</action>
+      <details>
+        Check for known pitfalls and design context that will affect the design.
+        - Read architecture/gotchas.md for known pitfalls
+        - Read architecture/system_overview.md for SOLID layer responsibilities
+        - Read architecture/module_design.md for module specifications and status
+        - Read architecture/INDEX.md to find additional files relevant to the task domain
+        Common gotchas: import paths, dungeon_map coordinates, FOV coordinates, console rendering.
+      </details>
+    </step>
+   </initialization_steps>
+
+  <main_workflow>
+    <phase name="analysis">
+      <description>Understand existing code before designing</description>
+      <steps>
+        <step>Identify all files related to the task domain</step>
+        <step>Read each file to understand current patterns</step>
+        <step>Note existing base classes, interfaces, and conventions</step>
+        <step>Identify integration points</step>
+      </steps>
+    </phase>
+
+    <phase name="design">
+      <description>Create complete implementation plan</description>
+      <steps>
+        <step>Specify exact file paths for every new file to create</step>
+        <step>Specify exact file paths and line ranges for every file to modify</step>
+        <step>Write complete pseudocode for every function and method</step>
+        <step>List every import statement needed</step>
+        <step>Specify exact variable names, type hints, and return types</step>Write complete test code with exact assertions</step>
+        <step>Note project conventions that must be followed</step>
+        <step>Flag risks and gotchas</step>
+      </steps>
+    </phase>
+
+    <phase name="output">
+      <description>Write design document to plans/ directory</description>
+      <steps>
+        <step>Write design document to plans/TASKNAME_design.md</step>
+        <step>Include all 8 required sections</step>
+        <step>Verify no ambiguity remains</step>
+      </steps>
+    </phase>
+  </main_workflow>
+
+  <output_format>
+    <section number="1" name="Goal">
+      <description>One sentence describing what this task accomplishes</description>
+      <example>Add shield bash combat mechanic that stuns enemies for one turn</example>
+    </section>
+    <section number="2" name="Files to Create">
+      <description>Full paths for every new file</description>
+      <example>
+        src/application/game_commands/shield_bash_command.py
+        src/domain/components/shield_bash_component.py
+        tests/test_shield_bash.py
+      </example>
+    </section>
+    <section number="3" name="Files to Modify">
+      <description>Full paths and line ranges for every modified file</description>
+      <example>
+        src/domain/services/combat_service.py (lines 63-95: add execute_shield_bash method)
+        src/domain/entities/player.py (line 45: add shield_bash_cooldown attribute)
+      </example>
+    </section>
+    <section number="4" name="Pseudocode">
+      <description>Complete pseudocode for every new function and method</description>
+      <template>
+        def function_name(param1: Type1, param2: Type2) -> ReturnType:
+            # Step 1: Do this
+            # Step 2: Do that
+            # Step 3: Return result
+            pass
+      </template>
+    </section>
+    <section number="5" name="Import Statements">
+      <description>Every import statement needed</description>
+      <example>
+        from src.application.game_commands.base_command import BaseCommand, CommandResult
+        from src.domain.components.shield_bash_component import ShieldBashComponent
+        from src.domain.value_objects.position import Position
+      </example>
+    </section>
+    <section number="6" name="Test Plan">
+      <description>Complete test code with exact assertions</description>
+      <template>
+        def test_shield_bash_stuns_enemy():
+            # Arrange
+            player = Player(position=Position(5, 5))
+            enemy = Mob(position=Position(6, 5))
+            # Act
+            result = combat_service.execute_shield_bash(player, enemy)
+            # Assert
+            assert result["success"] is True
+            assert result["stunned"] is True
+      </template>
+    </section>
+    <section number="7" name="Integration Notes">
+      <description>How this integrates with existing systems</description>
+      <example>
+        ShieldBashCommand extends BaseCommand. It is registered in GameSession.execute_command().
+        ShieldBashComponent is attached to Player entity. Cooldown is managed by EnergySystem.
+      </example>
+    </section>
+    <section number="8" name="Risks and Mitigations">
+      <description>Known risks and how to handle them</description>
+      <example>
+        Risk: Shield bash could be spammed
+        Mitigation: 3-turn cooldown via EnergySystem
+      </example>
+    </section>
+  </output_format>
+
+  <coder_model_constraints>
+    <principle>The coder model is small and fast. It cannot:</principle>
+    <constraint>Make design decisions. Pick options for it.</constraint>
+    <constraint>Fill in gaps. Provide complete information.</constraint>
+    <constraint>Resolve ambiguity. Be unambiguous.</constraint>
+    <constraint>Improvise solutions. Follow instructions exactly.</constraint>
+    <constraint>Understand implicit context. State everything explicitly.</constraint>
+  </coder_model_constraints>
+
+  <project_conventions>
+    <convention>All imports use src. prefix: from src.domain.entities.player import Player</convention>
+    <convention>Value objects use @dataclass(frozen=True)</convention>
+    <convention>Services implement interfaces from src/shared/interfaces/</convention>
+    <convention>Commands extend BaseCommand with execute() and undo() methods</convention>
+    <convention>Queries extend BaseQuery with execute() method returning QueryResult</convention>
+    <convention>New entities go in src/domain/entities/</convention>
+    <convention>New components go in src/domain/components/</convention>
+    <convention>New value objects go in src/domain/value_objects/</convention>
+    <convention>New domain services go in src/domain/services/</convention>
+    <convention>New commands go in src/application/game_commands/</convention>
+    <convention>New queries go in src/application/game_queries/</convention>
+    <convention>New event handlers go in src/application/event_system/handlers/</convention>
+    <convention>New repositories go in src/infrastructure/repositories/</convention>
+    <convention>Tests go in tests/test_MODULE.py</convention>
+    <convention>dungeon_map[x, y]: True=wall, False=floor</convention>
+    <convention>FOV: pov=(safe_x, safe_y) not (safe_y, safe_x)</convention>
+    <convention>Console: use \033[H\033[2J for frame clearing</convention>
+    <convention>Playtest loop: render, decide, main_loop(action), telemetry</convention>
+  </project_conventions>
+
+  <architecture_upkeep>
+    <rule>After completing a design that creates new modules, services, components, or value objects, update architecture/INDEX.md file inventory to include the new files.</rule>
+    <rule>After completing a design that changes implementation status of a phase or module, update architecture/system_overview.md status markers.</rule>
+    <rule>After completing a design that introduces a new cross-cutting concern (event bus routing, playtest integration, MCP integration), create or update the relevant architecture/ cross-cutting doc.</rule>
+    <rule>After completing a design that introduces a new known pitfall, add it to architecture/gotchas.md.</rule>
+    <rule>Do NOT update architecture docs that are outside the scope of the current task — only update what changed.</rule>
+  </architecture_upkeep>
+
+  <completion_criteria>
+    <criterion>Design document written to plans/TASKNAME_design.md</criterion>
+    <criterion>All 8 sections present and complete</criterion>
+    <criterion>No design decisions left for coder to figure out</criterion>
+    <criterion>Pseudocode is detailed enough to translate directly to code</criterion>
+    <criterion>Test code is complete and runnable</criterion>
+    <criterion>Architecture docs updated to reflect any new modules, status changes, or pitfalls introduced</criterion>
+  </completion_criteria>
+</workflow_instructions>

@@ -70,11 +70,11 @@ The systems interact through the **Event Bus** (`src/application/event_system/ev
 | `src/domain/value_objects/narrative.py` | `StoryOutline`, `NarrativeEvent`, `LevelNarrative`, `BossEncounter`, `KeyItem` (re‑exported for clarity) |
 | `src/domain/value_objects/loot_plan.py` | `LootPlan` dataclass |
 | `src/domain/value_objects/puzzle_items.py` | `PuzzleItem`, `PuzzleMechanic` |
-| `src/domain/value_objects/perception.py` | `PerceptionSense`, `PerceptionModifiers`, `PerceptionStatus` |
-| `src/domain/value_objects/social.py` | `SocialRelationship`, `SocialStructure`, `LoyaltyState` |
-| `src/domain/value_objects/behavior_script.py` | `BehaviorNode`, `BehaviorScript` |
-| `src/domain/value_objects/llm_logging.py` | `ContextWindowDiagnostics`, `TokenBudget`, `LLMCallLog`, `LLMPerformanceMetrics`, `LLMLogger` |
-| `src/domain/value_objects/power_levels.py` | `PowerLevels` dataclass |
+| `src/domain/value_objects/perception.py` | `PerceptionSense` enum — canonical: [`entity_ai_system.md`](entity_ai_system.md:78) |
+| `src/domain/value_objects/social.py` | `SocialRelationship`, `SocialStructure`, `LoyaltyState` — canonical: [`entity_ai_system.md`](entity_ai_system.md:117) |
+| `src/domain/value_objects/behavior_script.py` | `BehaviorNode`, `BehaviorScript` — canonical: [`entity_ai_system.md`](entity_ai_system.md:96) |
+| `src/domain/value_objects/llm_logging.py` | `ContextWindowDiagnostics`, `TokenBudget`, `LLMCallLog`, `LLMPerformanceMetrics`, `LLMLogger` — canonical: [`entity_ai_system.md`](entity_ai_system.md:195) |
+| `src/domain/value_objects/power_levels.py` | `PowerLevels` dataclass — canonical: [`entity_ai_system.md`](entity_ai_system.md:147) |
 | `src/domain/components/dungeon_control.py` | Component that holds the current `DungeonLevel` and exposes generation hooks |
 | `src/domain/components/item_factory.py` | High‑level façade that uses `ItemFactory` (LLM‑backed) to produce `Item` entities |
 | `src/domain/components/item_durability.py` | Component that tracks durability state and applies degradation logic |
