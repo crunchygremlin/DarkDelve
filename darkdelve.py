@@ -1713,6 +1713,25 @@ class UI:
                         self.renderer.print(screen_x, screen_y, "#", (30, 30, 30))
                     else:  # False = floor
                         self.renderer.print(screen_x, screen_y, ".", (50, 50, 50))
+        
+        # Render stairs
+        if hasattr(self, 'stair_down_pos') and self.stair_down_pos:
+            sx, sy = self.stair_down_pos
+            if 0 <= sx < width and 0 <= sy < height:
+                screen_x = sx - self.camera_x
+                screen_y = sy - self.camera_y
+                if 0 <= screen_x < self.console_width and 0 <= screen_y < self.console_height:
+                    if bool(fov[sx, sy]) or bool(explored[sx, sy]):
+                        self.renderer.print(screen_x, screen_y, ">", COLORS['gold'])
+
+        if hasattr(self, 'stair_up_pos') and self.stair_up_pos:
+            sx, sy = self.stair_up_pos
+            if 0 <= sx < width and 0 <= sy < height:
+                screen_x = sx - self.camera_x
+                screen_y = sy - self.camera_y
+                if 0 <= screen_x < self.console_width and 0 <= screen_y < self.console_height:
+                    if bool(fov[sx, sy]) or bool(explored[sx, sy]):
+                        self.renderer.print(screen_x, screen_y, "<", COLORS['gold'])
     
     def render_entities(self, entities: List[Entity], fov: np.ndarray, player=None):
         # DarkDelve's FOV arrays are indexed as fov[x, y].
