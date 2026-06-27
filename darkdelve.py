@@ -31,6 +31,9 @@ import requests
 # Import renderer classes
 from src.presentation.renderer import create_renderer
 
+# Import combat damage log
+from src.infrastructure.persistence.combat_damage_log import CombatDamageLog
+
 # Import agent system
 from src.domain.agents import (
     Agent, AgentType, AgentManager, LLMAgent, LLMAgentConfig, RandomAgent, CommanderAgent
@@ -346,18 +349,59 @@ class CombatEvent:
     flavor_text: str = ""
     out_of_range: bool = False
     
-    def __str__(self) -> str:
+    def __str__(self, perspective: str = "neutral") -> str:
+        """
+        Generate a human-readable combat message.
+        
+        Args:
+            perspective: One of "attacker_is_player", "defender_is_player", "neutral"
+                - "attacker_is_player": Player is the attacker (first-person language)
+                - "defender_is_player": Player is the defender (second-person language)
+                - "neutral": Neither is player (third-person language)
+        """
         if getattr(self, 'out_of_range', False):
-            return f"{self.attacker_name} is out of range to attack {self.defender_name}!"
+            if perspective == "attacker_is_player":
+                return f"Player is out of range to attack {self.defender_name}!"
+            elif perspective == "defender_is_player":
+                return f"{self.attacker_name} is out of range to attack you!"
+            else:
+                return f"{self.attacker_name} is out of range to attack {self.defender_name}!"
+        
         roll_text = f"[Roll: {self.total_roll} vs AC {self.target_ac}]"
+        
         if self.result == HitResult.CRITICAL:
-            return f"{self.attacker_name} strikes critically! {roll_text} CRITICAL HIT! Damage: {self.damage}"
+            if perspective == "attacker_is_player":
+                return f"Player strikes {self.defender_name} critically! {roll_text} CRITICAL HIT! Damage: {self.damage}"
+            elif perspective == "defender_is_player":
+                return f"{self.attacker_name} lands a critical hit on you! {roll_text} CRITICAL HIT! Damage: {self.damage}"
+            else:
+                return f"{self.attacker_name} strikes {self.defender_name} critically! {roll_text} CRITICAL HIT! Damage: {self.damage}"
+        
         elif self.result == HitResult.HIT:
-            return f"{self.attacker_name} attacks! {roll_text} HIT! Damage: {self.damage}"
+            if perspective == "attacker_is_player":
+                return f"Player attacks {self.defender_name}! {roll_text} HIT! Damage: {self.damage}"
+            elif perspective == "defender_is_player":
+                return f"{self.attacker_name} attacks player! {roll_text} HIT! Damage: {self.damage}"
+            else:
+                return f"{self.attacker_name} attacks {self.defender_name}! {roll_text} HIT! Damage: {self.damage}"
+        
         elif self.result == HitResult.MISS:
-            return f"{self.attacker_name} attacks... {roll_text} MISS!"
+            if perspective == "attacker_is_player":
+                return f"Player attacks {self.defender_name}... {roll_text} MISS!"
+            elif perspective == "defender_is_player":
+                return f"{self.attacker_name} attacks player... {roll_text} MISS!"
+            else:
+                return f"{self.attacker_name} attacks {self.defender_name}... {roll_text} MISS!"
+        
         elif self.result == HitResult.CRITICAL_FAIL:
-            return f"{self.attacker_name} attempts strike... {roll_text} CRITICAL MISS!"
+            if perspective == "attacker_is_player":
+                return f"Player attempts to strike {self.defender_name}... {roll_text} CRITICAL MISS!"
+            elif perspective == "defender_is_player":
+                return f"{self.attacker_name} attempts to strike player... {roll_text} CRITICAL MISS!"
+            else:
+                return f"{self.attacker_name} attempts to strike {self.defender_name}... {roll_text} CRITICAL MISS!"
+        
+        # Fallback
         return f"Combat: {self.attacker_name} vs {self.defender_name}"
 
 @dataclass
@@ -1593,10 +1637,24 @@ class UI:
         self.map_height = config['dungeon']['height']
         self.console_width = self.display_config.get("width", self.display_config.get("screen_width", self.map_width))
         self.console_height = self.display_config.get("height", self.display_config.get("screen_height", self.map_height))
-        if self.console_height > self.map_height + 5:
+        # UI area starts at the bottom of the map area, but must fit within console_height
+        # Reserve 8 rows for UI: status bar, help text, 3 combat message lines, 3 combat log
+        # Layout:
+        #   ui_y + 0: status bar (HP, AC, Level, Depth, Turn, Gold, Nutrition)
+        #   ui_y + 1: help text
+        #   ui_y + 2: Player Actions message line
+        #   ui_y + 3: Actions Against Player message line
+        #   ui_y + 4: Observable/Ambient message line
+        #   ui_y + 5: Combat log line 1
+        #   ui_y + 6: Combat log line 2
+        #   ui_y + 7: Combat log line 3
+        if self.console_height > self.map_height + 8:
             self.ui_y = self.map_height + 1
         else:
-            self.ui_y = self.map_height
+            # Ensure UI fits within console_height - reserve 8 rows for UI elements
+            self.ui_y = max(0, self.console_height - 8)
+        # Ensure ui_y is at least map_height to keep UI below map area
+        self.ui_y = max(self.ui_y, self.map_height)
         # Camera offset for viewport - centers on player
         self.camera_x = 0
         self.camera_y = 0
@@ -1702,14 +1760,54 @@ class UI:
     def render_combat_log(self, combat_log):
         events = getattr(combat_log, "events", [])
         if events:
-            recent = combat_log.get_recent(2)
+            recent = combat_log.get_recent(3)
             for i, event in enumerate(recent):
-                self._render_text(0, self.ui_y + 4 + i, f"  {event}", COLORS['text'])
+                # Render combat log at ui_y + 5, 6, 7 (below the 3 message lines)
+                self._render_text(0, self.ui_y + 5 + i, f"  {event}"[:self.console_width], COLORS['text'])
 
-    def render_messages(self, game):
-        messages = getattr(game, "message_log", [])[-3:]
-        for i, message in enumerate(messages):
-            self._render_text(0, self.ui_y + 2 + i, message[:self.console_width], COLORS['text'])
+    def render_combat_messages(self, game):
+        """
+        Render three categorized combat message lines.
+        
+        Reads from game.combat_message_log which is a dict with keys:
+          - "player_actions": list of str (most recent last)
+          - "against_player": list of str (most recent last)
+          - "observable": list of str (most recent last)
+        
+        Each line shows the most recent message in its category.
+        If no message exists, show an empty line.
+        """
+        combat_msgs = getattr(game, "combat_message_log", None)
+        if combat_msgs is None:
+            # Fallback: render nothing if attribute doesn't exist
+            return
+        
+        # Line 1: Player Actions (ui_y + 2) - yellow/bright color
+        player_actions = combat_msgs.get("player_actions", [])
+        if player_actions:
+            msg = player_actions[-1]
+            prefix = "[YOU] "
+            self._render_text(0, self.ui_y + 2, (prefix + msg)[:self.console_width], COLORS['hp_high'])
+        else:
+            self._render_text(0, self.ui_y + 2, "[YOU] "[:self.console_width], COLORS['text_dim'])
+        
+        # Line 2: Actions Against Player (ui_y + 3) - red color
+        against_player = combat_msgs.get("against_player", [])
+        if against_player:
+            msg = against_player[-1]
+            prefix = "[ATK] "
+            self._render_text(0, self.ui_y + 3, (prefix + msg)[:self.console_width], COLORS['hp_low'])
+        else:
+            self._render_text(0, self.ui_y + 3, "[ATK] "[:self.console_width], COLORS['text_dim'])
+        
+        # Line 3: Observable/Ambient (ui_y + 4) - dim color
+        observable = combat_msgs.get("observable", [])
+        if observable:
+            msg = observable[-1]
+            prefix = "[OBS] "
+            self._render_text(0, self.ui_y + 4, (prefix + msg)[:self.console_width], COLORS['text'])
+        else:
+            self._render_text(0, self.ui_y + 4, "[OBS] "[:self.console_width], COLORS['text_dim'])
 
     def render_ui(self, player, state, combat_log, turn, game=None):
         metrics = get_llm_metrics()
@@ -1730,11 +1828,9 @@ class UI:
         self._render_text(0, self.ui_y + 1, "WASD=Move  E=Wait  I=Inv  C=Char  ,=Pickup  >=Down  <=Up  ESC=Menu", COLORS['text_dim'])
 
         if game is not None:
-            self.render_messages(game)
+            self.render_combat_messages(game)
 
-        self._render_text(0, self.ui_y + 3, f"LLM: {metrics['responses']}/{metrics['requests']}  Avg: {metrics['avg_latency_ms']:.0f}ms", COLORS['magic'])
-
-        # Combat log
+        # Combat log at ui_y + 5, 6, 7
         self.render_combat_log(combat_log)
 
 # =============================================================================
@@ -1836,6 +1932,7 @@ class Game:
         self.energy_system = EnergySystem()
         self.fov_system = FOVSystem(radius=8)
         self.combat_log = CombatLog()
+        self.combat_damage_log = CombatDamageLog()
         self.dungeon_generator = DungeonGenerator(self.config)
         self.content_generator = None
         self.ollama: Optional[EmbeddedOllama] = None
@@ -1862,6 +1959,11 @@ class Game:
         self.showing_menu = False
         self.menu_selection = 0
         self.message_log: List[str] = []
+        self.combat_message_log: Dict[str, List[str]] = {
+            "player_actions": [],
+            "against_player": [],
+            "observable": [],
+        }
         
         # Agent system integration
         self.agent_manager = AgentManager()
@@ -2585,6 +2687,20 @@ class Game:
     def attack(self, attacker: Entity, defender: Entity):
         event = CombatResolver.resolve_attack(attacker, defender)
         self.combat_log.add_event(event)
+        self.combat_damage_log.record_event(event, attacker, defender)
+        
+        # Determine perspective for message routing
+        if attacker is self.player:
+            perspective = "attacker_is_player"
+        elif defender is self.player:
+            perspective = "defender_is_player"
+        else:
+            perspective = "neutral"
+        
+        # Route to categorized combat message system
+        self.add_combat_message(event, attacker, defender, perspective)
+        
+        # Also add to general message_log for backward compatibility
         self.add_message(str(event))
         
         if event.result in (HitResult.HIT, HitResult.CRITICAL):
@@ -2592,6 +2708,46 @@ class Game:
             if defender.hp <= 0:
                 defender.hp = 0
                 self.on_kill(attacker, defender)
+    
+    def add_combat_message(self, event: CombatEvent, attacker: Entity, defender: Entity, perspective: str):
+        """
+        Route a combat event to the appropriate categorized message line.
+        
+        Args:
+            event: The CombatEvent that occurred
+            attacker: The attacking Entity
+            defender: The defending Entity
+            perspective: One of "attacker_is_player", "defender_is_player", "neutral"
+        """
+        # Initialize combat_message_log if it doesn't exist
+        if not hasattr(self, "combat_message_log"):
+            self.combat_message_log = {
+                "player_actions": [],
+                "against_player": [],
+                "observable": [],
+            }
+        
+        # Generate the perspective-aware message
+        msg = event.__str__(perspective)
+        
+        if attacker is self.player:
+            # Player is attacking — goes to "player_actions" line
+            self.combat_message_log["player_actions"].append(msg)
+        elif defender is self.player:
+            # Player is being attacked — goes to "against_player" line
+            self.combat_message_log["against_player"].append(msg)
+        else:
+            # Neither is player — only show if attacker is visible in FOV
+            if self.fov is not None:
+                if (0 <= attacker.x < self.fov.shape[0] and
+                    0 <= attacker.y < self.fov.shape[1]):
+                    if bool(self.fov[attacker.x, attacker.y]):
+                        self.combat_message_log["observable"].append(msg)
+        
+        # Trim to max 20 entries per category
+        for key in self.combat_message_log:
+            if len(self.combat_message_log[key]) > 20:
+                self.combat_message_log[key] = self.combat_message_log[key][-20:]
     
     def on_kill(self, killer: Entity, victim: Entity):
         self.add_message(f"{victim.name} is slain!")
@@ -2832,6 +2988,14 @@ class Game:
         print(msg)
     
     def cleanup(self):
+        # Export combat damage log
+        if hasattr(self, 'combat_damage_log'):
+            try:
+                log_path = self.combat_damage_log.export_to_json(self.state.run_id)
+                print(f"Combat damage log written to: {log_path}")
+            except Exception as e:
+                print(f"Warning: Could not export combat damage log: {e}")
+        
         if self.ollama:
             self.ollama.stop()
         if self.context:
