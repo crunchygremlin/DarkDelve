@@ -488,6 +488,8 @@ class Inventory:
             return 0
 
     def add_item(self, item: Item) -> bool:
+        if item is None:
+            return False
         if len(self.items) >= self.capacity:
             return False
         if self.get_total_weight() + self._weight_value(item.weight) > self.max_weight:
@@ -1722,6 +1724,9 @@ class UI:
 
         for entity in entities:
             if 0 <= entity.x < width and 0 <= entity.y < height:
+                # Skip dead entities — they should not be rendered.
+                if hasattr(entity, 'is_alive') and not entity.is_alive:
+                    continue
                 # Only render entities in field of view, the player, or entities sharing the player's tile.
                 at_player_position = (
                     player is not None
@@ -2076,10 +2081,14 @@ class Game:
                         self.player.inventory.equip(item.id, slots[0])
     
     def create_item_by_id(self, item_id: str) -> Optional[Item]:
-        # Check default items
+        # Check default items with case-insensitive lookup.
+        # Config uses "iron_longsword" format, items use "Iron Longsword".
+        def _normalize(s: str) -> str:
+            return s.lower().replace(" ", "_").replace("(", "").replace(")", "")
+        target = _normalize(item_id)
         default_items = create_default_items("martial")
         for item in default_items:
-            if item.id == item_id:
+            if _normalize(item.id) == target:
                 return item
         return None
     
@@ -2751,6 +2760,8 @@ class Game:
     
     def on_kill(self, killer: Entity, victim: Entity):
         self.add_message(f"{victim.name} is slain!")
+        # Make the victim non-blocking so player can move into the space
+        victim.blocks = False
         if killer is self.player:
             self.state.kills += 1
             # XP gain
@@ -2778,7 +2789,7 @@ class Game:
     
     def pickup_item(self):
         for entity in self.entities:
-            if entity is not self.player and hasattr(entity, 'item') and entity.x == self.player.x and entity.y == self.player.y:
+            if entity is not self.player and hasattr(entity, 'item') and entity.item is not None and entity.x == self.player.x and entity.y == self.player.y:
                 if self.player.inventory.add_item(entity.item):
                     self.add_message(f"Picked up {entity.item.name}.")
                     self.entities.remove(entity)
