@@ -1,0 +1,73 @@
+<best_practices>
+  <general_principles>
+    <principle priority="high">
+      <name>Find root cause before fixing</name>
+      <description>Never apply a fix until you understand WHY the bug happens. Symptom fixes mask real problems.</description>
+      <rationale>Without root cause analysis, fixes are often wrong or create new bugs.</rationale>
+      <example>
+        <good>Read error → read source → check gotchas → form hypothesis → verify → fix</good>
+        <bad>Read error → immediately change code to suppress the error</bad>
+      </example>
+    </principle>
+    <principle priority="high">
+      <name>Minimal fix only</name>
+      <description>Change the smallest amount of code needed to fix the bug. One line is better than ten.</description>
+      <rationale>Large changes introduce new bugs and make regression testing harder.</rationale>
+    </principle>
+    <principle priority="high">
+      <name>Run ALL tests before declaring fixed</name>
+      <description>A fix is not complete until every test in the project passes.</description>
+      <rationale>Bug fixes frequently cause regressions in unrelated areas.</rationale>
+    </principle>
+    <principle priority="medium">
+      <name>Add regression test if missing</name>
+      <description>If caught this bug but did not, add a test that would have caught it.</description>
+      <rationale>Prevents the same bug from recurring undetected.</rationale>
+    </principle>
+  </general_principles>
+
+  <diagnosis_rules>
+    <rule>Read the complete error message and stack trace before reading code</rule>
+    <rule>Identify the exact file, line number, and function from the stack trace</rule>
+    <rule>Read at least 50 lines of context around the failure</rule>
+    <rule>Check architecture/gotchas.md for known pitfalls that match the symptom</rule>
+    <rule>Form a hypothesis before touching code: "The bug is caused by X because Y"</rule>
+    <rule>Verify the hypothesis by tracing the code path mentally</rule>
+    <rule>If you cannot determine root cause, do NOT guess — ask for more information</rule>
+  </diagnosis_rules>
+
+  <common_pitfalls>
+    <pitfall>
+      <description>Multiple possible root causes</description>
+      <why_problemistic>Fixing the wrong cause leaves the bug unfixed</why_problemistic>
+      <correct_approach>Trace the code path carefully. Verify each step. Pick the most specific cause.</correct_approach>
+    </pitfall>
+    <pitfall>
+      <description>Fix that introduces regression</description>
+      <why_problemistic>The fix changes behavior in an unrelated area</why_problemistic>
+      <correct_approach>After fix, run ALL tests. If any fail, determine if related to fix or pre-existing.</correct_approach>
+    </pitfall>
+    <pitfall>
+      <description>Over-fixing (fixing things that are not broken)</description>
+      <why_problemistic>Changes to working code introduce new bugs</why_problemistic>
+      <correct_approach>Only change what is directly causing the bug. Leave everything else alone.</correct_approach>
+    </pitfall>
+  </common_pitfalls>
+
+  <quality_checklist>
+    <category name="before_fix">
+      <item>Error message and stack trace read completely</item>
+      <item>Exact file and line identified</item>
+      <item>Source code read with context</item>
+      <item>architecture/gotchas.md checked</item>
+      <item>Root cause hypothesis formed</item>
+    </category>
+    <category name="after_fix">
+      <item>Minimal change applied</item>
+      <item>Failing test now passes</item>
+      <item>ALL tests pass</item>
+      <item>Regression test added if one was missing</item>
+      <item>Report produced with root cause, fix, and test results</item>
+    </category>
+  </quality_checklist>
+</best_practices>

@@ -1,0 +1,66 @@
+<best_practices>
+  <general_principles>
+    <principle priority="high">
+      <name>Follow the design document exactly</name>
+      <description>Your job is to implement what the Architect specified. Nothing more, nothing less.</description>
+      <rationale>You are a small, fast model. Any deviation from the spec causes bugs.</rationale>
+      <example>
+        <good>Use the exact function name, exact file path, exact variable names from the design</good>
+        <bad>Rename functions to what you think is better, add extra features, refactor surrounding code</bad>
+      </example>
+    </principle>
+    <principle priority="high">
+      <name>Stop when uncertain</name>
+      <description>If the design document is unclear, missing information, or contradicts itself — STOP and report.</description>
+      <rationale>Guessing leads to hallucinated code that is worse than no code at all.</rationale>
+    </principle>
+    <principle priority="medium">
+      <name>Run tests after every change</name>
+      <description>After creating or modifying a file, run the relevant test immediately.</description>
+      <rationale>Catching errors immediately prevents compounding mistakes.</rationale>
+    </principle>
+  </general_principles>
+
+  <implementation_rules>
+    <rule>Copy pseudocode patterns directly into real code — do not reinterpret</rule>
+    <rule>Use exact import statements from the design document</rule>
+    <rule>Match existing code style exactly (indentation, naming, type hints)</rule>
+    <rule>Do not add comments explaining WHY — only WHAT if the design specifies</rule>
+    <rule>Do not add error handling beyond what the design specifies</rule>
+    <rule>Do not add logging unless the design explicitly requests it</rule>
+    <rule>If a test fails, fix the code not the test (unless design is wrong)</rule>
+  </implementation_rules>
+
+  <common_pitfalls>
+    <pitfall>
+      <description>Hallucinating function signatures</description>
+      <why_problemistic>Invented signatures may not match what the design intended</why_problemistic>
+      <correct_approach>Use exact signatures from the design document. If unclear, stop and report.</correct_approach>
+    </pitfall>
+    <pitfall>
+      <description>Adding features not in the design</description>
+      <why_problemistic>Unrequested features may break existing tests or conflict with design</why_problemistic>
+      <correct_approach>Implement only what the design document specifies. Nothing extra.</correct_approach>
+    </pitfall>
+    <pitfall>
+      <description>Modifying files not in the design</description>
+      <why_problemistic>Unexpected changes cause regressions in unrelated areas</why_problemistic>
+      <correct_approach>Only modify files listed in "Files to Modify" section of the design</correct_approach>
+    </pitfall>
+  </common_pitfalls>
+
+  <quality_checklist>
+    <category name="during_implementation">
+      <item>Every file created at the exact path from the design</item>
+      <item>Every function has the exact name from the design</item>
+      <item>Every import matches the design document</item>
+      <item>Tests run after each file change</item>
+    </category>
+    <category name="before_completion">
+      <item>All files from "Files to Create" exist</item>
+      <item>All files from "Files to Modify" have correct changes</item>
+      <item>All tests pass</item>
+      <item>No extra changes beyond what the design specified</item>
+    </category>
+  </quality_checklist>
+</best_practices>

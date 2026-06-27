@@ -336,9 +336,19 @@ class TestManualPlaytestMonsterMovement(unittest.TestCase):
         player_turns_before = pt.get_stats()['turn']
         initial_pos = target['position']
 
+        # Enable godmode so the player survives monster attacks during this
+        # speed test (we are testing movement speed, not combat survival).
+        g = pt.game
+        g.player.max_hp = 99999
+        g.player.hp = 99999
+
         # Run 30 turns where player waits
-        print("Running 30 wait turns...")
+        print("Running 30 wait turns (godmode)...")
         pt.wait(30)
+
+        # Restore normal HP so later tests are not affected
+        g.player.max_hp = 23
+        g.player.hp = 23
 
         # Check results
         player_turns_after = pt.get_stats()['turn']
@@ -361,17 +371,17 @@ class TestManualPlaytestMonsterMovement(unittest.TestCase):
         """
         print("\n--- Test: wait() method regression ---")
         pt = self.__class__.pt
-
+        
         # Verify the method exists (would raise AttributeError if missing)
         self.assertTrue(hasattr(pt, 'wait'), "ManualPlaytest should have a wait() method")
         self.assertTrue(callable(pt.wait), "ManualPlaytest.wait should be callable")
-
+        
         # Record turn before
         turns_before = pt.get_stats()['turn']
-
+        
         # Wait 3 turns
         pt.wait(3)
-
+        
         # Verify turns advanced
         turns_after = pt.get_stats()['turn']
         self.assertEqual(
@@ -379,6 +389,26 @@ class TestManualPlaytestMonsterMovement(unittest.TestCase):
             "wait(3) should advance exactly 3 turns"
         )
         print(f"✓ wait(3) advanced turns: {turns_before} → {turns_after}")
+
+    def test_07_combat_message_categories_exist(self):
+        """Verify that combat message log has three categories after combat."""
+        print("\n--- Test: Combat Message Categories ---")
+        pt = self.__class__.pt
+        g = pt.game
+        
+        # Ensure combat_message_log exists
+        self.assertTrue(
+            hasattr(g, 'combat_message_log'),
+            "Game should have combat_message_log attribute"
+        )
+        
+        # Check that it has the three required categories
+        self.assertIn("player_actions", g.combat_message_log)
+        self.assertIn("against_player", g.combat_message_log)
+        self.assertIn("observable", g.combat_message_log)
+        
+        print(f"  combat_message_log keys: {list(g.combat_message_log.keys())}")
+        print("✓ Combat message categories exist")
 
     @classmethod
     def tearDownClass(cls):

@@ -2,6 +2,105 @@
   {
     "name": "Adventurer",
     "class": "warrior",
+    "score": 10124,
+    "depth": 1,
+    "kills": 7,
+    "turns": 55,
+    "cause": "Unknown",
+    "date": "2026-06-27 02:04",
+    "seed": 1715470534
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
+    "score": 10110,
+    "depth": 1,
+    "kills": 1,
+    "turns": 35,
+    "cause": "Unknown",
+    "date": "2026-06-25 23:51",
+    "seed": 3885912295
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
+    "score": 10110,
+    "depth": 1,
+    "kills": 1,
+    "turns": 36,
+    "cause": "Unknown",
+    "date": "2026-06-26 10:08",
+    "seed": 4013773232
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
+    "score": 10107,
+    "depth": 1,
+    "kills": 1,
+    "turns": 35,
+    "cause": "Unknown",
+    "date": "2026-06-25 23:51",
+    "seed": 3885912295
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
+    "score": 10107,
+    "depth": 1,
+    "kills": 1,
+    "turns": 36,
+    "cause": "Unknown",
+    "date": "2026-06-26 10:08",
+    "seed": 4013773232
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
+    "score": 10104,
+    "depth": 1,
+    "kills": 1,
+    "turns": 35,
+    "cause": "Unknown",
+    "date": "2026-06-25 23:51",
+    "seed": 3885912295
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
+    "score": 10104,
+    "depth": 1,
+    "kills": 1,
+    "turns": 36,
+    "cause": "Unknown",
+    "date": "2026-06-26 10:08",
+    "seed": 4013773232
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
+    "score": 10101,
+    "depth": 1,
+    "kills": 1,
+    "turns": 35,
+    "cause": "Unknown",
+    "date": "2026-06-25 23:52",
+    "seed": 3885912295
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
+    "score": 10101,
+    "depth": 1,
+    "kills": 1,
+    "turns": 36,
+    "cause": "Unknown",
+    "date": "2026-06-26 10:08",
+    "seed": 4013773232
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
     "score": 10100,
     "depth": 1,
     "kills": 0,
@@ -119,104 +218,5 @@
     "cause": null,
     "date": "2026-06-19 22:14",
     "seed": 3955373656
-  },
-  {
-    "name": "Adventurer",
-    "class": "warrior",
-    "score": 10100,
-    "depth": 1,
-    "kills": 0,
-    "turns": 0,
-    "cause": "Unknown",
-    "date": "2026-06-19 22:42",
-    "seed": 91823893
-  },
-  {
-    "name": "Adventurer",
-    "class": "warrior",
-    "score": 10100,
-    "depth": 1,
-    "kills": 0,
-    "turns": 0,
-    "cause": null,
-    "date": "2026-06-19 22:42",
-    "seed": 2401054214
-  },
-  {
-    "name": "Adventurer",
-    "class": "warrior",
-    "score": 10100,
-    "depth": 1,
-    "kills": 0,
-    "turns": 0,
-    "cause": "Unknown",
-    "date": "2026-06-19 23:33",
-    "seed": 525173707
-  },
-  {
-    "name": "Adventurer",
-    "class": "warrior",
-    "score": 10100,
-    "depth": 1,
-    "kills": 0,
-    "turns": 0,
-    "cause": null,
-    "date": "2026-06-19 23:33",
-    "seed": 531718244
-  },
-  {
-    "name": "Adventurer",
-    "class": "warrior",
-    "score": 10100,
-    "depth": 1,
-    "kills": 0,
-    "turns": 0,
-    "cause": "Unknown",
-    "date": "2026-06-19 23:48",
-    "seed": 3908874271
-  },
-  {
-    "name": "Adventurer",
-    "class": "warrior",
-    "score": 10100,
-    "depth": 1,
-    "kills": 0,
-    "turns": 0,
-    "cause": null,
-    "date": "2026-06-19 23:48",
-    "seed": 1133089407
-  },
-  {
-    "name": "Adventurer",
-    "class": "warrior",
-    "score": 10100,
-    "depth": 1,
-    "kills": 0,
-    "turns": 0,
-    "cause": "Unknown",
-    "date": "2026-06-20 00:16",
-    "seed": 1264354382
-  },
-  {
-    "name": "Adventurer",
-    "class": "warrior",
-    "score": 10100,
-    "depth": 1,
-    "kills": 0,
-    "turns": 0,
-    "cause": null,
-    "date": "2026-06-20 00:16",
-    "seed": 1482725867
-  },
-  {
-    "name": "Adventurer",
-    "class": "warrior",
-    "score": 10100,
-    "depth": 1,
-    "kills": 0,
-    "turns": 0,
-    "cause": "Unknown",
-    "date": "2026-06-20 00:18",
-    "seed": 387664104
   }
 ]

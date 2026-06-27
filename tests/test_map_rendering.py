@@ -77,19 +77,31 @@ def test_ui_status_panel_fits_below_map():
     ui = UI(renderer=ConsoleLikeRenderer(), config=config)
     player = Entity(hp=7, max_hp=10, level=2, gold=5, nutrition=10, max_nutrition=20)
     state = GameState(depth=3)
-    game = SimpleNamespace(message_log=["Welcome to DarkDelve!"])
+    # With new combat message system, messages go to combat_message_log
+    game = SimpleNamespace(
+        message_log=["Welcome to DarkDelve!"],
+        combat_message_log={
+            "player_actions": ["[YOU] Player attacks Goblin! HIT!"],
+            "against_player": [],
+            "observable": []
+        }
+    )
 
     ui.render_ui(player, state, CombatLog(), turn=12, game=game)
 
-    assert ui.ui_y == 44
+    # With 8 rows reserved for UI (status, controls, 3 combat messages, 3 combat log),
+    # ui_y = max(0, 50 - 8) = 42, but also max(42, 43) = 43 (map_height)
+    assert ui.ui_y == 43
     status = "".join(chr(int(ch)) if int(ch) else " " for ch in console.ch[ui.ui_y]).rstrip()
     controls = "".join(chr(int(ch)) if int(ch) else " " for ch in console.ch[ui.ui_y + 1]).rstrip()
-    messages = "".join(chr(int(ch)) if int(ch) else " " for ch in console.ch[ui.ui_y + 2]).rstrip()
+    # ui_y + 2 is now the first combat message line (player actions)
+    player_actions = "".join(chr(int(ch)) if int(ch) else " " for ch in console.ch[ui.ui_y + 2]).rstrip()
 
     assert "HP 7/10" in status
     assert "Depth 3" in status
     assert "WASD=Move" in controls
-    assert "Welcome to DarkDelve!" in messages
+    # Combat message line should show player action
+    assert "[YOU]" in player_actions
 
 
 def test_render_entities_keeps_player_visible_over_item_on_same_tile():

@@ -57,8 +57,7 @@ class TestCombatSystem(unittest.TestCase):
         
     def test_resolve_attack_basic(self):
         """Test basic attack resolution"""
-        resolver = CombatResolver()
-        event = resolver.resolve_attack(self.player, self.enemy)
+        event = CombatResolver.resolve_attack(self.player, self.enemy)
         
         self.assertIsInstance(event, CombatEvent)
         self.assertEqual(event.attacker_name, self.player.name)
@@ -69,14 +68,12 @@ class TestCombatSystem(unittest.TestCase):
         
     def test_resolve_attack_damage(self):
         """Test attack resolution with damage"""
-        resolver = CombatResolver()
-        
         # Test multiple attacks to get some hits
         hits = 0
         total_damage = 0
         
         for _ in range(20):
-            event = resolver.resolve_attack(self.player, self.enemy)
+            event = CombatResolver.resolve_attack(self.player, self.enemy)
             if event.result in [HitResult.HIT, HitResult.CRITICAL]:
                 hits += 1
                 total_damage += event.damage
@@ -86,21 +83,17 @@ class TestCombatSystem(unittest.TestCase):
         
     def test_critical_hits(self):
         """Test critical hit mechanics"""
-        resolver = CombatResolver()
-        
         # Force a critical hit by mocking d20 roll
         with patch('random.randint', return_value=20):
-            event = resolver.resolve_attack(self.player, self.enemy)
+            event = CombatResolver.resolve_attack(self.player, self.enemy)
             self.assertEqual(event.result, HitResult.CRITICAL)
             self.assertGreater(event.damage, 0)  # Critical hits deal damage
             
     def test_critical_fails(self):
         """Test critical fail mechanics"""
-        resolver = CombatResolver()
-        
         # Force a critical fail by mocking d20 roll
         with patch('random.randint', return_value=1):
-            event = resolver.resolve_attack(self.player, self.enemy)
+            event = CombatResolver.resolve_attack(self.player, self.enemy)
             self.assertEqual(event.result, HitResult.CRITICAL_FAIL)
             self.assertEqual(event.damage, 0)  # Critical fails deal no damage
         
@@ -237,8 +230,7 @@ class TestCombatSystem(unittest.TestCase):
         self.enemy.inventory.equip(armor.id, EquipmentSlot.BODY)
         
         # Test combat with equipped items
-        resolver = CombatResolver()
-        event = resolver.resolve_attack(self.player, self.enemy)
+        event = CombatResolver.resolve_attack(self.player, self.enemy)
         
         # Event should be created and damage should be applied
         self.assertIsInstance(event, CombatEvent)
@@ -247,33 +239,27 @@ class TestCombatSystem(unittest.TestCase):
         
     def test_combat_critical_hits(self):
         """Test critical hit mechanics"""
-        resolver = CombatResolver()
-        
         # Force a critical hit by mocking d20 roll
         with patch('random.randint', return_value=20):
-            event = resolver.resolve_attack(self.player, self.enemy)
+            event = CombatResolver.resolve_attack(self.player, self.enemy)
             self.assertEqual(event.result, HitResult.CRITICAL)
             self.assertGreater(event.damage, 0)  # Critical hits deal damage
         
     def test_combat_misses(self):
         """Test miss mechanics"""
-        resolver = CombatResolver()
-        
         # Force a miss by mocking low d20 roll
         with patch('random.randint', return_value=5):
-            event = resolver.resolve_attack(self.player, self.enemy)
+            event = CombatResolver.resolve_attack(self.player, self.enemy)
             self.assertEqual(event.result, HitResult.MISS)
             self.assertEqual(event.damage, 0)  # Misses deal no damage
         
     def test_combat_overkill(self):
         """Test combat overkill (damage exceeding current HP)"""
-        resolver = CombatResolver()
-        
         # Set enemy to very low HP
         self.enemy.hp = 2
         
         # Test that combat can still deal damage even when it exceeds HP
-        event = resolver.resolve_attack(self.player, self.enemy)
+        event = CombatResolver.resolve_attack(self.player, self.enemy)
         
         # Event should still be created even if damage exceeds HP
         self.assertIsInstance(event, CombatEvent)
@@ -373,17 +359,16 @@ class TestCombatIntegration(unittest.TestCase):
         
     def test_full_combat_sequence(self):
         """Test a full combat sequence"""
-        resolver = CombatResolver()
         turn = 1
         
         with patch('random.randint', return_value=20):
             # Player attacks enemy
-            player_event = resolver.resolve_attack(self.player, self.enemy)
+            player_event = CombatResolver.resolve_attack(self.player, self.enemy)
             player_event.turn = turn
             self.combat_log.add_event(player_event)
             
             # Enemy attacks back
-            enemy_event = resolver.resolve_attack(self.enemy, self.player)
+            enemy_event = CombatResolver.resolve_attack(self.enemy, self.player)
             enemy_event.turn = turn
             self.combat_log.add_event(enemy_event)
         
@@ -399,14 +384,13 @@ class TestCombatIntegration(unittest.TestCase):
         
     def test_combat_until_victory(self):
         """Test combat until one side is defeated"""
-        resolver = CombatResolver()
         turn = 1
         max_turns = 100
         
         with patch('random.randint', return_value=20):
             while self.player.is_alive and self.enemy.is_alive and turn <= max_turns:
                 # Player attacks
-                player_event = resolver.resolve_attack(self.player, self.enemy)
+                player_event = CombatResolver.resolve_attack(self.player, self.enemy)
                 player_event.turn = turn
                 self.combat_log.add_event(player_event)
                 if player_event.result in (HitResult.HIT, HitResult.CRITICAL):
@@ -416,7 +400,7 @@ class TestCombatIntegration(unittest.TestCase):
                     break
                     
                 # Enemy attacks
-                enemy_event = resolver.resolve_attack(self.enemy, self.player)
+                enemy_event = CombatResolver.resolve_attack(self.enemy, self.player)
                 enemy_event.turn = turn
                 self.combat_log.add_event(enemy_event)
                 if enemy_event.result in (HitResult.HIT, HitResult.CRITICAL):
@@ -444,13 +428,12 @@ class TestCombatIntegration(unittest.TestCase):
         enemy2.max_hp = 10
         enemy2.hp = 10
         
-        resolver = CombatResolver()
         combat_log = CombatLog()
         
         with patch('random.randint', return_value=20):
             # Player attacks both enemies
-            event1 = resolver.resolve_attack(self.player, self.enemy)
-            event2 = resolver.resolve_attack(self.player, enemy2)
+            event1 = CombatResolver.resolve_attack(self.player, self.enemy)
+            event2 = CombatResolver.resolve_attack(self.player, enemy2)
         
         if event1.result in (HitResult.HIT, HitResult.CRITICAL):
             self.enemy.hp -= event1.damage
@@ -472,9 +455,8 @@ class TestCombatIntegration(unittest.TestCase):
             char="o", color=COLORS['enemy_weak'], name="Far Orc",
             blocks=True,
         )
-        resolver = CombatResolver()
         with patch('random.randint', return_value=20):
-            event = resolver.resolve_attack(self.player, far_enemy)
+            event = CombatResolver.resolve_attack(self.player, far_enemy)
         self.assertTrue(getattr(event, 'out_of_range', False))
         self.assertEqual(event.damage, 0)
         self.assertEqual(event.result, HitResult.MISS)
@@ -486,11 +468,75 @@ class TestCombatIntegration(unittest.TestCase):
             char="g", color=COLORS['enemy_normal'], name="Adjacent Goblin",
             blocks=True, inventory=Inventory(max_weight=100),
         )
-        resolver = CombatResolver()
         with patch('random.randint', return_value=20):
-            event = resolver.resolve_attack(self.player, adj_enemy)
+            event = CombatResolver.resolve_attack(self.player, adj_enemy)
         self.assertFalse(getattr(event, 'out_of_range', False))
         self.assertIn(event.result, (HitResult.HIT, HitResult.CRITICAL))
+
+
+class TestStartingGearAutoEquip(unittest.TestCase):
+    """Regression test: player must start with equipped gear from config."""
+
+    def test_create_item_by_id_case_insensitive(self):
+        """create_item_by_id should match config IDs like 'iron_longsword' to item 'Iron Longsword'."""
+        from darkdelve import Game
+        game = Game()
+        # These are the warrior's start_gear IDs from config/game.yaml
+        item = game.create_item_by_id("iron_longsword")
+        self.assertIsNotNone(item, "create_item_by_id('iron_longsword') returned None")
+        self.assertEqual(item.id, "Iron Longsword")
+
+        item = game.create_item_by_id("chain_mail")
+        self.assertIsNotNone(item, "create_item_by_id('chain_mail') returned None")
+        self.assertEqual(item.id, "Chain Mail")
+
+        item = game.create_item_by_id("wooden_shield")
+        self.assertIsNotNone(item, "create_item_by_id('wooden_shield') returned None")
+
+        item = game.create_item_by_id("ration_3")
+        self.assertIsNotNone(item, "create_item_by_id('ration_3') returned None")
+
+    def test_player_has_starting_gear_equipped(self):
+        """After Game.initialize(), player should have starting gear equipped."""
+        from darkdelve import Game
+        game = Game()
+        game.initialize()
+
+        player = game.player
+        # Player should have damage_bonus > 0 (from equipped weapon)
+        self.assertGreater(player.damage_bonus, 0,
+                           "Player has no damage_bonus - starting weapon not equipped")
+        # Player should have to_hit_bonus > 0 (from equipped weapon)
+        self.assertGreater(player.to_hit_bonus, 0,
+                           "Player has no to_hit_bonus - starting weapon not equipped")
+        # Player should have armor_class > base (10 + defense)
+        self.assertGreater(player.armor_class, 12,
+                           "Player AC too low - starting armor not equipped")
+
+    def test_player_can_deal_damage_to_monster(self):
+        """Player with starting gear should be able to damage a monster within a few hits."""
+        from darkdelve import Game, Entity, Inventory, HitResult
+        game = Game()
+        game.initialize()
+
+        player = game.player
+        # Create a weak monster adjacent to player
+        monster = Entity(
+            x=player.x + 1, y=player.y, char="g", color=(100, 200, 100),
+            name="Test Goblin", blocks=True,
+            hp=10, max_hp=10, power=2, defense=1, speed=100,
+            inventory=Inventory(max_weight=100)
+        )
+
+        # Attack until monster dies or 20 attacks pass
+        for _ in range(20):
+            initial_hp = monster.hp
+            game.attack(player, monster)
+            if monster.hp < initial_hp:
+                break  # Successfully dealt damage
+
+        self.assertLess(monster.hp, 10,
+                        "Player dealt no damage to monster after 20 attacks")
 
 
 if __name__ == '__main__':

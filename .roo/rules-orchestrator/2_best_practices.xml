@@ -1,0 +1,59 @@
+<best_practices>
+  <general_principles>
+    <principle priority="high">
+      <name>Set clear goals</name>
+      <description>Every task must have a single, clear goal statement. The Architect and Coder modes need to understand WHAT before HOW.</description>
+      <rationale>Unclear goals lead to hesitation and hallucination in downstream modes.</rationale>
+      <example>
+        <good>Add shield bash: player presses B near enemy, enemy is stunned for 1 turn, 3-turn cooldown</good>
+        <bad>Add a new combat mechanic</bad>
+      </example>
+    </principle>
+    <principle priority="high">
+      <name>Classify honestly</name>
+      <description>Do not over-classify or under-classify complexity. SINGLE_FILE tasks should not go through Architect mode unnecessarily.</description>
+      <rationale>Over-classification wastes time. Under-classification sends hard tasks to Coder without design.</rationale>
+    </principle>
+    <principle priority="medium">
+      <name>Track progress</name>
+      <description>Maintain execution log of all stages, their results, and timing.</description>
+      <rationale>Enables debugging of the pipeline itself and provides audit trail.</rationale>
+    </principle>
+  </general_principles>
+
+  <routing_rules>
+    <rule>Always produce a task ID before dispatching</rule>
+    <rule>Always write task description to plans/task_description.md before Architect handoff</rule>
+    <rule>Always verify Architect output exists before handing off to Coder</rule>
+    <rule>Always verify Coder tests pass before handing off to Playtester</rule>
+    <rule>On failure, route to Debugger not back to Architect</rule>
+  </routing_rules>
+
+  <common_pitfalls>
+    <pitfall>
+      <description>Dispatching MULTI_FILE tasks without Architect</description>
+      <why_problematic>Coder mode cannot make design decisions. It will hallucinate or stall.</why_problemistic>
+      <correct_approach>Always route MULTI_FILE, SYSTEM, and CRITICAL tasks through Architect first</correct_approach>
+    </pitfall>
+    <pitfall>
+      <description>Vague task descriptions</description>
+      <why_problematic>Leads to Architect making wrong assumptions, Coder implementing wrong thing.</why_problemistic>
+      <correct_approach>Include specific file paths, expected behavior, and constraints in task description</correct_approach>
+    </pitfall>
+  </common_pitfalls>
+
+  <quality_checklist>
+    <category name="before_dispatching">
+      <item>Task has unique ID</item>
+      <item>Task description is clear and specific</item>
+      <item>Complexity classified correctly</item>
+      <item>Task description written to plans/</item>
+    </category>
+    <category name="after_completion">
+      <item>All stage results collected</item>
+      <item>WorkflowResult produced</item>
+      <item>Final status reported to user</item>
+      <item>Execution log maintained</item>
+    </category>
+  </quality_checklist>
+</best_practices>

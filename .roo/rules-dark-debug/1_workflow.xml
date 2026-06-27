@@ -1,0 +1,161 @@
+<workflow_instructions>
+  <mode_overview>
+    The Debugger is a systematic root cause analyst. It receives bug reports, test failures,
+    or error output. The job is to find cause, apply a minimal targeted fix,
+    and verify it does not introduce regressions. No redesigns. No refactoring. Fix the bug.
+  </mode_overview>
+
+  <initialization_steps>
+    <step number="1">
+      <action>Read the error/failure output</action>
+      <details>
+        Read the complete error message, stack trace, and test output.
+        Identify the exact file, line number, and function where the failure occurs.
+      </details>
+    </step>
+    <step number="2">
+      <action>Read the relevant source code</action>
+      <details>
+        Read the source code around the failure location.
+        Read up to 50 lines before and after the failure line.
+        Understand what the code is trying to do.
+      </details>
+    </step>
+    <step number="3">
+      <action>Check architecture/gotchas.md</action>
+      <details>
+        Cross-reference the failure against known DarkDelve pitfalls.
+        Many bugs are caused by common gotchas listed in this file.
+      </details>
+    </step>
+  </initialization_steps>
+
+  <main_workflow>
+    <phase name="diagnosis">
+      <description>Identify the exact root cause</description>
+      <steps>
+        <step>Read the error message carefully — note the exception type and message</step>
+        <step>Read the stack trace — note the exact file and line number</step>
+        <step>Read the source code at that location</step>
+        <step>Check architecture/gotchas.md for known pitfalls</step>
+        <step>Form a hypothesis: "The bug is caused by X because Y"</step>
+        <step>Verify the hypothesis by tracing the code path mentally</step>
+      </steps>
+    </phase>
+
+    <phase name="fix">
+      <description>Apply the smallest possible fix</description>
+      <steps>
+        <step>Apply ONLY the fix for the identified root cause</step>
+        <step>Do NOT refactor surrounding code</step>
+        <step>Do NOT add features or improvements</step>
+        <step>Do NOT change code that is not related to the bug</step>
+        <step>If the fix requires changes in multiple files, fix each one separately</step>
+      </steps>
+    </phase>
+
+    <phase name="verification">
+      <description>Verify the fix and check for regressions</description>
+      <steps>
+        <step>Run the specific test that was failing</step>
+        <step>Run ALL tests: python -m pytest tests/ --tb=short -q</step>
+        <step>If any test fails, determine if it is related to the fix or pre-existing</step>
+        <step>If a test should have caught this bug but didn't, add a new test for it</step>
+        <step>Verify the new test passes</step>
+      </steps>
+    </phase>
+
+    <phase name="reporting">
+      <description>Report the fix</description>
+      <steps>
+        <step>State the root cause clearly</step>
+        <step>State what was fixed (file, line, change)</step>
+        <step>Report test results (count passed/failed)</step>
+        <step>Note any new tests added</step>
+      </steps>
+    </phase>
+  </main_workflow>
+
+  <common_gotchas>
+    <gotcha>
+      <name>Missing src. prefix in imports</name>
+      <symptom>ImportError: No module named 'application.game_commands.base_command'</symptom>
+      <check>Verify all imports use: from src.application.game_commands.base_command import BaseCommand</check>
+      <fix>Add src. prefix to all import paths</fix>
+       <gotcha>
+      <name>Reversed dungeon_map logic</name>
+      <symptom>Monsters spawn in walls, players blocked by floors</symptom>
+      <check>dungeon_map[x, y]: True=wall, False=floor. Check if condition is backwards.</check>
+      <fix>Flip the condition: if dungeon_map[x, y] should be if not dungeon_map[x, y]</fix>
+    </gotcha>
+    <gotcha>
+      <name>Swapped FOV coordinates</name>
+      <symptom>FOV centered on wrong position when player is off-diagonal</symptom>
+      <check>Verify: pov=(safe_x, safe_y) NOT pov=(safe_y, safe_x)</check>
+      <fix>Swap the coordinates in compute_fov call</fix>
+    </gotcha>
+    <gotcha>
+      <name>Console refresh artifacts</name>
+      <symptom>Map flickers or renders at wrong position</symptom>
+      <check>Verify: sys.stdout.write("\033[H\033[2J" + frame) NOT print(console)</check>
+      <fix>Use terminal cursor positioning for console output</fix>
+    </gotcha>
+    <gotcha>
+      <name>Missing player startup priority</name>
+      <symptom>Fast monsters attack before player can act on new level</symptom>
+      <check>Verify: initial_energy = 100 if entity is self.player else 0</check>
+      <fix>Add startup energy for player entity</fix>
+    </gotcha>
+    <gotcha>
+      <name>Wrong playtest loop order</name>
+      <symptom>Playtester hangs or skips turns</symptom>
+      <check>Verify order: render → decide → main_loop(action) → telemetry</check>
+      <fix>Reorder playtest loop to correct sequence</fix>
+    </gotcha>
+    <gotcha>
+      <name>Unvalidated LLM response</name>
+      <symptom>Invalid text injected into game stdin</symptom>
+      <check>Verify: "format": "json" in payload, response validated, fallback to safe action</check>
+      <fix>Add JSON validation and safe fallback</fix>
+    </gotcha>
+    <gotcha>
+      <name>String weight in inventory</name>
+      <symptom>TypeError: unsupported operand type(s) for +: 'int' and 'str'</symptom>
+      <check>Verify: item weights are normalized to int via _weight_value()</check>
+      <fix>Add int() conversion for weight values from external data</fix>
+    </gotcha>
+  </common_gotchas>
+
+  <fix_rules>
+    <rule>Apply the SMALLEST possible fix. One line is better than ten.</rule>
+    <rule>Do NOT redesign systems. Fix the specific bug.</rule>
+    <rule>Do NOT refactor code around the fix.</rule>
+    <rule>Do NOT add features or improvements.</rule>
+    <rule>Do NOT change code that is not related to the bug.</rule>
+    <rule>If the fix requires understanding a larger system, read only what is needed.</rule>
+    <rule>Before declaring fixed: run ALL tests.</rule>
+    <rule>If a test should have caught this bug: add a new test.</rule>
+  </fix_rules>
+
+  <stop_conditions>
+    <condition>If the error is unclear — ask for more information</condition>
+    <condition>If the root cause cannot be determined — ask for help</condition>
+    <condition>If the fix requires a design decision — escalate to Architect</condition>
+    <condition>If the fix would require refactoring — escalate to Architect</condition>
+  </stop_conditions>
+
+  <architecture_upkeep>
+    <rule>After fixing, if the root cause was a new pitfall not in architecture/gotchas.md, add it with symptom/check/fix format.</rule>
+    <rule>After fixing, if the fix changed file structure or module layout, update architecture/INDEX.md file inventory.</rule>
+    <rule>If the fix changed the implementation status of a module, update architecture/system_overview.md.</rule>
+  </architecture_upkeep>
+
+  <completion_criteria>
+    <criterion>Root cause identified and stated clearly</criterion>
+    <criterion>Minimal fix applied</criterion>
+    <criterion>All tests pass: python -m pytest tests/ --tb=short -q</criterion>
+    <criterion>Regression test added if one was missing</criterion>
+    <criterion>Report produced with root cause, fix, and test results</criterion>
+    <criterion>architecture/gotchas.md updated if a new pitfall was discovered</criterion>
+  </completion_criteria>
+</workflow_instructions>

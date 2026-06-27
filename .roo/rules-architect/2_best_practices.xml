@@ -1,0 +1,80 @@
+<best_practices>
+  <general_principles>
+    <principle priority="high">
+      <name>Design for the coder, not for yourself</name>
+      <description>Your output is consumed by a small, fast model that cannot improvise. Every detail must be explicit.</description>
+      <rationale>The coder will faithfully implement what you write. If you leave gaps, it will hallucinate.</rationale>
+      <example>
+        <good>def execute_shieldacker: Entity, target: Entity) -> Dict[str, Any]:
+    # Check cooldown
+    if attacker.shield_bash_cooldown > 0:
+        return {"success": False, "reason": "on_cooldown", "cooldown": attacker.shield_bash_cooldown}
+    # Apply stun
+    target.stun_turns = 1
+    attacker.shield_bash_cooldown = 3
+    return {"success": True, "stun_applied": True, "cooldown_set": 3}</good>
+        <bad>def execute_shield_bash(attacker, target):
+    # Handle shield bash logic
+    pass</bad>
+      </example>
+    </principle>
+    <principle priority="high">
+      <name>Read before writing</name>
+      <description>Always read existing source files before designing. Match existing patterns exactly.</description>
+      <rationale>Designs that contradict existing patterns confuse the coder and cause bugs.</rationale>
+    </principle>
+    <principle priority="high">
+      <name>Pick options, don't present them</name>
+      <description>When there are multiple valid approaches, pick ONE and document it. Never write "either X or Y."</description>
+      <rationale>The coder cannot make design decisions. Presenting options causes hesitation.</rationale>
+    </principle>
+    <principle priority="medium">
+      <name>Specify exact line ranges</name>
+      <description>For files to modify, specify the exact line range where changes go.</description>
+      <rationale>Prevents the coder from inserting code in the wrong location.</rationale>
+    </principle>
+  </general_principles>
+
+  <output_rules>
+    <rule>Every design document must have all 8 sections</rule>
+    <rule>Pseudocode must be detailed enough to translate to real code without interpretation</rule>
+    <rule>Import statements must be complete and use src. prefix</rule>
+    <rule>Test code must be complete and runnable — no placeholders</rule>
+    <rule>Integration notes must reference specific files and functions</rule>
+    <rule>Risks section must reference architecture/gotchas.md when applicable</rule>
+  </output_rules>
+
+  <common_pitfalls>
+    <pitfall>
+      <description>Leaving function bodies as "pass" or "TODO"</description>
+      <why_problemistic>Coder will not know what to implement. Hallucination risk is high.</why_problemistic>
+      <correct_approach>Write complete pseudocode for every function body</correct_approach>
+    </pitfall>
+    <pitfall>
+      <description>Referencing files that don't exist without creating them</description>
+      <why_problemistic>Coder will try to modify non-existent files and fail.</why_problemistic>
+      <correct_approach>If a file is referenced but not in "Files to Create," verify it exists</correct_approach>
+    </pitfall>
+    <pitfall>
+      <description>Design patterns that contradict project conventions</description>
+      <why_problemistic>Coder follows conventions. Contradictions cause confusion.</why_problemistic>
+      <correct_approach>Read existing code first. Match patterns exactly.</correct_approach>
+    </pitfall>
+  </common_pitfalls>
+
+  <quality_checklist>
+    <category name="before_output">
+      <item>Read all relevant existing source files</item>
+      <item>Checked architecture/gotchas.md for risks</item>
+      <item>Picked all design options (no "either/or")</item>
+      <item>Verified all referenced files exist or are in "Files to Create"</item>
+    </category>
+    <category name="after_output">
+      <item>All 8 sections present in design document</item>
+      <item>No pseudocode body is empty or has TODO</item>
+      <item>All imports use src. prefix</item>
+      <item>Test code is complete and runnable</item>
+      <item>Line ranges specified for all file modifications</item>
+    </category>
+  </quality_checklist>
+</best_practices>
