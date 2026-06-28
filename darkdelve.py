@@ -41,6 +41,16 @@ from src.domain.agents import (
 from src.domain.agents.integration import AgentTurnProcessor, AgentTurnContext
 from src.domain.agents.state import AgentGameState, EntityState, ItemState
 
+# Import DM LLM integration
+from src.domain.value_objects.llm_logging import LLMLogger, LLMCallLog
+from src.domain.value_objects.llm_observability import recent_ui_entries
+from src.domain.value_objects.perception import PerceptionStatus
+from src.domain.services.behavior_script_service import BehaviorScriptService
+from src.domain.agents.dungeon_master_agent import DungeonMasterAgent
+from src.domain.services.level_design_service import LevelDesignService
+from src.infrastructure.external.ollama_service import OllamaService
+from src.application.services.llm_worker import llm_worker_func
+
 # =============================================================================
 # CONFIGURATION
 # =============================================================================
@@ -1856,6 +1866,15 @@ class UI:
 
         # Combat log at ui_y + 5, 6, 7
         self.render_combat_log(combat_log)
+        
+        # LLM activity feed (if DM enabled)
+        if game is not None and getattr(game, 'dm_enabled', False) and getattr(game, 'llm_logger', None):
+            recent = game.llm_logger.get_recent_entries(3)
+            for i, entry in enumerate(recent):
+                status = "OK" if entry.success else "FAIL"
+                self._render_text(0, self.console_height - 4 + i,
+                    f"DM T{entry.turn_number} {entry.call_type} {entry.latency_ms:.0f}ms {status}",
+                    COLORS['gold'])
 
 # =============================================================================
 # INPUT HANDLING
@@ -1992,6 +2011,15 @@ class Game:
         # Agent system integration
         self.agent_manager = AgentManager()
         self.turn_processor: Optional[AgentTurnProcessor] = None
+        
+        # DM LLM integration
+        self.dm_enabled = False
+        self.llm_logger: Optional[LLMLogger] = None
+        self.dm_agent: Optional[DungeonMasterAgent] = None
+        self.llm_request_queue: Optional[queue.Queue] = None
+        self.llm_response_queue: Optional[queue.Queue] = None
+        self.llm_max_calls = 5
+        self.llm_calls_this_turn = 0
     
     @property
     def console(self):
@@ -2039,6 +2067,25 @@ class Game:
         # Initialize agent turn processor
         self.turn_processor = AgentTurnProcessor(self)
         self.turn_processor.set_llm_queues(llm_request_queue, llm_response_queue)
+        
+        # Initialize DM LLM integration
+        dm_config = self.config.get('dungeon_master', {})
+        self.dm_enabled = dm_config.get('enabled', False)
+        self.llm_logger = LLMLogger(log_path=dm_config.get('log_path', 'logs/llm_activity.json'))
+        self.llm_request_queue = queue.Queue(maxsize=50)
+        self.llm_response_queue = queue.Queue(maxsize=50)
+        self.llm_max_calls = dm_config.get('max_calls_per_turn', 5)
+        self.llm_calls_this_turn = 0
+        
+        if self.dm_enabled:
+            ollama_service = OllamaService(base_url=dm_config.get('ollama_endpoint', 'http://localhost:11434'))
+            level_design = LevelDesignService(self.llm_logger, ollama_service)
+            self.dm_agent = DungeonMasterAgent(ollama_service, level_design, self.llm_logger)
+            self.llm_worker = threading.Thread(target=llm_worker_func, args=(
+                self.llm_request_queue, self.llm_response_queue,
+                self.dm_agent, self.llm_logger, self.llm_max_calls
+            ), daemon=True)
+            self.llm_worker.start()
         
         # Initialize tcod
         tileset_path = ASSETS_PATH / "tilesets" / self.config['display']['tileset']
@@ -2175,6 +2222,25 @@ class Game:
             else:
                 agent = RandomAgent(entity, agent_type=AgentType.MONSTER)
             self.agent_manager.register_agent(agent)
+        
+        # Request behavior scripts from LLM for non-player entities
+        if self.dm_enabled and self.config.get('dungeon_master', {}).get('enable_behavior_generation', True):
+            for entity in self.entities:
+                if entity is self.player:
+                    continue
+                if not hasattr(entity, 'behavior_script'):
+                    perception = self._get_perception_for_entity(entity)
+                    self.llm_request_queue.put({
+                        'type': 'behavior',
+                        'entity_id': entity.id,
+                        'mob_type': getattr(entity, 'mob_type', 'default'),
+                        'perception': perception.as_dict() if perception else {},
+                        'social_context': '',
+                        'valid_conditions': ['can_see_player', 'can_hear_player', 'health_below', 'in_combat'],
+                        'valid_actions': ['attack', 'flee', 'patrol', 'wait'],
+                        'turn_number': self.turn,
+                        'prompt_summary': f'Behavior for {entity.name}',
+                    })
 
         # Initialize energy system
         self.energy_system = EnergySystem()
@@ -2424,6 +2490,11 @@ class Game:
             # Render after all monster turns so the player can see movement
             if render_to_stdout and actors_processed > 0:
                 self.renderer.present()
+
+            # Process LLM responses (for DM LLM integration)
+            if self.dm_enabled:
+                self.llm_calls_this_turn = 0  # reset per turn
+                self._process_llm_responses()
 
             # Process LLM responses (for commander entities that use the legacy system)
             process_llm_responses(self.entities)
@@ -2697,20 +2768,111 @@ class Game:
         event = self._console_key_to_event(key)
         return [event] if event else []
 
+    def _get_perception_for_entity(self, entity: Entity) -> Optional[PerceptionStatus]:
+        """Build a PerceptionStatus for an entity based on its surroundings."""
+        if self.dungeon_map is None or self.fov is None:
+            return None
+        
+        # Check if entity is visible to player
+        visible = bool(self.fov[entity.x, entity.y]) if entity.x < self.fov.shape[0] and entity.y < self.fov.shape[1] else False
+        
+        # Find player distance
+        player_dist = max(abs(entity.x - self.player.x), abs(entity.y - self.player.y))
+        
+        # Find visible threats and allies
+        visible_threats = []
+        visible_allies = []
+        visible_items = []
+        
+        for e in self.entities:
+            if e is entity or not e.is_alive:
+                continue
+            dist = max(abs(entity.x - e.x), abs(entity.y - e.y))
+            if dist <= 8:  # Perception range
+                if e is self.player:
+                    visible_threats.append(e.id)
+                elif e.is_commander:
+                    visible_allies.append(e.id)
+        
+        return PerceptionStatus(
+            entity_id=entity.id,
+            can_see_player=visible,
+            can_hear_player=player_dist <= 12,
+            player_distance_estimate=float(player_dist),
+            visible_threats=visible_threats,
+            visible_allies=visible_allies,
+            visible_items=visible_items,
+            environment_danger=0.0,
+            light_level=1.0,
+        )
+    
+    def _process_llm_responses(self):
+        """Process LLM responses from the response queue."""
+        while not self.llm_response_queue.empty():
+            try:
+                result = self.llm_response_queue.get_nowait()
+                entity_id = result.get('entity_id')
+                for entity in self.entities:
+                    if getattr(entity, 'id', None) == entity_id:
+                        if result.get('success') and result.get('behavior_script'):
+                            entity.behavior_script = result['behavior_script']
+                        break
+            except Exception:
+                break
+    
+    def _fallback_monster_ai(self, entity: Entity):
+        """Fallback AI for monsters when no behavior script is available."""
+        if not entity.is_alive:
+            return
+        
+        dist = max(abs(entity.x - self.player.x), abs(entity.y - self.player.y))
+        if dist <= 15:
+            entity.move_towards(self.player.x, self.player.y, self.dungeon_map, self.entities)
+            if max(abs(entity.x - self.player.x), abs(entity.y - self.player.y)) <= 1:
+                self.attack(entity, self.player)
+
     def monster_turn(self, entity: Entity):
         if not entity.is_alive:
             return
         
-        # Simple AI for non-commanders
-        if not entity.is_commander:
-            dist = max(abs(entity.x - self.player.x), abs(entity.y - self.player.y))
-            if dist <= 15:
+        # Check for behavior script first
+        if hasattr(entity, 'behavior_script') and entity.behavior_script:
+            perception = self._get_perception_for_entity(entity)
+            entity_state = {'health_pct': entity.hp / entity.max_hp if entity.max_hp > 0 else 1.0, 'in_combat': True}
+            action = BehaviorScriptService().evaluate_script(entity.behavior_script, perception, entity_state)
+            if action:
+                self._execute_entity_action(entity, action)
+                return
+        
+        # Fallback to default AI
+        self._fallback_monster_ai(entity)
+    
+    def _execute_entity_action(self, entity: Entity, action):
+        """Execute an action from a behavior script."""
+        if not action:
+            return
+        
+        action_type = action.action_type if hasattr(action, 'action_type') else str(action)
+        
+        if action_type == 'attack':
+            self.attack(entity, self.player)
+        elif action_type == 'flee':
+            # Move away from player
+            dx = entity.x - self.player.x
+            dy = entity.y - self.player.y
+            entity.move_to(entity.x + dx, entity.y + dy, self.dungeon_map, self.entities)
+        elif action_type == 'patrol':
+            # Simple patrol - move randomly
+            entity.move_towards(self.player.x, self.player.y, self.dungeon_map, self.entities)
+        elif action_type == 'wait':
+            pass  # Do nothing
+        elif action_type == 'search':
+            # Move toward player's last known position
+            if self.player:
                 entity.move_towards(self.player.x, self.player.y, self.dungeon_map, self.entities)
-                if max(abs(entity.x - self.player.x), abs(entity.y - self.player.y)) <= 1:
-                    self.attack(entity, self.player)
         else:
-            # Commander - enqueue LLM prompt
-            enqueue_commander_prompt(entity, self.player, self.entities)
+            # Unknown action, use fallback
+            self._fallback_monster_ai(entity)
     
     def attack(self, attacker: Entity, defender: Entity):
         event = CombatResolver.resolve_attack(attacker, defender)

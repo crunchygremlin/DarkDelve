@@ -167,6 +167,16 @@ durability:
   repair_stations:
   - shrine
   - forge
+
+dungeon_master:
+  enabled: true
+  model: "gpt-oss"
+  temperature: 0.7
+  ollama_endpoint: "http://localhost:11434"
+  log_path: "logs/llm_activity.json"
+  max_calls_per_turn: 5
+  enable_behavior_generation: true
+  enable_level_design: false
 damage:
   critical_multiplier: 1.5
   armor_minimum: 1

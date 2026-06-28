@@ -62,3 +62,31 @@ class PerceptionStatus:
     ally_health_status: str = "unknown"  # "healthy", "wounded", "critical", "unknown"
     time_since_player_seen: float = -1.0  # seconds, -1 = never seen
     custom_flags: Dict[str, Any] = field(default_factory=dict)
+
+    def as_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for JSON serialization."""
+        return {
+            "entity_id": self.entity_id,
+            "can_see_player": self.can_see_player,
+            "can_hear_player": self.can_hear_player,
+            "can_smell_player": self.can_smell_player,
+            "player_last_known_position": (
+                self.player_last_known_position.to_dict()
+                if hasattr(self.player_last_known_position, 'to_dict')
+                else self.player_last_known_position
+            ),
+            "player_noise_level": self.player_noise_level,
+            "player_distance_estimate": self.player_distance_estimate,
+            "visible_threats": self.visible_threats,
+            "visible_items": self.visible_items,
+            "visible_allies": self.visible_allies,
+            "visible_enemies": self.visible_enemies,
+            "environment_danger": self.environment_danger,
+            "light_level": self.light_level,
+            "nearby_traps": self.nearby_traps,
+            "nearby_exits": self.nearby_exits,
+            "combat_occurring_nearby": self.combat_occurring_nearby,
+            "ally_health_status": self.ally_health_status,
+            "time_since_player_seen": self.time_since_player_seen,
+            "custom_flags": self.custom_flags,
+        }

@@ -5,6 +5,7 @@ from typing import List, Optional, Dict
 import time
 import json
 import os
+import threading
 
 __all__ = [
     "ContextWindowDiagnostics",
@@ -92,6 +93,9 @@ class LLMCallLog:
     model: str = ""
     temperature: float = 0.0
     cached: bool = False
+    # Task-specific fields
+    turn_number: int = 0
+    call_type: str = ""  # "behavior_generation" | "level_design"
 
     def to_dict(self) -> dict:
         """Convert to dictionary representation."""
@@ -115,6 +119,8 @@ class LLMCallLog:
             "model": self.model,
             "temperature": self.temperature,
             "cached": self.cached,
+            "turn_number": self.turn_number,
+            "call_type": self.call_type,
         }
 
 
@@ -213,21 +219,39 @@ class LLMPerformanceMetrics:
 class LLMLogger:
     """Logs LLM calls to playtest/telemetry/llm_performance.json"""
 
-    def __init__(self, log_dir: str = "playtest/telemetry"):
-        self.log_dir = log_dir
+    def __init__(self, log_dir: str = "playtest/telemetry", log_path: str = None):
+        # Support both log_dir (legacy) and log_path (new) for backward compatibility
+        if log_path is not None:
+            # New parameter takes precedence
+            if log_path.endswith('.json'):
+                self.log_dir = os.path.dirname(log_path)
+                self.log_file = os.path.basename(log_path)
+            else:
+                self.log_dir = log_path
+                self.log_file = "llm_performance.json"
+        else:
+            self.log_dir = log_dir
+            self.log_file = "llm_performance.json"
         self.metrics = LLMPerformanceMetrics()
         self.call_log: List[LLMCallLog] = []
-        os.makedirs(log_dir, exist_ok=True)
+        self._lock = threading.Lock()
+        os.makedirs(self.log_dir, exist_ok=True)
 
     def log_call(self, log: LLMCallLog):
-        """Log a call and update metrics."""
-        self.call_log.append(log)
-        self.metrics.record_call(log)
-        self._flush()
+        """Log a call and update metrics (thread-safe)."""
+        with self._lock:
+            self.call_log.append(log)
+            self.metrics.record_call(log)
+            self._flush()
+
+    def get_recent_entries(self, limit: int = 5) -> List[LLMCallLog]:
+        """Get the most recent log entries."""
+        with self._lock:
+            return self.call_log[-limit:]
 
     def _flush(self):
         """Write metrics to file."""
-        path = os.path.join(self.log_dir, "llm_performance.json")
+        path = os.path.join(self.log_dir, self.log_file)
         data = {
             "metrics": {
                 "total_calls": self.metrics.total_calls,
