@@ -538,7 +538,6 @@ def _wait_for_events(self) -> List[Any]:
 - All gameplay and modal screens should call the same event-waiting helper.
 - Keep console input conversion covered by tests.
 - Verify non-interactive runs exit instead of simulating unattended monster turns.
-
 ## Generated Item Data and Entity Rendering
 
 ### Problem
@@ -575,7 +574,6 @@ if player_entity is not None:
 - Treat generated data as untrusted and normalize numeric fields before math.
 - Keep pickup covered by tests, including generated-content edge cases.
 - Always render the player after non-player entities that can share a tile.
-
 ## Ollama Player AI JSON Protocol
 
 ### Problem
@@ -630,3 +628,59 @@ non-zero or crashes.
   telemetry.
 - Preserve console frame parsing around `\033[H\033[2J` because the console
   renderer clears each frame with that exact escape sequence.
+
+## Content DB Schema Gotcha
+
+### Problem
+The `content.db` schema is key-based, not tag-based. The `generations` table uses a `key` column like `"items_arcane|divine"` or `"monsters_undead|demon|beast_1"`. Tags are embedded in the key, not in a separate column. Querying by tags requires `LIKE '%tag%'` on the key column. Do not assume a normalized schema — the key IS the tag encoding.
+
+### Root Cause
+When implementing seed-based content generation, developers might assume the content database has a normalized schema with separate tag columns. However, the existing `generations` table stores tags as part of the key string.
+
+### Solution
+Use `LIKE '%tag%'` queries on the key column when filtering by tags. For example:
+
+```python
+# Get seeds with specific tags
+seeds = repo.get_seeds_by_tags(["arcane", "divine"])
+# This translates to: key LIKE '%arcane%' AND key LIKE '%divine%'
+```
+
+### Affected Code
+- `ContentRepository.get_seeds_by_tags()` method
+- Any code that assumes tag-based querying on a normalized schema
+
+### Prevention
+- Always query the key column with `LIKE '%tag%'` patterns
+- Remember that tags are encoded in the key string, not separate columns
+- Use the provided `ContentRepository` methods rather than writing raw SQL
+- Document the key format: `"content_type_tag1|tag2|tag3"`
+
+## Explored State Leak Between Levels
+
+### Problem
+When transitioning from level 1 to level 2, the explored (fog-of-war) state from level 1 leaks into level 2, causing the player to see areas on the new level that should be unexplored.
+
+### Root Cause
+The `FOVSystem.explored` array is initialized once in `__init__` and reused across level transitions. The `compute()` method uses `|=` (OR assignment) to accumulate explored tiles, so if the explored array already exists with the same shape as the new dungeon map, it retains the old explored state.
+
+### Solution
+Reset the explored state to `None` before computing FOV for a new level:
+
+```python
+# In _generate_floor1() and _generate_standard_level()
+self.fov_system.explored = None
+self.fov = self.fov_system.compute(self.dungeon_map, self.player.x, self.player.y)
+```
+
+This forces `compute()` to create a fresh `np.zeros()` array for the new level.
+
+### Affected Code
+- [`darkdelve.py`](darkdelve.py:2336) - `_generate_floor1()` method
+- [`darkdelve.py`](darkdelve.py:2481) - `_generate_standard_level()` method
+- [`darkdelve.py`](darkdelve.py:1146) - `FOVSystem.compute()` method
+
+### Prevention
+- Always reset `fov_system.explored = None` when generating a new level
+- Consider adding a `reset()` method to `FOVSystem` for clarity
+- Add tests that verify explored state is fresh for each level

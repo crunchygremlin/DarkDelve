@@ -3,7 +3,7 @@
 import hashlib
 import sqlite3
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List, Tuple
 
 from src.shared.exceptions.infrastructure_exceptions import CacheException
 
@@ -54,12 +54,33 @@ class CacheService:
             (key, prompt_hash, response, model)
         )
         self.conn.commit()
-    
+
+    def get_all_by_prefix(self, prefix: str) -> List[tuple]:
+        """Get all cached entries whose key starts with the given prefix.
+        
+        Returns list of (key, prompt_hash, response, model, created_at, use_count) tuples.
+        """
+        cursor = self.conn.execute(
+            "SELECT key, prompt_hash, response, model, created_at, use_count "
+            "FROM generations WHERE key LIKE ? ORDER BY use_count DESC",
+            (f"{prefix}%",),
+        )
+        return cursor.fetchall()
+
+    def get_most_used(self, limit: int = 10) -> List[tuple]:
+        """Get the most-used cached entries across all types."""
+        cursor = self.conn.execute(
+            "SELECT key, prompt_hash, response, model, created_at, use_count "
+            "FROM generations ORDER BY use_count DESC LIMIT ?",
+            (limit,),
+        )
+        return cursor.fetchall()
+
     def clear(self) -> None:
         """Clear the cache."""
         self.conn.execute("DELETE FROM generations")
         self.conn.commit()
-    
+
     def close(self) -> None:
         """Close the connection."""
         self.conn.close()

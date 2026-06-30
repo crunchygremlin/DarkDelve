@@ -91,6 +91,12 @@
 | `event_bus_routing.md` | ~100 | 2026-06-27 | New — cross-cutting event flow |
 | `playtest_integration.md` | ~140 | 2026-06-27 | New — playtest ↔ core integration |
 | `mcp_integration_architecture.md` | ~120 | 2026-06-27 | New — MCP tool set architecture |
+| `src/infrastructure/repositories/content_repository.py` | ~137 | 2026-06-30 | New — ContentRepository for seed-based content generation |
+| `src/application/services/content_seeder.py` | ~137 | 2026-06-30 | New — ContentSeeder for building seed-aware prompts |
+| `src/domain/services/content_generation_service.py` | ~137 | 2026-06-30 | New — ContentGenerationService for orchestrating content generation |
+| `tests/test_content_repository.py` | ~91 | 2026-06-30 | New — Tests for ContentRepository |
+| `tests/test_content_seeder.py` | ~91 | 2026-06-30 | New — Tests for ContentSeeder |
+| `tests/test_content_generation_service.py` | ~91 | 2026-06-30 | New — Tests for ContentGenerationService |
 
 ---
 

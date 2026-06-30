@@ -61,3 +61,19 @@ class ApplicationFactory:
     def create_item_repository(self) -> ItemRepository:
         """Create an item repository instance."""
         return ItemRepository()
+
+    def create_content_repository(self, conn=None, db_path=None) -> Any:
+        """Create a ContentRepository instance.
+        
+        Args:
+            conn: An existing sqlite3.Connection to reuse.
+            db_path: Path to content.db (used only if conn is None, for backward compat).
+        """
+        from src.infrastructure.repositories.content_repository import ContentRepository
+        if conn:
+            return ContentRepository(conn)
+        # Fallback: open own connection (not recommended for production)
+        import sqlite3
+        path = db_path or Path("cache/content.db")
+        conn = sqlite3.connect(str(path), check_same_thread=False)
+        return ContentRepository(conn)

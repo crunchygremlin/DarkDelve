@@ -116,6 +116,31 @@ def llm_worker_func(
                         turn_number=current_turn,
                         call_type='level_design',
                     ))
+
+                elif call_type == 'content_items':
+                    result = dm_agent.generate_item_batch(
+                        tags=request.get('tags', []),
+                        count=request.get('count', 5),
+                        player_summary=request.get('player_summary', 'Unknown'),
+                    )
+                    response_queue.put({
+                        'content_type': 'items',
+                        'data': result,
+                        'success': result is not None,
+                    })
+
+                elif call_type == 'content_monsters':
+                    result = dm_agent.generate_monster_batch(
+                        tags=request.get('tags', []),
+                        count=request.get('count', 4),
+                        tier=request.get('tier', 3),
+                        player_summary=request.get('player_summary', 'Unknown'),
+                    )
+                    response_queue.put({
+                        'content_type': 'monsters',
+                        'data': result,
+                        'success': result is not None,
+                    })
                 
                 calls_this_turn += 1
                 

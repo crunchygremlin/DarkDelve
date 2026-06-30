@@ -12,6 +12,7 @@ from src.domain.value_objects.llm_logging import (
     LLMLogger, LLMCallLog, ContextWindowDiagnostics, estimate_tokens
 )
 from src.domain.services.level_design_service import LevelDesignService
+from src.infrastructure.repositories.content_repository import ContentRepository
 
 __all__ = ["DungeonMasterAgent"]
 
@@ -31,12 +32,14 @@ class DungeonMasterAgent:
         level_design_service: LevelDesignService,
         llm_logger: LLMLogger,
         social_service=None,
+        content_repository=None,  # NEW: ContentRepository for seed-based generation
     ):
         self.agent_id = "dungeon_master"
         self.ollama = ollama_service
         self.level_design = level_design_service
         self.logger = llm_logger
         self.social_service = social_service
+        self.content_repository = content_repository  # NEW
         self._model_name = "gpt-oss"  # Default model
         self._temperature = 0.7  # Default temperature
 
@@ -258,3 +261,85 @@ Respond with ONLY the JSON, no other text."""
             return svc.parse_script_from_json(data)
         except Exception:
             return None
+
+    def generate_item_batch(
+        self,
+        tags: List[str],
+        count: int,
+        player_summary: str = "Unknown",
+    ) -> Optional[Dict[str, Any]]:
+        """Generate new items seeded from content.db."""
+        if not self.content_repository:
+            return None
+        from src.application.services.content_seeder import ContentSeeder
+        seeder = ContentSeeder(self.content_repository)
+        prompt = seeder.build_item_prompt(tags, count, player_summary)
+        return self._call_llm_json(prompt, "item_generation")
+
+    def generate_monster_batch(
+        self,
+        tags: List[str],
+        count: int,
+        tier: int = 3,
+        player_summary: str = "Unknown",
+    ) -> Optional[Dict[str, Any]]:
+        """Generate new monsters seeded from content.db."""
+        if not self.content_repository:
+            return None
+        from src.application.services.content_seeder import ContentSeeder
+        seeder = ContentSeeder(self.content_repository)
+        prompt = seeder.build_monster_prompt(tags, count, tier, player_summary)
+        return self._call_llm_json(prompt, "monster_generation")
+
+    def _call_llm_json(self, prompt: str, context: str) -> Optional[Dict[str, Any]]:
+        """Call LLM and return parsed JSON, or None on failure."""
+        import json
+        start = time.time()
+        try:
+            response = self.ollama.generate(prompt)
+            latency = (time.time() - start) * 1000
+            self.logger.log_call(LLMCallLog(
+                call_id=str(uuid.uuid4()),
+                timestamp=start,
+                context=context,
+                entity_id=None,
+                prompt_summary=prompt[:200],
+                response_summary=response[:200],
+                latency_ms=latency,
+                tokens_used=estimate_tokens(prompt) + estimate_tokens(response),
+                success=True,
+                prompt_tokens=estimate_tokens(prompt),
+                response_tokens=estimate_tokens(response),
+                model=self._model_name,
+                temperature=self._temperature,
+            ))
+            return self._parse_json(response)
+        except Exception as e:
+            latency = (time.time() - start) * 1000
+            self.logger.log_call(LLMCallLog(
+                call_id=str(uuid.uuid4()),
+                timestamp=start,
+                context=context,
+                entity_id=None,
+                prompt_summary=prompt[:200],
+                response_summary="",
+                latency_ms=latency,
+                tokens_used=0,
+                success=False,
+                error=str(e),
+                model=self._model_name,
+                temperature=self._temperature,
+            ))
+            return None
+
+    @staticmethod
+    def _parse_json(response: str) -> Optional[Dict[str, Any]]:
+        import json
+        start = response.find('{')
+        end = response.rfind('}') + 1
+        if start >= 0 and end > start:
+            try:
+                return json.loads(response[start:end])
+            except json.JSONDecodeError:
+                pass
+        return None

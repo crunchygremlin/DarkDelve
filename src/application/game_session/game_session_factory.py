@@ -7,6 +7,7 @@ from datetime import datetime
 
 from .game_session import GameSession, SessionState
 from ...domain.entities.player import Player
+from ...infrastructure.repositories.content_repository import ContentRepository
 
 
 class GameSessionFactory:
@@ -16,8 +17,10 @@ class GameSessionFactory:
     Implements the Factory pattern for creating game sessions with proper initialization.
     """
     
-    def __init__(self):
+    def __init__(self, cache_service=None):  # NEW param: CacheService instead of ContentRepository
         """Initialize the game session factory."""
+        self.cache_service = cache_service   # NEW: CacheService for shared DB connection
+        self.content_repository = None       # Will be created from cache_service if provided
         self.default_config = {
             "auto_save": True,
             "save_interval": 300,  # 5 minutes
@@ -71,7 +74,37 @@ class GameSessionFactory:
             "config": final_config
         })
         
+        # NEW: Generate seed-based content for this game
+        if self.cache_service:
+            from src.infrastructure.repositories.content_repository import ContentRepository
+            self.content_repository = ContentRepository(self.cache_service.conn)  # pass connection, not service
+            self._generate_game_content(session)
+        
         return session
+
+    def _generate_game_content(self, session: GameSession) -> None:
+        """Generate content for the session using seed content."""
+        try:
+            from src.application.services.content_seeder import ContentSeeder
+            from src.domain.services.content_generation_service import ContentGenerationService
+            from src.infrastructure.external.ollama_service import OllamaService
+            from src.domain.value_objects.llm_logging import LLMLogger
+
+            seeder = ContentSeeder(self.content_repository)
+            ollama = OllamaService(model="qwen2.5-coder:7b-instruct")
+            logger = LLMLogger()
+            svc = ContentGenerationService(self.content_repository, seeder, ollama, logger)
+
+            result = svc.generate_game_content(
+                item_tags=["arcane", "divine"],
+                monster_tags=["undead", "demon"],
+                level_tags=["dungeon"],
+                player_summary="Unknown",
+            )
+            session.state.metadata["generated_content"] = result
+        except Exception as e:
+            # Non-fatal: game can still run without generated content
+            session.state.metadata["content_error"] = str(e)
     
     def create_quick_session(self, player: Player) -> GameSession:
         """

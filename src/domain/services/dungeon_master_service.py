@@ -6,6 +6,7 @@ from ..value_objects.difficulty import (
 )
 from ..value_objects.narrative import StoryOutline
 from .level_design_service import LevelDesignService
+from .content_generation_service import ContentGenerationService
 
 
 __all__ = [
@@ -16,8 +17,13 @@ __all__ = [
 class DungeonMasterService:
     """Orchestrates level generation, difficulty scaling, and boss chain creation."""
 
-    def __init__(self, level_design_service: Optional[LevelDesignService] = None):
+    def __init__(
+        self,
+        level_design_service: Optional[LevelDesignService] = None,
+        content_generation_service: Optional[ContentGenerationService] = None,  # NEW
+    ):
         self.level_design_service = level_design_service or LevelDesignService()
+        self.content_generation_service = content_generation_service  # NEW
         self.current_plan: Optional[DungeonMasterPlan] = None
         self.current_level: Optional[DungeonLevel] = None
 
@@ -80,6 +86,18 @@ class DungeonMasterService:
             hints=narrative.hints_dropped,
             required_items=narrative.required_key_items,
         )
+
+        # NEW: Attach generated content if available
+        if self.content_generation_service:
+            try:
+                generated = self.content_generation_service.generate_game_content(
+                    item_tags=["arcane", "divine"],
+                    monster_tags=["undead", "demon"],
+                    level_tags=["dungeon"],
+                )
+                level.metadata["generated_content"] = generated
+            except Exception:
+                pass  # Non-fatal
 
         self.current_level = level
         return level
