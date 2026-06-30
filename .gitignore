@@ -2,5 +2,5 @@ __pycache__/
 .env
 playtest/telemetry/
 saves
+logs/
 cache/content.db
-logs/combat_damage_*.
