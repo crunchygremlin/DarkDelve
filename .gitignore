@@ -4,3 +4,4 @@ playtest/telemetry/
 saves
 logs/
 cache/content.db
+cache/
