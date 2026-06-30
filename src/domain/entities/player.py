@@ -251,7 +251,25 @@ class Player(Entity):
         # Placeholder for effect removal - would need to implement
         # based on the specific effect system
         return True
-    
+
+    def drop_item(self, item: Any) -> bool:
+        """Drop an item from inventory.
+
+        Args:
+            item: The item to drop (can be Item object or item_id string)
+
+        Returns:
+            bool: True if item was dropped successfully
+        """
+        item_id = item.id if hasattr(item, 'id') else item
+
+        # Check if player has the item
+        if self.get_item_count(item_id) <= 0:
+            return False
+
+        # Remove from inventory
+        return self.inventory.remove_item(item_id)
+
     def use_item(self, item: Any) -> bool:
         """Use/consume an item from inventory.
         

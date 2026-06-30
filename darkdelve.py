@@ -480,6 +480,29 @@ class Item:
             return f"{self.name}{self.get_stat_string()}"
         return self.appearance or f"unidentified {self.item_type.value}"
 
+    # -- T-2026-0630-001: properties used by DropCommand / UseCommand --
+    @property
+    def is_droppable(self) -> bool:
+        """Items are droppable unless they are equipped."""
+        return not self.equipped
+
+    @property
+    def is_usable(self) -> bool:
+        """Items are usable if they have a special_effect defined."""
+        return self.special_effect is not None
+
+    @property
+    def consumable(self) -> bool:
+        """A consumable item disappears when used (potions, scrolls, food)."""
+        return self.item_type in (ItemType.POTION, ItemType.SCROLL, ItemType.FOOD)
+
+    @property
+    def effect(self) -> str:
+        """Return the effect string in 'heal+XX' format for UseCommand."""
+        if self.special_effect and self.effect_strength:
+            return f"{self.special_effect}+{self.effect_strength}"
+        return self.special_effect or ""
+
 @dataclass
 class Inventory:
     items: List[Item] = field(default_factory=list)
@@ -804,6 +827,61 @@ class Entity:
                 to_remove.append(effect)
         for effect in to_remove:
             del self.effects[effect]
+
+    # -- T-2026-0630-001: inventory methods used by DropCommand / UseCommand --
+
+    def get_item_count(self, item) -> int:
+        """Return the number of items in inventory matching the given item or item id."""
+        if not hasattr(self, 'inventory') or self.inventory is None:
+            return 0
+        item_id = item.id if hasattr(item, 'id') else str(item)
+        return sum(1 for i in self.inventory.items if i.id == item_id)
+
+    def add_item(self, item) -> bool:
+        """Add an item to this entity's inventory. Returns True on success."""
+        if not hasattr(self, 'inventory') or self.inventory is None:
+            return False
+        return self.inventory.add_item(item)
+
+    def drop_item(self, item) -> bool:
+        """Remove an item from inventory (drop it). Returns True if the item was present."""
+        if not hasattr(self, 'inventory') or self.inventory is None:
+            return False
+        item_id = item.id if hasattr(item, 'id') else str(item)
+        if self.get_item_count(item_id) <= 0:
+            return False
+        return self.inventory.remove_item(item_id)
+
+    def use_item(self, item) -> bool:
+        """Use an item: apply heal effects, remove consumables. Returns True on success."""
+        if not hasattr(self, 'inventory') or self.inventory is None:
+            return False
+        item_id = item.id if hasattr(item, 'id') else str(item)
+        if self.get_item_count(item_id) <= 0:
+            return False
+
+        # Apply heal effects
+        effect_str = item.effect if hasattr(item, 'effect') and item.effect else ""
+        if effect_str.startswith("heal+"):
+            try:
+                heal_amount = int(effect_str.split("+")[1])
+            except (ValueError, IndexError):
+                heal_amount = 0
+            self.hp = min(self.hp + heal_amount, self.max_hp)
+
+        # Remove consumable items from inventory
+        if hasattr(item, 'consumable') and item.consumable:
+            self.inventory.remove_item(item_id)
+
+        return True
+
+    def remove_effect(self, effect: str) -> bool:
+        """Remove an effect from this entity's active effects dict."""
+        if hasattr(self, 'effects') and isinstance(self.effects, dict):
+            if effect in self.effects:
+                del self.effects[effect]
+                return True
+        return False
 
 # =============================================================================
 # COMBAT SYSTEM
