@@ -2,6 +2,7 @@
 
 import pytest
 import numpy as np
+import tcod
 from unittest.mock import MagicMock, patch
 
 from darkdelve import Game, Entity, Item, Inventory, GameState, CONFIG, COLORS, ItemType, EquipmentSlot, EnergySystem, FOVSystem
@@ -177,3 +178,113 @@ class TestStairs:
         
         # Verify message was added (should be "There are no stairs here.")
         assert any("no stairs here" in msg for msg in game.message_log), "Should have a 'no stairs here' message when not on stairs up"
+
+
+class TestStairsRenderOrder:
+    """Regression tests: stairs must render ON TOP of entities so they are never hidden."""
+
+    def _make_console_renderer(self, console):
+        """Wrap a tcod console in a minimal renderer interface."""
+        class ConsoleLikeRenderer:
+            def __init__(self, console):
+                self.console = console
+            def print(self, x, y, text, color=None):
+                self.console.print(x, y, text, fg=color)
+            def clear(self):
+                self.console.clear()
+        return ConsoleLikeRenderer(console)
+
+    def _render_full(self, game):
+        """Run the full render pipeline with proper stair position passing."""
+        game.renderer.clear()
+        game.ui.render_dungeon(game.dungeon_map, game.fov, game.explored, game.player)
+        game.ui.render_entities(game.entities, game.fov, game.player)
+        game.ui.render_stairs(game.dungeon_map, game.fov, game.explored, game.player,
+                              stair_down_pos=game.stair_down_pos,
+                              stair_up_pos=game.stair_up_pos)
+
+    def test_stair_glyph_not_overwritten_by_entity(self):
+        """When an entity stands on a stair tile, the stair glyph must be on top after full render."""
+        console = tcod.console.Console(80, 50)
+        renderer = self._make_console_renderer(console)
+
+        game = Game()
+        game.initialize()
+        game.generate_level(1, "main")
+        game.renderer = renderer
+        game.ui = darkdelve.UI(renderer, game.config)
+
+        # Place player directly on the down-stairs tile
+        game.player.x, game.player.y = game.stair_down_pos
+
+        # Run the full render pipeline (dungeon -> entities -> stairs)
+        self._render_full(game)
+
+        # Check the console at the stair position - the stair glyph '>' must be on top
+        sx, sy = game.stair_down_pos
+        cam_x = sx - game.ui.camera_x
+        cam_y = sy - game.ui.camera_y
+        actual_char = console.ch[cam_y, cam_x]
+        assert actual_char == ord('>'), (
+            f"Stair down glyph '>' should be on top at ({sx},{sy}), "
+            f"but got '{chr(int(actual_char))}' (entity overwrote stairs)"
+        )
+
+    def test_stair_up_glyph_not_overwritten_by_entity(self):
+        """When an entity stands on a stair-up tile, the '<' glyph must be on top after full render."""
+        console = tcod.console.Console(80, 50)
+        renderer = self._make_console_renderer(console)
+
+        game = Game()
+        game.initialize()
+        game.generate_level(1, "main")
+        game.renderer = renderer
+        game.ui = darkdelve.UI(renderer, game.config)
+
+        # Place player on the up-stairs tile
+        game.player.x, game.player.y = game.stair_up_pos
+
+        # Run the full render pipeline
+        self._render_full(game)
+
+        sx, sy = game.stair_up_pos
+        cam_x = sx - game.ui.camera_x
+        cam_y = sy - game.ui.camera_y
+        actual_char = console.ch[cam_y, cam_x]
+        assert actual_char == ord('<'), (
+            f"Stair up glyph '<' should be on top at ({sx},{sy}), "
+            f"but got '{chr(int(actual_char))}' (entity overwrote stairs)"
+        )
+
+    def test_monster_on_stairs_still_shows_stair_glyph(self):
+        """A monster standing on stairs must not hide the stair glyph."""
+        console = tcod.console.Console(80, 50)
+        renderer = self._make_console_renderer(console)
+
+        game = Game()
+        game.initialize()
+        game.generate_level(1, "main")
+        game.renderer = renderer
+        game.ui = darkdelve.UI(renderer, game.config)
+
+        # Spawn a monster on the down-stairs tile
+        monster = Entity(
+            x=game.stair_down_pos[0], y=game.stair_down_pos[1],
+            char='g', color=(0, 255, 0),
+            name='goblin', blocks=True,
+            hp=5, max_hp=5, power=2, defense=0,
+            speed=50, intel_tier=1, is_commander=False,
+        )
+        game.entities.append(monster)
+
+        # Run the full render pipeline
+        self._render_full(game)
+
+        sx, sy = game.stair_down_pos
+        cam_x = sx - game.ui.camera_x
+        cam_y = sy - game.ui.camera_y
+        actual_char = console.ch[cam_y, cam_x]
+        assert actual_char == ord('>'), (
+            f"Stair down glyph '>' should be on top even with monster at ({sx},{sy}), "
+            f"but got '{chr(int(actual_char))}'"
+        )

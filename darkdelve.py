@@ -1790,6 +1790,12 @@ class UI:
                 if y >= explored.shape[1] or x >= explored.shape[0]:
                     continue
                     
+                # Skip stair positions — they are rendered separately
+                if hasattr(self, 'stair_down_pos') and self.stair_down_pos and x == self.stair_down_pos[0] and y == self.stair_down_pos[1]:
+                    continue
+                if hasattr(self, 'stair_up_pos') and self.stair_up_pos and x == self.stair_up_pos[0] and y == self.stair_up_pos[1]:
+                    continue
+                
                 # Use explicit bool conversion to avoid NumPy array truth ambiguity
                 if bool(fov[x, y]):
                     if dungeon_map[x, y]:  # True = wall
@@ -1801,25 +1807,32 @@ class UI:
                         self.renderer.print(screen_x, screen_y, "#", (30, 30, 30))
                     else:  # False = floor
                         self.renderer.print(screen_x, screen_y, ".", (50, 50, 50))
+    
+    def render_stairs(self, dungeon_map: np.ndarray, fov: np.ndarray, explored: np.ndarray, player=None,
+                      stair_down_pos=None, stair_up_pos=None):
+        """Render stairs on top of all entities."""
+        width, height = dungeon_map.shape
         
-        # Render stairs
-        if hasattr(self, 'stair_down_pos') and self.stair_down_pos:
-            sx, sy = self.stair_down_pos
+        # Update camera to center on player if player is provided
+        if player is not None:
+            self.update_camera(player.x, player.y, dungeon_map)
+        
+        # Render stairs - always visible (critical navigation landmarks)
+        if stair_down_pos:
+            sx, sy = stair_down_pos
             if 0 <= sx < width and 0 <= sy < height:
                 screen_x = sx - self.camera_x
                 screen_y = sy - self.camera_y
                 if 0 <= screen_x < self.console_width and 0 <= screen_y < self.console_height:
-                    if bool(fov[sx, sy]) or bool(explored[sx, sy]):
-                        self.renderer.print(screen_x, screen_y, ">", COLORS['gold'])
+                    self.renderer.print(screen_x, screen_y, ">", COLORS['gold'])
 
-        if hasattr(self, 'stair_up_pos') and self.stair_up_pos:
-            sx, sy = self.stair_up_pos
+        if stair_up_pos:
+            sx, sy = stair_up_pos
             if 0 <= sx < width and 0 <= sy < height:
                 screen_x = sx - self.camera_x
                 screen_y = sy - self.camera_y
                 if 0 <= screen_x < self.console_width and 0 <= screen_y < self.console_height:
-                    if bool(fov[sx, sy]) or bool(explored[sx, sy]):
-                        self.renderer.print(screen_x, screen_y, "<", COLORS['gold'])
+                    self.renderer.print(screen_x, screen_y, "<", COLORS['gold'])
     
     def render_entities(self, entities: List[Entity], fov: np.ndarray, player=None):
         # DarkDelve's FOV arrays are indexed as fov[x, y].
@@ -2326,7 +2339,8 @@ class Game:
             initial_energy = 100 if entity is self.player else 0
             self.energy_system.add_entity(entity, initial_energy=initial_energy)
         
-        # Initialize FOV
+        # Initialize FOV - reset explored state for new level
+        self.fov_system.explored = None
         self.fov = self.fov_system.compute(self.dungeon_map, self.player.x, self.player.y)
         self.explored = self.fov_system.explored.copy()
         
@@ -2470,7 +2484,8 @@ class Game:
             initial_energy = 100 if entity is self.player else 0
             self.energy_system.add_entity(entity, initial_energy=initial_energy)
         
-        # Initialize FOV
+        # Initialize FOV - reset explored state for new level
+        self.fov_system.explored = None
         self.fov = self.fov_system.compute(self.dungeon_map, self.player.x, self.player.y)
         self.explored = self.fov_system.explored.copy()
     
@@ -2734,6 +2749,8 @@ class Game:
         self.renderer.clear()
         self.ui.render_dungeon(self.dungeon_map, self.fov, self.explored, self.player)
         self.ui.render_entities(self.entities, self.fov, self.player)
+        self.ui.render_stairs(self.dungeon_map, self.fov, self.explored, self.player,
+                              stair_down_pos=self.stair_down_pos, stair_up_pos=self.stair_up_pos)
         self.ui.render_ui(self.player, self.state, self.combat_log, self.turn, self)
 
     def render_frame_text(self) -> str:
@@ -3088,6 +3105,7 @@ class Game:
                 if isinstance(event, tcod.event.KeyDown):
                     if event.sym in (tcod.event.KeySym.ESCAPE, tcod.event.KeySym.I):
                         self.showing_inventory = False
+                        break  # break out of event loop after closing inventory
                     elif event.sym == tcod.event.KeySym.UP:
                         if self.player and self.player.inventory:
                             item_count = len(self.player.inventory.items)
