@@ -3,3 +3,4 @@ __pycache__/
 playtest/telemetry/
 saves
 cache/content.db
+logs/combat_damage_*.
