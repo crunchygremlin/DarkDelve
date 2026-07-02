@@ -330,6 +330,7 @@ class ItemType(Enum):
     SCROLL = "scroll"
     CONSUMABLE = "potion"
     FOOD = "food"
+    WAND = "wand"
     ACCESSORY = "accessory"
     MISC = "misc"
 
@@ -517,8 +518,8 @@ class Item:
 
     @property
     def consumable(self) -> bool:
-        """A consumable item disappears when used (potions, scrolls, food)."""
-        return self.item_type in (ItemType.POTION, ItemType.SCROLL, ItemType.FOOD)
+        """A consumable item disappears when used (potions, scrolls, food, wands)."""
+        return self.item_type in (ItemType.POTION, ItemType.SCROLL, ItemType.FOOD, ItemType.WAND)
 
     @property
     def effect(self) -> str:
@@ -3199,7 +3200,7 @@ class Game:
                             if self.player and self.player.inventory:
                                 item = self.player.inventory.get_item(self.inventory_selection)
                                 if item:
-                                    if item.item_type.value in ("potion", "scroll", "food"):
+                                    if item.item_type in (ItemType.POTION, ItemType.SCROLL, ItemType.FOOD, ItemType.WAND):
                                         # Use consumable
                                         result = self.player.use_item(item)
                                         if result:
@@ -3210,7 +3211,7 @@ class Game:
                                                 self.inventory_selection = item_count - 1
                                         else:
                                             self.add_message(f"Cannot use {item.name}.")
-                                    elif item.item_type.value in ("weapon", "armor", "accessory"):
+                                    elif item.item_type in (ItemType.WEAPON, ItemType.ARMOR, ItemType.ACCESSORY):
                                         # Equip/unequip equipment
                                         if item.equipped:
                                             self.player.inventory.unequip(item.id)
