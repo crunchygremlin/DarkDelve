@@ -90,3 +90,35 @@ class PerceptionStatus:
             "time_since_player_seen": self.time_since_player_seen,
             "custom_flags": self.custom_flags,
         }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'PerceptionStatus':
+        """Create PerceptionStatus from dictionary (e.g., after JSON deserialization)."""
+        from src.domain.value_objects.position import Position
+        
+        # Handle player_last_known_position - convert dict to Position if needed
+        plkp = data.get("player_last_known_position")
+        if isinstance(plkp, dict):
+            plkp = Position.from_dict(plkp)
+        
+        return cls(
+            entity_id=data.get("entity_id", ""),
+            can_see_player=data.get("can_see_player", False),
+            can_hear_player=data.get("can_hear_player", False),
+            can_smell_player=data.get("can_smell_player", False),
+            player_last_known_position=plkp,
+            player_noise_level=data.get("player_noise_level", 0.0),
+            player_distance_estimate=data.get("player_distance_estimate", -1.0),
+            visible_threats=data.get("visible_threats", []),
+            visible_items=data.get("visible_items", []),
+            visible_allies=data.get("visible_allies", []),
+            visible_enemies=data.get("visible_enemies", []),
+            environment_danger=data.get("environment_danger", 0.0),
+            light_level=data.get("light_level", 1.0),
+            nearby_traps=data.get("nearby_traps", 0),
+            nearby_exits=data.get("nearby_exits", 0),
+            combat_occurring_nearby=data.get("combat_occurring_nearby", False),
+            ally_health_status=data.get("ally_health_status", "unknown"),
+            time_since_player_seen=data.get("time_since_player_seen", -1.0),
+            custom_flags=data.get("custom_flags", {}),
+        )

@@ -7,6 +7,7 @@ from queue import Queue, Empty
 
 from src.domain.value_objects.llm_logging import LLMLogger, LLMCallLog
 from src.domain.agents.dungeon_master_agent import DungeonMasterAgent
+from src.domain.value_objects.perception import PerceptionStatus
 
 
 def llm_worker_func(
@@ -58,10 +59,17 @@ def llm_worker_func(
             
             try:
                 if call_type == 'behavior':
+                    # Convert perception dict to PerceptionStatus object if needed
+                    perception_data = request.get('perception', {})
+                    perception = (
+                        PerceptionStatus.from_dict(perception_data)
+                        if isinstance(perception_data, dict)
+                        else perception_data
+                    )
                     result = dm_agent.generate_behavior_script(
                         entity_id=request.get('entity_id', ''),
                         mob_type=request.get('mob_type', 'default'),
-                        perception=request.get('perception', {}),
+                        perception=perception,
                         social_context=request.get('social_context', ''),
                         valid_conditions=request.get('valid_conditions', []),
                         valid_actions=request.get('valid_actions', []),
@@ -139,6 +147,41 @@ def llm_worker_func(
                     response_queue.put({
                         'content_type': 'monsters',
                         'data': result,
+                        'success': result is not None,
+                    })
+
+                elif call_type == 'evolved_roster':
+                    # Evolved roster call
+                    result = dm_agent.design_evolved_level(
+                        context=request.get('evolution_context', {}),
+                        level_number=request.get('depth', 1),
+                    )
+                    response_queue.put({
+                        'content_type': 'evolved_roster',
+                        'data': result,
+                        'success': bool(result),
+                    })
+
+                elif call_type == 'behavior_with_context':
+                    # Behavior with context call
+                    # Convert perception dict to PerceptionStatus object if needed
+                    perception_data = request.get('perception', {})
+                    perception = (
+                        PerceptionStatus.from_dict(perception_data)
+                        if isinstance(perception_data, dict)
+                        else perception_data
+                    )
+                    result = dm_agent.generate_behavior_script(
+                        entity_id=request.get('entity_id', ''),
+                        mob_type=request.get('mob_type', 'default'),
+                        perception=perception,
+                        social_context=f"original context\nDM Narrative: {request.get('dm_narrative_context', '')}",
+                        valid_conditions=request.get('valid_conditions', []),
+                        valid_actions=request.get('valid_actions', []),
+                    )
+                    response_queue.put({
+                        'entity_id': request.get('entity_id'),
+                        'behavior_script': result.to_dict() if result else None,
                         'success': result is not None,
                     })
                 

@@ -210,3 +210,70 @@ class TestLLMWorker:
         assert len(logger.call_log) == 1
         assert logger.call_log[0].turn_number == 1
         assert logger.call_log[0].call_type == "behavior_generation"
+
+    def test_worker_converts_perception_dict_to_object(self):
+        """Test that worker converts perception dict to PerceptionStatus object."""
+        request_queue = queue.Queue()
+        response_queue = queue.Queue()
+        logger = LLMLogger(log_path="/tmp/test_llm_worker_perception.json")
+        
+        dm_agent = Mock(spec=DungeonMasterAgent)
+        mock_script = Mock(spec=BehaviorScript)
+        mock_script.to_dict.return_value = {"script_id": "test"}
+        dm_agent.generate_behavior_script.return_value = mock_script
+        
+        # Request with perception as a dict (as it comes from the queue)
+        perception_dict = {
+            "entity_id": "entity_2",
+            "can_see_player": True,
+            "can_hear_player": False,
+            "can_smell_player": True,
+            "player_noise_level": 0.5,
+            "player_distance_estimate": 10.0,
+            "visible_threats": ["threat1"],
+            "visible_items": ["item1"],
+            "visible_allies": [],
+            "visible_enemies": [],
+            "environment_danger": 0.7,
+            "light_level": 0.3,
+            "nearby_traps": 2,
+            "nearby_exits": 1,
+            "combat_occurring_nearby": True,
+            "ally_health_status": "wounded",
+            "time_since_player_seen": 5.0,
+            "custom_flags": {},
+        }
+        
+        request_queue.put({
+            'type': 'behavior',
+            'entity_id': 'entity_2',
+            'mob_type': 'goblin',
+            'perception': perception_dict,
+            'social_context': '',
+            'valid_conditions': ['can_see_player'],
+            'valid_actions': ['attack'],
+            'turn_number': 1,
+            'prompt_summary': 'test',
+        })
+        
+        worker_thread = threading.Thread(
+            target=llm_worker_func,
+            args=(request_queue, response_queue, dm_agent, logger, 5),
+            daemon=True
+        )
+        worker_thread.start()
+        
+        time.sleep(0.5)
+        
+        # Verify DM agent was called with PerceptionStatus object, not dict
+        dm_agent.generate_behavior_script.assert_called_once()
+        call_args = dm_agent.generate_behavior_script.call_args
+        perception_arg = call_args.kwargs.get('perception')
+        
+        # The perception should be a PerceptionStatus object, not a dict
+        from src.domain.value_objects.perception import PerceptionStatus
+        assert isinstance(perception_arg, PerceptionStatus), \
+            f"Expected PerceptionStatus object, got {type(perception_arg)}"
+        assert perception_arg.can_see_player is True
+        assert perception_arg.can_hear_player is False
+        assert perception_arg.player_noise_level == 0.5
