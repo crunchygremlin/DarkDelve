@@ -34,6 +34,13 @@ from src.presentation.renderer import create_renderer
 # Import combat damage log
 from src.infrastructure.persistence.combat_damage_log import CombatDamageLog
 
+# Import damage balance clamping
+from src.domain.value_objects.damage_caps import clamp_monster_damage, clamp_player_damage
+
+# Import emoji lookup tables
+from src.presentation.item_emoji import get_item_emoji
+from src.presentation.monster_emoji import get_monster_emoji
+
 # Import agent system
 from src.domain.agents import (
     Agent, AgentType, AgentManager, LLMAgent, LLMAgentConfig, RandomAgent, CommanderAgent
@@ -323,6 +330,7 @@ class ItemType(Enum):
     SCROLL = "scroll"
     CONSUMABLE = "potion"
     FOOD = "food"
+    ACCESSORY = "accessory"
     MISC = "misc"
 
 class EquipmentSlot(Enum):
@@ -334,6 +342,8 @@ class EquipmentSlot(Enum):
     FEET = "feet"
     MAIN_HAND = "main_hand"
     OFF_HAND = "off_hand"
+    RING = "ring"
+    NECK = "neck"
 
 class MobTier(Enum):
     MINION = "minion"
@@ -460,16 +470,30 @@ class Item:
     def __post_init__(self):
         if self.glyph is not None:
             self.symbol = self.glyph
+        else:
+            # Set symbol based on item_type if not overridden by glyph
+            if self.item_type == ItemType.POTION:
+                self.symbol = "!"
+            elif self.item_type == ItemType.WEAPON:
+                self.symbol = "/"
+            elif self.item_type == ItemType.ARMOR:
+                self.symbol = "["
+            elif self.item_type == ItemType.FOOD:
+                self.symbol = ","
+            elif self.item_type == ItemType.MISC:
+                self.symbol = "*"
+            elif self.item_type == ItemType.SCROLL:
+                self.symbol = "?"
         if self.equipment_slot is not None:
             self.equipped_slot = self.equipment_slot
     
     def get_stat_string(self) -> str:
         stats = []
-        if self.damage_bonus > 0:
+        if (self.damage_bonus or 0) > 0:
             stats.append(f"+{self.damage_bonus} DMG")
-        if self.to_hit_bonus > 0:
+        if (self.to_hit_bonus or 0) > 0:
             stats.append(f"+{self.to_hit_bonus} HIT")
-        if self.defense_bonus > 0:
+        if (self.defense_bonus or 0) > 0:
             stats.append(f"+{self.defense_bonus} DEF")
         if self.special_effect:
             stats.append(f"{self.special_effect}")
@@ -596,6 +620,12 @@ class Inventory:
                 return [EquipmentSlot.FEET]
             elif "shield" in name_lower:
                 return [EquipmentSlot.OFF_HAND]
+        elif item.item_type == ItemType.ACCESSORY:
+            name_lower = item.name.lower()
+            if "ring" in name_lower:
+                return [EquipmentSlot.RING]
+            elif "amulet" in name_lower or "necklace" in name_lower or "pendant" in name_lower:
+                return [EquipmentSlot.NECK]
         return []
     
     def get_total_weight(self) -> int:
@@ -943,6 +973,16 @@ class CombatResolver:
             
             if result == HitResult.CRITICAL:
                 damage *= 2
+        
+        # Apply balance clamping
+        if hasattr(defender, 'max_hp') and defender.max_hp > 0:
+            attacker_is_player = getattr(attacker, 'inventory', None) is not None and hasattr(attacker, 'xp')
+            defender_is_player = getattr(defender, 'inventory', None) is not None and hasattr(defender, 'xp')
+            
+            if defender_is_player:
+                damage = clamp_monster_damage(damage, defender.max_hp)
+            elif attacker_is_player:
+                damage = clamp_player_damage(damage, defender.max_hp)
         
         return CombatEvent(
             turn=0,
@@ -1810,29 +1850,39 @@ class UI:
     
     def render_stairs(self, dungeon_map: np.ndarray, fov: np.ndarray, explored: np.ndarray, player=None,
                       stair_down_pos=None, stair_up_pos=None):
-        """Render stairs on top of all entities."""
+        """Render stairs - only visible when in FOV or explored."""
         width, height = dungeon_map.shape
         
         # Update camera to center on player if player is provided
         if player is not None:
             self.update_camera(player.x, player.y, dungeon_map)
         
-        # Render stairs - always visible (critical navigation landmarks)
+        # Render stairs - only visible when in FOV or explored
         if stair_down_pos:
             sx, sy = stair_down_pos
             if 0 <= sx < width and 0 <= sy < height:
-                screen_x = sx - self.camera_x
-                screen_y = sy - self.camera_y
-                if 0 <= screen_x < self.console_width and 0 <= screen_y < self.console_height:
-                    self.renderer.print(screen_x, screen_y, ">", COLORS['gold'])
-
+                # Check if stairs are in FOV or explored
+                in_fov = bool(fov[sx, sy]) if fov is not None and sx < fov.shape[0] and sy < fov.shape[1] else False
+                is_explored = bool(explored[sx, sy]) if explored is not None and sx < explored.shape[0] and sy < explored.shape[1] else False
+                
+                if in_fov or is_explored:
+                    screen_x = sx - self.camera_x
+                    screen_y = sy - self.camera_y
+                    if 0 <= screen_x < self.console_width and 0 <= screen_y < self.console_height:
+                        self.renderer.print(screen_x, screen_y, ">", COLORS['gold'])
+        
         if stair_up_pos:
             sx, sy = stair_up_pos
             if 0 <= sx < width and 0 <= sy < height:
-                screen_x = sx - self.camera_x
-                screen_y = sy - self.camera_y
-                if 0 <= screen_x < self.console_width and 0 <= screen_y < self.console_height:
-                    self.renderer.print(screen_x, screen_y, "<", COLORS['gold'])
+                # Check if stairs are in FOV or explored
+                in_fov = bool(fov[sx, sy]) if fov is not None and sx < fov.shape[0] and sy < fov.shape[1] else False
+                is_explored = bool(explored[sx, sy]) if explored is not None and sx < explored.shape[0] and sy < explored.shape[1] else False
+                
+                if in_fov or is_explored:
+                    screen_x = sx - self.camera_x
+                    screen_y = sy - self.camera_y
+                    if 0 <= screen_x < self.console_width and 0 <= screen_y < self.console_height:
+                        self.renderer.print(screen_x, screen_y, "<", COLORS['gold'])
     
     def render_entities(self, entities: List[Entity], fov: np.ndarray, player=None):
         # DarkDelve's FOV arrays are indexed as fov[x, y].
@@ -3126,6 +3176,54 @@ class Game:
                                     slots = self.player.inventory._get_valid_slots_for_item(item)
                                     if slots:
                                         self.player.inventory.equip(item.id, slots[0])
+                        
+                        elif event.sym == tcod.event.KeySym.D:
+                            # Drop selected item
+                            if self.player and self.player.inventory:
+                                item = self.player.inventory.get_item(self.inventory_selection)
+                                if item:
+                                    if item.equipped:
+                                        self.add_message("Unequip the item before dropping it.")
+                                    else:
+                                        # Remove from inventory and place on ground
+                                        self.player.inventory.remove_item(item.id)
+                                        self.drop_item(item, self.player.x, self.player.y)
+                                        self.add_message(f"Dropped {item.name}.")
+                                        # Adjust selection if needed
+                                        item_count = len(self.player.inventory.items)
+                                        if item_count > 0 and self.inventory_selection >= item_count:
+                                            self.inventory_selection = item_count - 1
+                        
+                        elif event.sym == tcod.event.KeySym.U:
+                            # Use/Equip selected item
+                            if self.player and self.player.inventory:
+                                item = self.player.inventory.get_item(self.inventory_selection)
+                                if item:
+                                    if item.item_type.value in ("potion", "scroll", "food"):
+                                        # Use consumable
+                                        result = self.player.use_item(item)
+                                        if result:
+                                            self.add_message(f"Used {item.name}.")
+                                            # Adjust selection if needed
+                                            item_count = len(self.player.inventory.items)
+                                            if item_count > 0 and self.inventory_selection >= item_count:
+                                                self.inventory_selection = item_count - 1
+                                        else:
+                                            self.add_message(f"Cannot use {item.name}.")
+                                    elif item.item_type.value in ("weapon", "armor", "accessory"):
+                                        # Equip/unequip equipment
+                                        if item.equipped:
+                                            self.player.inventory.unequip(item.id)
+                                            self.add_message(f"Unequipped {item.name}.")
+                                        else:
+                                            slots = self.player.inventory._get_valid_slots_for_item(item)
+                                            if slots:
+                                                self.player.inventory.equip(item.id, slots[0])
+                                                self.add_message(f"Equipped {item.name}.")
+                                            else:
+                                                self.add_message(f"Cannot equip {item.name}.")
+                                    else:
+                                        self.add_message(f"{item.name} is not usable.")
     
     def show_character(self):
         self.showing_character = True
@@ -3203,30 +3301,183 @@ class Game:
         self.renderer.present()
     
     def render_inventory(self):
+        """Render the inventory screen with left panel (list) and right panel (description)."""
         self.renderer.clear()
-        lines = [f"═ INVENTORY (Weight: {self.player.inventory.get_total_weight()}/{self.player.inventory.max_weight}) ═", ""]
-        lines.append("▼ EQUIPPED:")
-        for slot in EquipmentSlot:
-            item = self.player.inventory.equipment[slot]
-            if item:
-                lines.append(f"  {slot.value:12} : {item.display_name(self.player.identified_types)}")
-            else:
-                lines.append(f"  {slot.value:12} : [empty]")
         
-        lines.append("\n▼ BACKPACK:")
-        if self.player.inventory.items:
-            for idx, item in enumerate(self.player.inventory.items):
+        inv = self.player.inventory if self.player and self.player.inventory else None
+        
+        # Panel positions
+        left_x = 2
+        desc_x = 60
+        panel_width = 55
+        
+        # Header
+        if inv:
+            header = f"═ INVENTORY (Weight: {inv.get_total_weight()}/{inv.max_weight}) ═"
+        else:
+            header = "═ INVENTORY ═"
+        self.renderer.print(left_x, 2, header, COLORS['text'])
+        
+        lines_y = 4
+        
+        # Equipped section
+        self.renderer.print(left_x, lines_y, "▼ EQUIPPED:", COLORS['gold'])
+        lines_y += 1
+        
+        if inv:
+            for slot in EquipmentSlot:
+                item = inv.equipment.get(slot) if inv.equipment else None
+                if item:
+                    emoji = get_item_emoji(item.item_type.value, item.name)
+                    line = f"  {emoji} {slot.value:12} : {item.display_name(self.player.identified_types)}"
+                else:
+                    line = f"  {'  '} {slot.value:12} : [empty]"
+                self.renderer.print(left_x, lines_y, line, COLORS['text'])
+                lines_y += 1
+        
+        lines_y += 1
+        self.renderer.print(left_x, lines_y, "▼ BACKPACK:", COLORS['gold'])
+        lines_y += 1
+        
+        if inv and inv.items:
+            for idx, item in enumerate(inv.items):
                 status = " (E)" if item.equipped else ""
                 prefix = "▶ " if idx == self.inventory_selection else "  "
-                lines.append(f"{prefix}□ {item.display_name(self.player.identified_types)}{status}")
+                emoji = get_item_emoji(item.item_type.value, item.name)
+                line = f"{prefix}{emoji} {item.display_name(self.player.identified_types)}{status}"
+                color = COLORS['gold'] if idx == self.inventory_selection else COLORS['text']
+                self.renderer.print(left_x, lines_y, line, color)
+                lines_y += 1
         else:
-            lines.append("  (empty)")
+            self.renderer.print(left_x, lines_y, "  (empty)", COLORS['text_dim'])
+            lines_y += 1
         
-        for i, line in enumerate(lines):
-            self.renderer.print(2, 2 + i, line, COLORS['text'])
+        # Right panel: description for selected item
+        if inv:
+            item = inv.get_item(self.inventory_selection)
+            if item:
+                self._render_item_description(desc_x, 4, panel_width, item)
         
-        # Only present if using graphical rendering
+        # Footer controls
+        controls_y = 48
+        self.renderer.print(left_x, controls_y, "[ENTER] Equip/Unequip  [U] Use  [D] Drop  [ESC/I] Close", COLORS['text_dim'])
+        
         self.renderer.present()
+    
+    def _render_item_description(self, x: int, y: int, width: int, item) -> None:
+        """
+        Render the item description panel at position (x, y) with given width.
+        
+        Args:
+            x: Left column of panel (e.g., 60)
+            y: Top row of panel (e.g., 4)
+            width: Panel width in characters (e.g., 55)
+            item: Item object to describe
+        """
+        # Box-drawing characters
+        TL = "┌"
+        TR = "┐"
+        BL = "└"
+        BR = "┘"
+        H = "─"
+        V = "│"
+        T_DOWN = "┬"
+        T_UP = "┴"
+        T_RIGHT = "├"
+        T_LEFT = "┤"
+        
+        # Colors
+        border_color = COLORS['text_dim']
+        title_color = COLORS['gold']
+        label_color = COLORS['text']
+        value_color = COLORS['text']
+        desc_color = COLORS['text_dim']
+        tag_color = COLORS['text']
+        magic_color = COLORS['magic']
+        
+        # 1. Top border
+        self.renderer.print(x, y, TL + H * (width - 2) + TR, border_color)
+        
+        # 2. Item name (truncated to fit)
+        name = item.display_name(self.player.identified_types if self.player else set())
+        name_display = name[:width - 4]  # Leave space for borders and padding
+        self.renderer.print(x, y + 1, f"{V} {name_display:<{width-4}} {V}", title_color)
+        
+        # 3. Separator
+        self.renderer.print(x, y + 2, T_RIGHT + H * (width - 2) + T_LEFT, border_color)
+        
+        # 4. Stats section
+        row = y + 3
+        
+        # Type
+        item_type_str = item.item_type.value if hasattr(item.item_type, 'value') else str(item.item_type)
+        self.renderer.print(x, row, f"{V} Type: {item_type_str:<{width-10}} {V}", label_color)
+        row += 1
+        
+        # Value
+        self.renderer.print(x, row, f"{V} Value: {item.value} gold{' ' * (width - 15 - len(str(item.value)))} {V}", label_color)
+        row += 1
+        
+        # Weight
+        self.renderer.print(x, row, f"{V} Weight: {item.weight}{' ' * (width - 13 - len(str(item.weight)))} {V}", label_color)
+        row += 1
+        
+        # Combat stats (only if any > 0)
+        if int(item.damage_bonus or 0) > 0 or int(item.to_hit_bonus or 0) > 0 or int(item.defense_bonus or 0) > 0:
+            stat_parts = []
+            if int(item.damage_bonus or 0) > 0:
+                stat_parts.append(f"+{int(item.damage_bonus)} DMG")
+            if int(item.to_hit_bonus or 0) > 0:
+                stat_parts.append(f"+{int(item.to_hit_bonus)} HIT")
+            if int(item.defense_bonus or 0) > 0:
+                stat_parts.append(f"+{int(item.defense_bonus)} DEF")
+            stat_str = ", ".join(stat_parts)
+            self.renderer.print(x, row, f"{V} Stats: {stat_str:<{width - 12}} {V}", label_color)
+            row += 1
+        
+        # Effect
+        if item.special_effect:
+            effect_str = f"{item.special_effect}+{item.effect_strength}" if item.effect_strength > 0 else item.special_effect
+            self.renderer.print(x, row, f"{V} Effect: {effect_str:<{width - 13}} {V}", magic_color)
+            row += 1
+        
+        # 5. Description separator
+        self.renderer.print(x, row, T_RIGHT + H * (width - 2) + T_LEFT, border_color)
+        row += 1
+        
+        # 6. Description text (word-wrapped)
+        desc = item.description or "No description available."
+        words = desc.split()
+        line = ""
+        for word in words:
+            if len(line) + len(word) + 1 > width - 6:  # -6 for borders and padding
+                self.renderer.print(x, row, f"{V} {line:<{width-4}} {V}", desc_color)
+                row += 1
+                line = word
+            else:
+                line = f"{line} {word}".strip()
+        if line:
+            self.renderer.print(x, row, f"{V} {line:<{width-4}} {V}", desc_color)
+            row += 1
+        
+        # 7. Tags
+        tags = []
+        if item.item_type.value in ("potion", "scroll", "food"):
+            tags.append("Usable")
+        if hasattr(item, 'consumable') and item.consumable:
+            tags.append("Consumable")
+        if item.item_type.value in ("weapon", "armor", "accessory"):
+            tags.append("Equippable")
+        if item.equipped:
+            tags.append("Equipped")
+        
+        if tags:
+            tag_str = "  ".join(f"[{t}]" for t in tags)
+            self.renderer.print(x, row, f"{V} {tag_str:<{width-4}} {V}", tag_color)
+            row += 1
+        
+        # 8. Bottom border
+        self.renderer.print(x, row, BL + H * (width - 2) + BR, border_color)
     
     def render_character(self):
         self.renderer.clear()
@@ -3288,6 +3539,146 @@ class Game:
             self.ollama.stop()
         if self.context:
             self.context.__exit__(None, None, None)
+
+    def _compute_difficulty_adjustment(self, level_record) -> float:
+        """Compute difficulty adjustment based on level performance.
+        
+        Args:
+            level_record: Dict with monsters_killed, total_monsters, damage_taken, close_calls
+            
+        Returns:
+            1.3 for dominated (ratio > 0.9), 0.8 for struggled (ratio < 0.5),
+            1.1 for managed (ratio >= 0.5, damage < 40), 1.0 for no data
+        """
+        if not level_record:
+            return 1.0
+        
+        monsters_killed = level_record.get("monsters_killed", 0)
+        total_monsters = level_record.get("total_monsters", 1)
+        damage_taken = level_record.get("damage_taken", 0)
+        
+        if total_monsters == 0:
+            return 1.0
+        
+        ratio = monsters_killed / total_monsters
+        
+        if ratio > 0.9:
+            return 1.3  # Dominated - significantly harder
+        elif ratio < 0.5:
+            return 0.8  # Struggled - easier
+        elif damage_taken < 40:
+            return 1.1  # Managed - slightly harder
+        return 1.0
+
+    def _compute_performance_summary(self, level_record) -> str:
+        """Compute performance summary string.
+        
+        Args:
+            level_record: Dict with monsters_killed, total_monsters, damage_taken, close_calls, turns_taken
+            
+        Returns:
+            Summary string like "dominated 8/8", "struggled 1/8", or "No previous level data."
+        """
+        if not level_record:
+            return "No previous level data."
+        
+        monsters_killed = level_record.get("monsters_killed", 0)
+        total_monsters = level_record.get("total_monsters", 1)
+        damage_taken = level_record.get("damage_taken", 0)
+        
+        if total_monsters == 0:
+            return "No previous level data."
+        
+        ratio = monsters_killed / total_monsters
+        
+        if ratio > 0.9:
+            return f"Player dominated. {monsters_killed}/{total_monsters} monsters defeated."
+        elif ratio < 0.5:
+            return f"Player struggled. {monsters_killed}/{total_monsters} monsters defeated."
+        return f"Player managed. {monsters_killed}/{total_monsters} monsters defeated."
+
+    def _build_narrative_continuity(self, levels) -> str:
+        """Build narrative continuity string from level history.
+        
+        Args:
+            levels: List of level records
+            
+        Returns:
+            Narrative string for the next level
+        """
+        if not levels:
+            return "First level -- no previous narrative."
+        
+        # Get the last level
+        last_level = levels[-1]
+        theme_name = last_level.get("theme_name", "previous depths")
+        depth = last_level.get("depth", 1)
+        
+        # Build history summary
+        history = ", ".join(
+            f"{rec.get('theme_name', 'Unknown')}" 
+            for rec in levels[-3:]
+        )
+        
+        # Determine direction based on depth
+        if depth >= 5:
+            direction = "face the deepest horrors"
+        else:
+            direction = "Escalate"
+        
+        return f"Previous levels: {history}. {direction}."
+
+    def _build_dm_evolution_context(self, depth: int) -> Optional[Dict[str, Any]]:
+        """Build context for DM evolution.
+        
+        Args:
+            depth: Target level depth
+            
+        Returns:
+            Dict with evolution context or None if no levels
+        """
+        if not hasattr(self, 'dm_context') or not self.dm_context.get("levels"):
+            return None
+        
+        levels = self.dm_context.get("levels", [])
+        
+        # Get the last level record for difficulty adjustment
+        last_level = levels[-1] if levels else {}
+        
+        return {
+            "previous_levels": levels[-3:],  # Last 3 levels
+            "performance_summary": self._compute_performance_summary(last_level),
+            "difficulty_adjustment": self._compute_difficulty_adjustment(last_level),
+            "narrative_continuity": self._build_narrative_continuity(levels),
+            "target_depth": depth,
+        }
+
+    def _record_level_performance(self) -> None:
+        """Record level performance to dm_context."""
+        if not hasattr(self, 'dm_context') or self.dm_context is None:
+            return
+        
+        record = {
+            "depth": self.state.depth,
+            "theme_name": self.current_theme.name if hasattr(self, 'current_theme') and self.current_theme else "Unknown",
+            "monster_theme": self.current_theme.monster_theme if hasattr(self, 'current_theme') and self.current_theme else "unknown",
+            "monsters_killed": self.dm_context.get("current_level_kills", 0),
+            "total_monsters": self.dm_context.get("total_level_monsters", 0),
+            "turns_taken": self.turn - self.dm_context.get("current_level_start_turn", self.turn),
+            "damage_taken": self.dm_context.get("current_level_damage_taken", 0),
+            "close_calls": self.dm_context.get("current_level_close_calls", 0),
+            "difficulty_rating": self.current_theme.difficulty if hasattr(self, 'current_theme') and self.current_theme else 3.0,
+        }
+        
+        self.dm_context["levels"].append(record)
+        # Keep only last 10
+        self.dm_context["levels"] = self.dm_context["levels"][-10:]
+        
+        # Reset counters for next level
+        self.dm_context["current_level_kills"] = 0
+        self.dm_context["current_level_damage_taken"] = 0
+        self.dm_context["current_level_close_calls"] = 0
+        self.dm_context["current_level_start_turn"] = self.turn
 
 # =============================================================================
 # INSTRUCTION PROMPT HELPER
