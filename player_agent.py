@@ -24,7 +24,7 @@ import requests
 VALID_ACTIONS = ("w", "a", "s", "d", "e", "i", "m", "up", "down", "enter", "escape")
 RESPONSE_FIELDS = ("macro_goal", "reasoning", "action", "telemetry_notes")
 DEFAULT_ENDPOINT = "http://localhost:11434"
-DEFAULT_MODEL = "qwen2.5-coder:7b-instruct"
+DEFAULT_MODEL = "qwen2.5:7b-instruct"
 SAFE_FALLBACK_ACTION = "e"
 
 

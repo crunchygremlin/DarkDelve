@@ -1,95 +1,52 @@
-# T-2026-0628-001: Wire DM LLM into Live Game with Observability
+# Task T-2026-0630-006: Critical Multi-System Bug Fixes
 
-## Goal
-Connect the existing DungeonMasterAgent and LevelDesignService to the live game loop (`darkdelve.py`) so the LLM actively participates in gameplay, and build a comprehensive observability system that logs every LLM interaction.
+## Task ID
+T-2026-0630-006
 
-## Background
-The DM LLM infrastructure exists but is completely disconnected from the live game:
-- `DungeonMasterAgent` (`src/domain/agents/dungeon_master_agent.py`) — can generate behavior scripts and design levels via LLM
-- `LevelDesignService` (`src/domain/services/level_design_service.py`) — can generate level layouts and item seeding
-- `BehaviorScriptService` (`src/domain/services/behavior_script_service.py`) — can evaluate behavior trees
-- `LLMLogger` (`src/domain/value_objects/llm_logging.py`) — already has logging infrastructure
-- `PlayerAgent` (`player_agent.py`) — already wired in via MCP playtester
+## Complexity Classification
+**CRITICAL** - Multiple core systems broken (inventory, stairs/visibility, DM/LLM)
 
-**None of these are imported or called from `darkdelve.py`.** The live game uses hardcoded Python logic for monster AI (flee thresholds, basic pathfinding) and procedural generation for levels.
+## Primary Objective
+Fix three critical game-breaking bugs:
+1. **Inventory Use/Drop Crash** - Using items from inventory crashes the game
+2. **Stairs Visibility Bug** - Stairs visible from anywhere on floor 1 (should only be visible in FOV)
+3. **DM/LLM Integration Broken** - Dungeon Master / LLM agent integration broken
 
-## Requirements
+## Specific Bugs to Fix
 
-### Part 1: Wire DM Agent into Live Game Loop
+### Bug 1: Inventory Use/Drop Crash
+- **Location**: `src/application/game_commands/use_command.py`, `src/application/game_commands/drop_command.py`, `src/application/game_commands/equip_command.py`
+- **Symptom**: Using items from inventory crashes the game
+- **Related files**: `src/application/game_commands/use_command.py`, `src/application/game_commands/drop_command.py`, `src/application/game_commands/equip_command.py`, `src/application/game_queries/inventory_query.py`, `src/domain/services/inventory_service.py`, `tests/test_inventory_use_drop.py`
 
-**Files to modify:** `darkdelve.py`
+### Bug 2: Stairs Visibility Bug (Floor 1)
+- **Location**: `src/domain/services/floor1_generator.py`, `src/domain/services/perception_service.py`, `src/presentation/renderers/tile_renderer.py`
+- **Symptom**: Stairs visible from anywhere on floor 1 (should only be visible in FOV)
+- **Related files**: `src/domain/services/floor1_generator.py`, `src/domain/services/perception_service.py`, `src/presentation/renderers/tile_renderer.py`, `src/domain/services/perception_service.py`, `tests/test_stairs.py`, `playtest/repro_floor1_stairs.py`
 
-1. **Initialize DM Agent on game start** — In `Game.initialize()` or `Game.__init__()`, instantiate:
-   - `DungeonMasterAgent` with a configured Ollama service
-   - The agent should use the same Ollama endpoint configured in `config/game.yaml`
+### Bug 3: DM/LLM Integration Broken
+- **Location**: `src/domain/agents/dungeon_master_agent.py`, `src/domain/agents/commander_agent.py`, `src/domain/agents/integration.py`, `src/domain/services/dungeon_master_service.py`, `src/domain/agents/llm_agent.py`
+- **Symptom**: DM/LLM agent integration broken - DM not responding, LLM not being called properly
+- **Related files**: `src/domain/agents/dungeon_master_agent.py`, `src/domain/agents/commander_agent.py`, `src/domain/agents/integration.py`, `src/domain/services/dungeon_master_service.py`, `src/domain/agents/llm_agent.py`, `src/infrastructure/external/ollama_service.py`, `tests/test_dungeon_master_agent.py`, `tests/test_dungeon_master_service.py`
 
-2. **Behavior script generation on entity spawn** — When entities are spawned (in `generate_level()` or `spawn_entities()`), call `dm_agent.generate_behavior_script()` for each non-player entity. Pass:
-   - `entity_id` = entity's unique ID
-   - `mob_type` = entity name or type
-   - `perception` = current PerceptionStatus for that entity
-   - `social_context` = empty string for now
-   - `valid_conditions` and `valid_actions` from MOB_BEHAVIOR_CATALOG
-
-3. **Behavior script evaluation in entity update** — In the entity update/AI loop (where `entity.update()` or similar is called), evaluate the entity's behavior script using `BehaviorScriptService.evaluate_script()`. Use the returned action to drive entity behavior instead of hardcoded flee logic.
-
-4. **Level design on level generation** — When `generate_level()` is called for depth > 1, use `LevelDesignService.generate_level_layout()` to augment or override the procedural generation. Fall back to procedural if LLM is unavailable.
-
-### Part 2: LLM Observability Log
-
-**New file:** `logs/llm_activity.json` (append-only JSONL)
-
-For every LLM call, log:
-```json
-{
-  "timestamp": "ISO-8601",
-  "turn_number": int,
-  "call_type": "behavior_generation" | "level_design",
-  "entity_id": str or null,
-  "level_number": int or null,
-  "prompt_summary": str (first 200 chars),
-  "response_summary": str (first 200 chars),
-  "latency_ms": float,
-  "tokens_used": int,
-  "success": bool,
-  "error": str or null,
-  "model": str
-}
-```
-
-**Also add to UI:** In `render_ui()`, display a recent LLM activity feed (last 3-5 calls) showing:
-- Turn #, call type, latency, success/failure
-- This helps the player understand what the DM is doing
-
-### Part 3: Configuration
-
-**File:** `config/game.yaml`
-
-Add section:
-```yaml
-dungeon_master:
-  enabled: true
-  model: "gpt-oss"
-  temperature: 0.7
-  ollama_endpoint: "http://localhost:11434"
-  log_path: "logs/llm_activity.json"
-  # Throttle: max LLM calls per turn to avoid lag
-  max_calls_per_turn: 5
-  # Which features to enable
-  enable_behavior_generation: true
-  enable_level_design: false  # Start with behavior only
-```
-
-## Constraints
-- LLM calls must not block the game loop — use async or threading with a timeout
-- If LLM is unavailable, fall back to existing hardcoded behavior (zero regression)
-- Respect `max_calls_per_turn` to prevent lag spirals
-- All LLM activity must be logged to `logs/llm_activity.json`
-- Changes must not break existing tests (929 currently pass)
+## Pipeline Stages Required
+1. **Architect** - Design fixes for all three systems
+2. **Coder** - Implement fixes for all three bugs
+3. **Playtester** - Run playtests to verify all three bugs fixed
+4. **Debugger** - If any playtest fails, debug and fix
 
 ## Success Criteria
-1. Game runs with DM agent active, generating behavior scripts for spawned entities
-2. Entity AI uses LLM-generated behavior trees when available
-3. `logs/llm_activity.json` captures every LLM call with full metadata
-4. UI shows recent DM activity
-5. All 929 existing tests still pass
-6. Fallback to hardcoded behavior works when LLM is down
+1. Inventory use/drop/equip commands work without crashing
+2. Stairs on floor 1 only visible within FOV (not visible from across the map)
+3. DM/LLM integration working - DM responds to events, LLM calls work
+4. All existing tests pass
+5. Playtest verification passes for all three issues
+
+## Related Files to Review
+- `playtest/reports/T-2026-0630-005_crash_verification.md` - Inventory crash report
+- `playtest/repro_floor1_stairs.py` - Stairs visibility repro
+- `playtest/reports/T-2026-0630-005_final_verification_v2.md` - Previous verification
+- `tests/test_inventory_use_drop.py` - Inventory tests
+- `tests/test_stairs.py` - Stairs tests
+- `tests/test_dungeon_master_agent.py` - DM tests
+- `tests/test_dungeon_master_service.py` - DM service tests

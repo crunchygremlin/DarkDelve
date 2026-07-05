@@ -24,6 +24,39 @@
   {
     "name": "Adventurer",
     "class": "warrior",
+    "score": 10286,
+    "depth": 2,
+    "kills": 12,
+    "turns": 70,
+    "cause": "Unknown",
+    "date": "2026-06-29 21:46",
+    "seed": 1913835239
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
+    "score": 10222,
+    "depth": 2,
+    "kills": 19,
+    "turns": 125,
+    "cause": "Unknown",
+    "date": "2026-06-30 22:52",
+    "seed": 2571674221
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
+    "score": 10182,
+    "depth": 2,
+    "kills": 12,
+    "turns": 111,
+    "cause": "Unknown",
+    "date": "2026-06-29 22:21",
+    "seed": 2875467213
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
     "score": 10168,
     "depth": 1,
     "kills": 8,
@@ -31,6 +64,17 @@
     "cause": "Unknown",
     "date": "2026-06-29 20:53",
     "seed": 431697946
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
+    "score": 10158,
+    "depth": 2,
+    "kills": 15,
+    "turns": 177,
+    "cause": "Unknown",
+    "date": "2026-07-03 22:33",
+    "seed": 1915585693
   },
   {
     "name": "Adventurer",
@@ -174,49 +218,5 @@
     "cause": "Unknown",
     "date": "2026-06-19 22:09",
     "seed": 1609959103
-  },
-  {
-    "name": "Adventurer",
-    "class": "warrior",
-    "score": 10100,
-    "depth": 1,
-    "kills": 0,
-    "turns": 0,
-    "cause": null,
-    "date": "2026-06-19 22:10",
-    "seed": 3121521256
-  },
-  {
-    "name": "Adventurer",
-    "class": "warrior",
-    "score": 10100,
-    "depth": 1,
-    "kills": 0,
-    "turns": 0,
-    "cause": "Unknown",
-    "date": "2026-06-19 22:11",
-    "seed": 3017056969
-  },
-  {
-    "name": "Adventurer",
-    "class": "warrior",
-    "score": 10100,
-    "depth": 1,
-    "kills": 0,
-    "turns": 0,
-    "cause": null,
-    "date": "2026-06-19 22:11",
-    "seed": 335820517
-  },
-  {
-    "name": "Adventurer",
-    "class": "warrior",
-    "score": 10100,
-    "depth": 1,
-    "kills": 0,
-    "turns": 0,
-    "cause": "Unknown",
-    "date": "2026-06-19 22:13",
-    "seed": 1288934070
   }
 ]

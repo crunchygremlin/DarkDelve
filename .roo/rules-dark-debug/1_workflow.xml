@@ -1,80 +1,124 @@
 <workflow_instructions>
   <mode_overview>
-    The Debugger is a systematic root cause analyst. It receives bug reports, test failures,
-    or error output. The job is to find cause, apply a minimal targeted fix,
-    and verify it does not introduce regressions. No redesigns. No refactoring. Fix the bug.
+    The Debugger is a systematic root cause analyst for DarkDelve. You receive bug reports, test failures, or error output. Your job is to validate bugs using MCP, create tests, find the EXACT root cause, apply a minimal targeted fix, and verify it does not introduce regressions. No redesigns. No refactoring. Fix the bug.
   </mode_overview>
 
-  <initialization_steps>
+  <two_step_debugging_process>
     <step number="1">
-      <action>Read the error/failure output</action>
-      <details>
-        Read the complete error message, stack trace, and test output.
-        Identify the exact file, line number, and function where the failure occurs.
-      </details>
+      <title>Validate Bug with MCP</title>
+      <description>Use MCP tools to directly control the game and reproduce the issue</description>
+      <actions>
+        <action>Read the error/failure output completely</action>
+        <action>Identify the exact file, line number, and function from the stack trace</action>
+        <action>Use MCP tools to control the game via keypresses and reproduce the issue</action>
+        <action>Verify the bug exists in the current codebase</action>
+      </actions>
     </step>
     <step number="2">
-      <action>Read the relevant source code</action>
-      <details>
-        Read the source code around the failure location.
-        Read up to 50 lines before and after the failure line.
-        Understand what the code is trying to do.
-      </details>
+      <title>Create Test for Issue</title>
+      <description>Build a test that validates the issue and will catch regressions</description>
+      <actions>
+        <action>Write a test that reproduces the bug</action>
+        <action>Ensure the test fails with the current code</action>
+        <action>Verify the test captures the expected behavior</action>
+      </actions>
     </step>
     <step number="3">
-      <action>Check architecture/gotchas.md</action>
-      <details>
-        Cross-reference the failure against known DarkDelve pitfalls.
-        Many bugs are caused by common gotchas listed in this file.
-      </details>
+      <title>Diagnose Root Cause</title>
+      <description>Identify the exact root cause of the bug</description>
+      <actions>
+        <action>Read the source code at the failure location</action>
+        <action>Read up to 50 lines before and after the failure line</action>
+        <action>Check architecture/gotchas.md for known pitfalls</action>
+        <action>Form a hypothesis: "The bug is caused by X because Y"</action>
+        <action>Verify the hypothesis by tracing the code path mentally</action>
+      </actions>
     </step>
-  </initialization_steps>
-
-  <main_workflow>
-    <phase name="diagnosis">
-      <description>Identify the exact root cause</description>
-      <steps>
-        <step>Read the error message carefully — note the exception type and message</step>
-        <step>Read the stack trace — note the exact file and line number</step>
-        <step>Read the source code at that location</step>
-        <step>Check architecture/gotchas.md for known pitfalls</step>
-        <step>Form a hypothesis: "The bug is caused by X because Y"</step>
-        <step>Verify the hypothesis by tracing the code path mentally</step>
-      </steps>
-    </phase>
-
-    <phase name="fix">
+    <step number="4">
+      <title>Apply Minimal Fix</title>
       <description>Apply the smallest possible fix</description>
-      <steps>
-        <step>Apply ONLY the fix for the identified root cause</step>
-        <step>Do NOT refactor surrounding code</step>
-        <step>Do NOT add features or improvements</step>
-        <step>Do NOT change code that is not related to the bug</step>
-        <step>If the fix requires changes in multiple files, fix each one separately</step>
-      </steps>
-    </phase>
-
-    <phase name="verification">
+      <actions>
+        <action>Apply ONLY the fix for the identified root cause</action>
+        <action>Do NOT refactor surrounding code</action>
+        <action>Do NOT add features or improvements</action>
+        <action>Do NOT change code that is not related to the bug</action>
+      </actions>
+    </step>
+    <step number="5">
+      <title>Verify Fix</title>
       <description>Verify the fix and check for regressions</description>
-      <steps>
-        <step>Run the specific test that was failing</step>
-        <step>Run ALL tests: python -m pytest tests/ --tb=short -q</step>
-        <step>If any test fails, determine if it is related to the fix or pre-existing</step>
-        <step>If a test should have caught this bug but didn't, add a new test for it</step>
-        <step>Verify the new test passes</step>
-      </steps>
-    </phase>
-
-    <phase name="reporting">
+      <actions>
+        <action>Run the specific test that was failing</action>
+        <action>Run ALL tests: python -m pytest tests/ --tb=short -q</action>
+        <action>If any test fails, determine if it is related to the fix or pre-existing</action>
+        <action>Verify the new test passes</action>
+      </actions>
+    </step>
+    <step number="6">
+      <title>Report Results</title>
       <description>Report the fix</description>
-      <steps>
-        <step>State the root cause clearly</step>
-        <step>State what was fixed (file, line, change)</step>
-        <step>Report test results (count passed/failed)</step>
-        <step>Note any new tests added</step>
-      </steps>
-    </phase>
-  </main_workflow>
+      <actions>
+        <action>State the root cause clearly</action>
+        <action>State what was fixed (file, line, change)</action>
+        <action>Report test results (count passed/failed)</action>
+        <action>Note any new tests added</action>
+      </actions>
+    </step>
+  </two_step_debugging_process>
+
+  <mcp_validation_guidance>
+    <overview>
+      Use MCP tools to directly control the game and reproduce issues. This is more reliable than LLM playtesting for debugging.
+    </overview>
+    <available_tools>
+      <tool>create_mob - Create a monster at a specific position</tool>
+      <tool>add_item - Add an item to an entity's inventory or spawn it on the map</tool>
+      <tool>modify_stat - Modify a stat on an entity (health, strength, etc.)</tool>
+      <tool>request_map_section - Request a section of the dungeon map</tool>
+      <tool>list_entities - List all entities in the game</tool>
+      <tool>send_message - Send a message to the player or log it</tool>
+    </available_tools>
+    <validation_approach>
+      <step>Initialize a fresh game instance</step>
+      <step>Use MCP tools to set up the specific scenario that triggers the bug</step>
+      <step>Execute the action that should trigger the bug</step>
+      <step>Verify the bug manifests as expected</step>
+    </validation_approach>
+  </mcp_validation_guidance>
+
+  <test_creation_guidance>
+    <overview>
+      Create tests that would have caught the bug. Tests should be deterministic and not rely on LLM behavior.
+    </overview>
+    <patterns>
+      <pattern name="game_state_test">
+        <description>Test specific game state after an action</description>
+        <example>
+          def test_inventory_pickup_bug():
+              game = Game()
+              game.initialize()
+              # Set up scenario
+              game.player.x, game.player.y = 5, 5
+              # Execute action
+              game.process_action("d")  # pickup
+              # Verify state
+              assert len(game.player.inventory.items) == expected
+        </example>
+      </pattern>
+      <pattern name="entity_interaction_test">
+        <description>Test entity interactions (combat, movement, etc.)</description>
+        <example>
+          def test_combat_damage_bug():
+              player = create_test_player()
+              monster = create_test_monster()
+              # Execute combat
+              result = CombatResolver.resolve_attack(player, monster)
+              # Verify result
+              assert result.damage == expected_damage
+        </example>
+      </pattern>
+    </patterns>
+  </test_creation_guidance>
 
   <common_gotchas>
     <gotcha>
@@ -82,7 +126,8 @@
       <symptom>ImportError: No module named 'application.game_commands.base_command'</symptom>
       <check>Verify all imports use: from src.application.game_commands.base_command import BaseCommand</check>
       <fix>Add src. prefix to all import paths</fix>
-       <gotcha>
+    </gotcha>
+    <gotcha>
       <name>Reversed dungeon_map logic</name>
       <symptom>Monsters spawn in walls, players blocked by floors</symptom>
       <check>dungeon_map[x, y]: True=wall, False=floor. Check if condition is backwards.</check>
@@ -151,6 +196,8 @@
   </architecture_upkeep>
 
   <completion_criteria>
+    <criterion>Bug validated using MCP</criterion>
+    <criterion>Test created that would have caught the bug</criterion>
     <criterion>Root cause identified and stated clearly</criterion>
     <criterion>Minimal fix applied</criterion>
     <criterion>All tests pass: python -m pytest tests/ --tb=short -q</criterion>

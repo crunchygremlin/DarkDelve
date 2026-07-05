@@ -684,3 +684,38 @@ This forces `compute()` to create a fresh `np.zeros()` array for the new level.
 - Always reset `fov_system.explored = None` when generating a new level
 - Consider adding a `reset()` method to `FOVSystem` for clarity
 - Add tests that verify explored state is fresh for each level
+## Damage Cap Clamping Order
+
+### Problem
+When adding damage cap/floor clamping to `CombatResolver.resolve_attack()`, the clamping must be applied at the correct point in the calculation pipeline. Applying it before critical hit multiplication, or after the `CombatEvent` is created, causes incorrect behavior.
+
+### Root Cause
+The damage calculation pipeline in `resolve_attack()` is:
+1. Roll d20 → determine hit/miss/critical
+2. Roll weapon dice → base damage
+3. Add power bonus and damage_bonus
+4. **If critical → multiply damage by 2**
+5. **← CLAMPING MUST GO HERE ←**
+6. Create `CombatEvent` with final damage
+
+If clamping is applied before step 4, critical hits are calculated on the clamped value (too low). If clamping is applied after step 6, the `CombatEvent` already has the unclamped value and the defender takes unclamped damage.
+
+### Solution
+Apply clamping after critical multiplication but before `CombatEvent` creation:
+
+```python
+# After critical multiplication, before CombatEvent creation:
+if defender_is_player:
+    damage = clamp_monster_damage(damage, defender.max_hp)
+elif attacker_is_player:
+    damage = clamp_player_damage(damage, defender.max_hp)
+```
+
+### Affected Code
+- [`darkdelve.py`](darkdelve.py:890) - `CombatResolver.resolve_attack()`
+- [`src/domain/value_objects/damage_caps.py`](src/domain/value_objects/damage_caps.py:1) - Clamping functions
+
+### Prevention
+- Always apply balance clamping AFTER all damage modifications (dice, bonuses, crits) but BEFORE the final `CombatEvent` is constructed.
+- Test with both critical hits and normal hits to verify clamping works correctly in both cases.
+- The cap is `max_hp // 5` (monster→player) and floor is `max_hp // 4` (player→monster).

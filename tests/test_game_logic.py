@@ -218,6 +218,7 @@ class TestGameLogic(unittest.TestCase):
         renderer = SimpleNamespace(_console=console, clear=MagicMock())
         ui = SimpleNamespace(
             render_dungeon=MagicMock(),
+            render_stairs=MagicMock(),
             render_entities=MagicMock(),
             render_ui=MagicMock(),
         )
@@ -229,6 +230,7 @@ class TestGameLogic(unittest.TestCase):
         self.assertIn("@", text)
         renderer.clear.assert_called_once()
         ui.render_dungeon.assert_called_once()
+        ui.render_stairs.assert_called_once()
         ui.render_entities.assert_called_once()
         ui.render_ui.assert_called_once()
 

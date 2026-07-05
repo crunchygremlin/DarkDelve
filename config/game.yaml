@@ -181,6 +181,8 @@ damage:
   critical_multiplier: 1.5
   armor_minimum: 1
   resistance_default: 0.0
+  cap: 20
+  player_floor: 5
 
 # Floor 1 (Dungeon Entrance) Configuration
 floor1:

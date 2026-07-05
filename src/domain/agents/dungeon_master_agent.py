@@ -40,6 +40,7 @@ class DungeonMasterAgent:
         self.logger = llm_logger
         self.social_service = social_service
         self.content_repository = content_repository  # NEW
+        self._level_history: List[Dict[str, Any]] = []  # Track level performance history
         self._model_name = "gpt-oss"  # Default model
         self._temperature = 0.7  # Default temperature
 
@@ -343,3 +344,92 @@ Respond with ONLY the JSON, no other text."""
             except json.JSONDecodeError:
                 pass
         return None
+
+    def update_context(self, record: Dict[str, Any]) -> None:
+        """Append a level record to the level history, bounded to 10 entries."""
+        self._level_history.append(record)
+        self._level_history = self._level_history[-10:]  # Keep last 10
+
+    def build_evolution_prompt(self, context: Dict[str, Any], depth: int = 1) -> str:
+        """Build the evolution prompt for the LLM."""
+        previous_levels = context.get("previous_levels", [])
+        performance_summary = context.get("performance_summary", "No previous level data.")
+        difficulty_adjustment = context.get("difficulty_adjustment", 1.0)
+        narrative_continuity = context.get("narrative_continuity", "First level -- no previous narrative.")
+        
+        # Build history summary
+        history_summary = ""
+        for rec in previous_levels[-3:]:
+            history_summary += f"Level {rec.get('depth', '?')}: {rec.get('theme', rec.get('theme_name', 'Unknown'))}\n"
+        
+        # Map difficulty to direction
+        if difficulty_adjustment >= 1.2:
+            direction = "significantly harder"
+        elif difficulty_adjustment > 1.0:
+            direction = "slightly harder"
+        elif difficulty_adjustment <= 0.8:
+            direction = "easier"
+        else:
+            direction = "similar difficulty"
+        
+        return f"""You are the dungeon master evolving the dungeon.
+Previous levels:
+{history_summary}
+Performance summary: {performance_summary}
+Difficulty adjustment: {difficulty_adjustment} ({direction})
+Narrative continuity: {narrative_continuity}
+
+Design level {depth} with appropriate difficulty and theme continuity."""
+
+    def design_evolved_level(self, context: Dict[str, Any], level_number: int) -> Dict[str, Any]:
+        """Design an evolved level based on performance history."""
+        prompt = self.build_evolution_prompt(context, level_number)
+        result = self._call_llm_json(prompt, "level_evolution")
+        return result if result is not None else {}
+
+    def get_difficulty_adjustment(self) -> float:
+        """Get difficulty adjustment based on performance history."""
+        if not self._level_history:
+            return 1.0
+        # Calculate based on recent performance
+        recent = self._level_history[-3:]
+        total_killed = sum(r.get('monsters_killed', 0) for r in recent)
+        total_spawned = sum(r.get('total_monsters', 1) for r in recent)
+        if total_spawned == 0:
+            return 1.0
+        ratio = total_killed / total_spawned
+        if ratio > 0.9:
+            return 1.2  # Increase difficulty
+        elif ratio < 0.5:
+            return 0.8  # Decrease difficulty
+        return 1.0
+
+    def get_narrative_continuity(self) -> str:
+        """Get narrative continuity string from level history."""
+        if not self._level_history:
+            return "The dungeon awaits..."
+        return f"Continuing from {self._level_history[-1].get('theme_name', 'previous depths')}..."
+
+    def get_performance_summary(self) -> Dict[str, Any]:
+        """Get performance summary from level history."""
+        if not self._level_history:
+            return {"status": "no_data"}
+        return {
+            "levels_completed": len(self._level_history),
+            "avg_turns": sum(r.get('turns_taken', 0) for r in self._level_history) / len(self._level_history),
+        }
+
+    def build_dm_evolution_context(self, level_number: int) -> Dict[str, Any]:
+        """Build context for DM evolution."""
+        return {
+            "level_number": level_number,
+            "level_history": self._level_history,
+            "difficulty_adjustment": self.get_difficulty_adjustment(),
+            "narrative_continuity": self.get_narrative_continuity(),
+            "performance_summary": self.get_performance_summary(),
+        }
+
+    def record_level_performance(self, level_data: Dict[str, Any]) -> None:
+        """Record level performance data."""
+        self.update_context(level_data)
+

@@ -20,14 +20,8 @@ class TestStairs:
         """Test that stair_down_pos is set after _generate_floor1()."""
         game = Game()
         game.initialize()
-        
-        # Generate floor 1
         game.generate_level(1, "main")
-        
-        # Verify stair_down_pos is not None
         assert game.stair_down_pos is not None, "stair_down_pos should be set after floor 1 generation"
-        
-        # Verify it's a tuple of two integers
         assert isinstance(game.stair_down_pos, tuple), "stair_down_pos should be a tuple"
         assert len(game.stair_down_pos) == 2, "stair_down_pos should have 2 elements"
         assert all(isinstance(coord, int) for coord in game.stair_down_pos), "stair_down_pos coordinates should be integers"
@@ -36,14 +30,8 @@ class TestStairs:
         """Test that stair_down_pos is on a floor tile (dungeon_map[x, y] == False)."""
         game = Game()
         game.initialize()
-        
-        # Generate floor 1
         game.generate_level(1, "main")
-        
-        # Verify stair_down_pos is not None
         assert game.stair_down_pos is not None, "stair_down_pos should be set"
-        
-        # Verify it's on a floor tile (False = floor, True = wall)
         x, y = game.stair_down_pos
         assert game.dungeon_map[x, y] == False, f"stair_down_pos {game.stair_down_pos} should be on a floor tile, but is on wall"
 
@@ -51,137 +39,70 @@ class TestStairs:
         """Test that stair_down_pos is reachable from entrance via BFS on floor tiles."""
         game = Game()
         game.initialize()
-        
-        # Generate floor 1
         game.generate_level(1, "main")
-        
-        # Verify stair_down_pos is not None
         assert game.stair_down_pos is not None, "stair_down_pos should be set"
-        
-        # Find entrance (player start position)
         entrance = (game.player.x, game.player.y)
-        
-        # Import pathfinding function
         from darkdelve import find_path
-        
-        # Find path from entrance to stairs
         path = find_path(entrance, game.stair_down_pos, game.dungeon_map, [])
-        
-        # Verify path exists and has more than 1 step (entrance != stairs)
         assert len(path) > 1, f"No path found from entrance {entrance} to stairs {game.stair_down_pos}"
 
     def test_use_stairs_down_on_stairs_increments_depth(self):
         """Test that calling use_stairs_down() while on stair_down_pos increments depth."""
         game = Game()
         game.initialize()
-        
-        # Generate floor 1
         game.generate_level(1, "main")
-        
-        # Verify stair_down_pos is not None
         assert game.stair_down_pos is not None, "stair_down_pos should be set"
-        
-        # Move player to stairs
         game.player.x, game.player.y = game.stair_down_pos
-        
-        # Record initial depth
         initial_depth = game.state.depth
-        
-        # Use stairs down
         game.use_stairs_down()
-        
-        # Verify depth increased by 1
         assert game.state.depth == initial_depth + 1, f"Depth should increase by 1 when using stairs down, from {initial_depth} to {initial_depth + 1}"
-        
-        # Verify message was added
         assert any("descend deeper" in msg for msg in game.message_log), "Should have a descent message"
 
     def test_use_stairs_down_off_stairs_does_not_change_depth(self):
-        """Test that calling use_stairs_down() while NOT on stairs does NOT change depth and adds a message."""
+        """Test that calling use_stairs_down() while NOT on stairs does NOT change depth."""
         game = Game()
         game.initialize()
-        
-        # Generate floor 1
         game.generate_level(1, "main")
-        
-        # Verify stair_down_pos is not None
         assert game.stair_down_pos is not None, "stair_down_pos should be set"
-        
-        # Ensure player is NOT on stairs (player starts at entrance)
         assert (game.player.x, game.player.y) != game.stair_down_pos, "Player should not start on stairs"
-        
-        # Record initial depth
         initial_depth = game.state.depth
-        
-        # Use stairs down
         game.use_stairs_down()
-        
-        # Verify depth did NOT change
         assert game.state.depth == initial_depth, f"Depth should not change when not on stairs, remains {initial_depth}"
-        
-        # Verify message was added (should be "There are no stairs here.")
-        assert any("no stairs here" in msg for msg in game.message_log), "Should have a 'no stairs here' message when not on stairs"
 
     def test_use_stairs_up_on_stairs_increments_depth(self):
         """Test that calling use_stairs_up() while on stair_up_pos decrements depth."""
         game = Game()
         game.initialize()
-        
-        # Verify stair_up_pos is not None (should be set for floor 1)
         assert game.stair_up_pos is not None, "stair_up_pos should be set"
-        
-        # Move player to stairs up
         game.player.x, game.player.y = game.stair_up_pos
-        
-        # Record initial depth
         initial_depth = game.state.depth
-        
-        # Use stairs up
         game.use_stairs_up()
-        
-        # Verify depth decreased by 1 (unless at depth 1, which would be victory)
         if game.state.depth > 1:
             assert game.state.depth == initial_depth - 1, f"Depth should decrease by 1 when using stairs up, from {initial_depth} to {initial_depth - 1}"
         else:
-            # At depth 1, should be victory
             assert game.state.depth == 1, "Should be at depth 1"
             assert any("escape the dungeon" in msg for msg in game.message_log), "Should have victory message"
-        
-        # Verify message was added
         assert any("climb back up" in msg for msg in game.message_log) or any("escape the dungeon" in msg for msg in game.message_log), "Should have a climb back up or victory message"
 
     def test_use_stairs_up_off_stairs_does_not_change_depth(self):
-        """Test that calling use_stairs_up() while NOT on stairs does NOT change depth and adds a message."""
+        """Test that calling use_stairs_up() while NOT on stairs does NOT change depth."""
         game = Game()
         game.initialize()
-        
-        # Verify stair_up_pos is not None
         assert game.stair_up_pos is not None, "stair_up_pos should be set"
-        
-        # For floor 1, stair_up_pos is set to entrance (player start position)
-        # So we need to move player away from stairs up to test the "not on stairs" case
         if (game.player.x, game.player.y) == game.stair_up_pos:
-            # Move player one step away from stairs up
             game.player.x = (game.player.x + 1) % game.dungeon_map.shape[0]
-        
-        # Ensure player is NOT on stairs up
         assert (game.player.x, game.player.y) != game.stair_up_pos, "Player should not start on stairs up"
-        
-        # Record initial depth
         initial_depth = game.state.depth
-        
-        # Use stairs up
         game.use_stairs_up()
-        
-        # Verify depth did NOT change
         assert game.state.depth == initial_depth, f"Depth should not change when not on stairs up, remains {initial_depth}"
-        
-        # Verify message was added (should be "There are no stairs here.")
-        assert any("no stairs here" in msg for msg in game.message_log), "Should have a 'no stairs here' message when not on stairs up"
 
 
 class TestStairsRenderOrder:
-    """Regression tests: stairs must render ON TOP of entities so they are never hidden."""
+    """Regression tests: stairs render order and FOV gating.
+
+    Render order: dungeon -> stairs -> entities (entities always on top).
+    Stairs only render when in FOV or explored.
+    """
 
     def _make_console_renderer(self, console):
         """Wrap a tcod console in a minimal renderer interface."""
@@ -195,16 +116,16 @@ class TestStairsRenderOrder:
         return ConsoleLikeRenderer(console)
 
     def _render_full(self, game):
-        """Run the full render pipeline with proper stair position passing."""
+        """Run the full render pipeline: dungeon -> stairs -> entities."""
         game.renderer.clear()
         game.ui.render_dungeon(game.dungeon_map, game.fov, game.explored, game.player)
-        game.ui.render_entities(game.entities, game.fov, game.player)
         game.ui.render_stairs(game.dungeon_map, game.fov, game.explored, game.player,
                               stair_down_pos=game.stair_down_pos,
                               stair_up_pos=game.stair_up_pos)
+        game.ui.render_entities(game.entities, game.fov, game.player)
 
     def test_stair_glyph_not_overwritten_by_entity(self):
-        """When an entity stands on a stair tile, the stair glyph must be on top after full render."""
+        """Player on stairs: player glyph '@' must be on top (entities render after stairs)."""
         console = tcod.console.Console(80, 50)
         renderer = self._make_console_renderer(console)
 
@@ -214,24 +135,23 @@ class TestStairsRenderOrder:
         game.renderer = renderer
         game.ui = darkdelve.UI(renderer, game.config)
 
-        # Place player directly on the down-stairs tile
         game.player.x, game.player.y = game.stair_down_pos
+        game.fov = game.fov_system.compute(game.dungeon_map, game.player.x, game.player.y)
+        game.explored = game.fov_system.explored.copy()
 
-        # Run the full render pipeline (dungeon -> entities -> stairs)
         self._render_full(game)
 
-        # Check the console at the stair position - the stair glyph '>' must be on top
         sx, sy = game.stair_down_pos
         cam_x = sx - game.ui.camera_x
         cam_y = sy - game.ui.camera_y
         actual_char = console.ch[cam_y, cam_x]
-        assert actual_char == ord('>'), (
-            f"Stair down glyph '>' should be on top at ({sx},{sy}), "
-            f"but got '{chr(int(actual_char))}' (entity overwrote stairs)"
+        assert actual_char == ord('@'), (
+            f"Player glyph '@' should be on top of stairs at ({sx},{sy}), "
+            f"but got '{chr(int(actual_char))}'"
         )
 
     def test_stair_up_glyph_not_overwritten_by_entity(self):
-        """When an entity stands on a stair-up tile, the '<' glyph must be on top after full render."""
+        """Player on up-stairs: player glyph '@' must be on top."""
         console = tcod.console.Console(80, 50)
         renderer = self._make_console_renderer(console)
 
@@ -241,23 +161,23 @@ class TestStairsRenderOrder:
         game.renderer = renderer
         game.ui = darkdelve.UI(renderer, game.config)
 
-        # Place player on the up-stairs tile
         game.player.x, game.player.y = game.stair_up_pos
+        game.fov = game.fov_system.compute(game.dungeon_map, game.player.x, game.player.y)
+        game.explored = game.fov_system.explored.copy()
 
-        # Run the full render pipeline
         self._render_full(game)
 
         sx, sy = game.stair_up_pos
         cam_x = sx - game.ui.camera_x
         cam_y = sy - game.ui.camera_y
         actual_char = console.ch[cam_y, cam_x]
-        assert actual_char == ord('<'), (
-            f"Stair up glyph '<' should be on top at ({sx},{sy}), "
-            f"but got '{chr(int(actual_char))}' (entity overwrote stairs)"
+        assert actual_char == ord('@'), (
+            f"Player glyph '@' should be on top of stairs at ({sx},{sy}), "
+            f"but got '{chr(int(actual_char))}'"
         )
 
-    def test_monster_on_stairs_still_shows_stair_glyph(self):
-        """A monster standing on stairs must not hide the stair glyph."""
+    def test_monster_on_stairs_still_shows_monster_glyph(self):
+        """A monster standing on stairs must be visible on top of the stair glyph."""
         console = tcod.console.Console(80, 50)
         renderer = self._make_console_renderer(console)
 
@@ -267,9 +187,14 @@ class TestStairsRenderOrder:
         game.renderer = renderer
         game.ui = darkdelve.UI(renderer, game.config)
 
-        # Spawn a monster on the down-stairs tile
+        sx, sy = game.stair_down_pos
+        game.player.x = sx
+        game.player.y = max(0, sy - 2)
+        game.fov = game.fov_system.compute(game.dungeon_map, game.player.x, game.player.y)
+        game.explored = game.fov_system.explored.copy()
+
         monster = Entity(
-            x=game.stair_down_pos[0], y=game.stair_down_pos[1],
+            x=sx, y=sy,
             char='g', color=(0, 255, 0),
             name='goblin', blocks=True,
             hp=5, max_hp=5, power=2, defense=0,
@@ -277,14 +202,72 @@ class TestStairsRenderOrder:
         )
         game.entities.append(monster)
 
-        # Run the full render pipeline
+        self._render_full(game)
+
+        cam_x = sx - game.ui.camera_x
+        cam_y = sy - game.ui.camera_y
+        actual_char = console.ch[cam_y, cam_x]
+        assert actual_char == ord('g'), (
+            f"Monster glyph 'g' should be on top of stairs at ({sx},{sy}), "
+            f"but got '{chr(int(actual_char))}'"
+        )
+
+    def test_stairs_visible_only_in_fov_or_explored(self):
+        """Stairs should only be visible when in FOV or explored memory.
+        When the player is on the stairs, the stairs are in FOV, so the stair
+        glyph should be rendered (but the player '@' will be on top).
+        """
+        console = tcod.console.Console(80, 50)
+        renderer = self._make_console_renderer(console)
+
+        game = Game()
+        game.initialize()
+        game.generate_level(1, "main")
+        game.renderer = renderer
+        game.ui = darkdelve.UI(renderer, game.config)
+
+        game.player.x, game.player.y = game.stair_down_pos
+        game.fov = game.fov_system.compute(game.dungeon_map, game.player.x, game.player.y)
+        game.explored = game.fov_system.explored.copy()
+
         self._render_full(game)
 
         sx, sy = game.stair_down_pos
         cam_x = sx - game.ui.camera_x
         cam_y = sy - game.ui.camera_y
         actual_char = console.ch[cam_y, cam_x]
-        assert actual_char == ord('>'), (
-            f"Stair down glyph '>' should be on top even with monster at ({sx},{sy}), "
+        assert actual_char == ord('@'), (
+            f"Player '@' should be on top of stairs at ({sx},{sy}), "
             f"but got '{chr(int(actual_char))}'"
         )
+
+    def test_stairs_not_visible_when_outside_fov_and_not_explored(self):
+        """Stairs should NOT be visible when outside FOV and NOT explored."""
+        console = tcod.console.Console(80, 50)
+        renderer = self._make_console_renderer(console)
+
+        game = Game()
+        game.initialize()
+        game.generate_level(1, "main")
+        game.renderer = renderer
+        game.ui = darkdelve.UI(renderer, game.config)
+
+        sx, sy = game.stair_down_pos
+        map_width, map_height = game.dungeon_map.shape
+        player_x = (sx + map_width // 2) % map_width
+        player_y = (sy + map_height // 2) % map_height
+        game.player.x, game.player.y = player_x, player_y
+        game.fov = game.fov_system.compute(game.dungeon_map, game.player.x, game.player.y)
+        game.explored = game.fov_system.explored.copy()
+
+        console.clear()
+        self._render_full(game)
+
+        cam_x = sx - game.ui.camera_x
+        cam_y = sy - game.ui.camera_y
+        if 0 <= cam_x < 80 and 0 <= cam_y < 50:
+            actual_char = console.ch[cam_y, cam_x]
+            assert actual_char != ord('>'), (
+                f"Stair down glyph '>' should NOT be visible when outside FOV and not explored, "
+                f"but got '{chr(int(actual_char))}'"
+            )

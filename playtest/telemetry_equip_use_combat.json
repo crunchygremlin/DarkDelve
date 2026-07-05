@@ -24,7 +24,7 @@
         "success": true,
         "error": null,
         "data": {
-          "player_id": "1cad4964-6225-47fc-b4f5-39d5020e6ab6",
+          "player_id": "9d930102-0652-477b-acfd-3a6d8260bfff",
           "item_id": "sword_002",
           "item_name": "Steel Sword",
           "item_type": "weapon",
@@ -41,7 +41,7 @@
         "error": null,
         "player_health_after": 70,
         "data": {
-          "player_id": "65bc2763-6a93-48f9-a2fb-8b69a12f86b7",
+          "player_id": "f2468fe3-7471-4a1e-bacf-46e9cb4246df",
           "item_id": "potion_heal",
           "item_name": "Health Potion",
           "item_type": "potion",

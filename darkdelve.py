@@ -884,27 +884,70 @@ class Entity:
         return self.inventory.remove_item(item_id)
 
     def use_item(self, item) -> bool:
-        """Use an item: apply heal effects, remove consumables. Returns True on success."""
+        """Use an item: apply all effect types, remove consumables. Returns True on success."""
         if not hasattr(self, 'inventory') or self.inventory is None:
             return False
         item_id = item.id if hasattr(item, 'id') else str(item)
         if self.get_item_count(item_id) <= 0:
             return False
 
-        # Apply heal effects
+        # Apply effects from item
         effect_str = item.effect if hasattr(item, 'effect') and item.effect else ""
-        if effect_str.startswith("heal+"):
-            try:
-                heal_amount = int(effect_str.split("+")[1])
-            except (ValueError, IndexError):
-                heal_amount = 0
-            self.hp = min(self.hp + heal_amount, self.max_hp)
+        if effect_str:
+            self._apply_effect_from_string(effect_str, item)
 
         # Remove consumable items from inventory
         if hasattr(item, 'consumable') and item.consumable:
             self.inventory.remove_item(item_id)
 
         return True
+
+    def _apply_effect_from_string(self, effect_str: str, item: Any = None) -> None:
+        """Apply an effect from a string format like 'heal+20' or 'nutrition+300'.
+        
+        Args:
+            effect_str: Effect string in format 'type+value'
+            item: The item being used (optional, for extracting spell names)
+        """
+        if "+" not in effect_str:
+            return
+            
+        parts = effect_str.split("+")
+        effect_type = parts[0]
+        try:
+            value = int(parts[1])
+        except (ValueError, IndexError):
+            return
+            
+        if effect_type == "heal":
+            self.hp = min(self.hp + value, self.max_hp)
+        elif effect_type == "nutrition":
+            self.nutrition = min(self.nutrition + value, self.max_nutrition)
+        elif effect_type == "learn_spell":
+            # Add spell to known skills (value indicates spell level or just a flag)
+            spell_name = "Unknown Spell"
+            if item and hasattr(item, 'name'):
+                # Extract spell name from item name if it follows "Spellbook: X" pattern
+                if item.name.startswith("Spellbook: "):
+                    spell_name = item.name.replace("Spellbook: ", "")
+                elif item.name.startswith("Scroll: "):
+                    spell_name = item.name.replace("Scroll: ", "")
+                else:
+                    spell_name = item.name
+            if spell_name not in self.known_skills:
+                self.known_skills.append(spell_name)
+        elif effect_type == "turn_undead":
+            # Apply turn undead effect as a status effect with duration based on value
+            self.effects["turn_undead"] = value * 5  # Duration in turns
+        elif effect_type == "magic_missile":
+            # Magic missile effect - could be used to cast the spell
+            # For now, add as a known skill/spell
+            if "Magic Missile" not in self.known_skills:
+                self.known_skills.append("Magic Missile")
+        elif effect_type == "spell_power":
+            # Increase spell power (could be temporary or permanent)
+            # For now, apply as a temporary effect
+            self.effects["spell_power"] = value * 10  # Duration in turns
 
     def remove_effect(self, effect: str) -> bool:
         """Remove an effect from this entity's active effects dict."""
@@ -3365,6 +3408,38 @@ class Game:
         
         self.renderer.present()
     
+    def _safe_int(self, value) -> int:
+        """
+        Safely convert a value to int, handling None, int, and string values.
+        
+        For strings, extracts the first numeric value found (e.g., '1d8 + 4 slashing' -> 1).
+        Returns 0 for None, empty strings, or strings with no numbers.
+        
+        Args:
+            value: Value to convert (None, int, or str)
+            
+        Returns:
+            Integer value or 0 if conversion not possible
+        """
+        if value is None:
+            return 0
+        if isinstance(value, int):
+            return value
+        if isinstance(value, str):
+            if not value.strip():
+                return 0
+            # Extract first number from string (handles dice notation like '1d8 + 4 slashing')
+            import re
+            match = re.search(r'\d+', value)
+            if match:
+                return int(match.group())
+            return 0
+        # Fallback for other types
+        try:
+            return int(value)
+        except (ValueError, TypeError):
+            return 0
+
     def _render_item_description(self, x: int, y: int, width: int, item) -> None:
         """
         Render the item description panel at position (x, y) with given width.
@@ -3424,14 +3499,18 @@ class Game:
         row += 1
         
         # Combat stats (only if any > 0)
-        if int(item.damage_bonus or 0) > 0 or int(item.to_hit_bonus or 0) > 0 or int(item.defense_bonus or 0) > 0:
+        damage_bonus = self._safe_int(item.damage_bonus)
+        to_hit_bonus = self._safe_int(item.to_hit_bonus)
+        defense_bonus = self._safe_int(item.defense_bonus)
+        
+        if damage_bonus > 0 or to_hit_bonus > 0 or defense_bonus > 0:
             stat_parts = []
-            if int(item.damage_bonus or 0) > 0:
-                stat_parts.append(f"+{int(item.damage_bonus)} DMG")
-            if int(item.to_hit_bonus or 0) > 0:
-                stat_parts.append(f"+{int(item.to_hit_bonus)} HIT")
-            if int(item.defense_bonus or 0) > 0:
-                stat_parts.append(f"+{int(item.defense_bonus)} DEF")
+            if damage_bonus > 0:
+                stat_parts.append(f"+{damage_bonus} DMG")
+            if to_hit_bonus > 0:
+                stat_parts.append(f"+{to_hit_bonus} HIT")
+            if defense_bonus > 0:
+                stat_parts.append(f"+{defense_bonus} DEF")
             stat_str = ", ".join(stat_parts)
             self.renderer.print(x, row, f"{V} Stats: {stat_str:<{width - 12}} {V}", label_color)
             row += 1

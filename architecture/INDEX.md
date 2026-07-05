@@ -132,3 +132,11 @@ For tasks spanning multiple systems, read these files in order:
 3. **AI task** → `agent_system.md` (agent framework) + `entity_ai_system.md` (AI specifics)
 4. **Playtest task** → `playtest_problem_exploration_plan.md` + `api_interfaces.md`
 5. **Refactoring task** → `implementation_plan.md` + `solid_design.md`
+| `src/domain/value_objects/damage_caps.py` | ~60 | 2026-06-30 | New — Damage cap/floor formulas for balance clamping |
+| `src/presentation/item_emoji.py` | ~60 | 2026-06-30 | New — Item emoji lookup table |
+| `src/presentation/monster_emoji.py` | ~80 | 2026-06-30 | New — Monster emoji lookup table |
+| `tests/test_damage_caps.py` | ~100 | 2026-06-30 | New — Tests for damage cap/floor formulas |
+| `tests/test_item_emoji.py` | ~50 | 2026-06-30 | New — Tests for item emoji lookup |
+| `tests/test_monster_emoji.py` | ~50 | 2026-06-30 | New — Tests for monster emoji lookup |
+| `tests/test_inventory_description_panel.py` | ~80 | 2026-06-30 | New — Tests for inventory description panel |
+| `playtest/test_inventory_use_key_mcp.py` | ~200 | 2026-07-04 | New — MCP playtest for inventory U key functionality |

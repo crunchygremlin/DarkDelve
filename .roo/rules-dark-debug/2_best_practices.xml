@@ -1,6 +1,20 @@
 <best_practices>
   <general_principles>
     <principle priority="high">
+      <name>Validate with MCP before fixing</name>
+      <description>Use MCP tools to directly control the game and reproduce issues before attempting any fix.</description>
+      <rationale>MCP provides deterministic, repeatable validation that does not rely on LLM behavior.</rationale>
+      <example>
+        <good>Use MCP to set up game state, execute actions, and verify bug manifestation</good>
+        <bad>Assume the bug exists without direct validation</bad>
+      </example>
+    </principle>
+    <principle priority="high">
+      <name>Create tests that would have caught the bug</name>
+      <description>Write tests that would have detected this bug before it was fixed.</description>
+      <rationale>Prevents the same bug from recurring undetected in future development.</rationale>
+    </principle>
+    <principle priority="high">
       <name>Find root cause before fixing</name>
       <description>Never apply a fix until you understand WHY the bug happens. Symptom fixes mask real problems.</description>
       <rationale>Without root cause analysis, fixes are often wrong or create new bugs.</rationale>
@@ -26,6 +40,76 @@
     </principle>
   </general_principles>
 
+  <mcp_validation_patterns>
+    <pattern name="game_state_setup">
+      <description>Use MCP to set up specific game scenarios for validation</description>
+      <steps>
+        <step>Initialize a fresh Game instance</step>
+        <step>Use MCP tools to position entities at specific coordinates</step>
+        <step>Use MCP tools to set entity stats (health, power, etc.)</step>
+        <step>Use MCP tools to add items to inventory or spawn on map</step>
+      </steps>
+    </pattern>
+    <pattern name="action_execution">
+      <description>Execute game actions via MCP or direct method calls</description>
+      <steps>
+        <step>Use game.process_action() for player actions</step>
+        <step>Use game.main_loop() for full turn processing</step>
+        <step>Verify state changes after action execution</step>
+      </steps>
+    </pattern>
+    <pattern name="state_verification">
+      <description>Verify game state after actions</description>
+      <steps>
+        <step>Check entity positions</step>
+        <step>Check inventory contents</step>
+        <step>Check health/status values</step>
+        <step>Check map state (walls, floors, explored)</step>
+      </steps>
+    </pattern>
+  </mcp_validation_patterns>
+
+  <test_creation_patterns>
+    <pattern name="deterministic_game_test">
+      <description>Create tests that do not rely on LLM behavior</description>
+      <example>
+        <code language="python">
+<![CDATA[
+def test_player_movement_blocked_by_wall():
+    from darkdelve import Game
+    game = Game()
+    game.initialize()
+    # Position player near a wall
+    game.player.x, game.player.y = 1, 1  # Assuming wall at (2,1)
+    # Try to move right into wall
+    initial_x = game.player.x
+    game.process_action("d")  # move right
+    # Player should not have moved
+    assert game.player.x == initial_x
+]]>
+        </code>
+      </example>
+    </pattern>
+    <pattern name="combat_test">
+      <description>Test combat mechanics directly</description>
+      <example>
+        <code language="python">
+<![CDATA[
+def test_combat_resolver_damage():
+    from darkdelve import CombatResolver, Entity, Inventory
+    player = Entity(x=0, y=0, char='@', color=(255,255,255), name="Player",
+                  hp=20, max_hp=20, power=10, defense=5, inventory=Inventory())
+    monster = Entity(x=1, y=0, char='g', color=(100,200,100), name="Goblin",
+                   hp=10, max_hp=10, power=3, defense=1, inventory=Inventory())
+    result = CombatResolver.resolve_attack(player, monster)
+    assert result.damage > 0
+    assert monster.hp < 10
+]]>
+        </code>
+      </example>
+    </pattern>
+  </test_creation_patterns>
+
   <diagnosis_rules>
     <rule>Read the complete error message and stack trace before reading code</rule>
     <rule>Identify the exact file, line number, and function from the stack trace</rule>
@@ -33,7 +117,7 @@
     <rule>Check architecture/gotchas.md for known pitfalls that match the symptom</rule>
     <rule>Form a hypothesis before touching code: "The bug is caused by X because Y"</rule>
     <rule>Verify the hypothesis by tracing the code path mentally</rule>
-    <rule>If you cannot determine root cause, do NOT guess — ask for more information</rule>
+    <rule>If you cannot determine root cause, ask for more information</rule>
   </diagnosis_rules>
 
   <common_pitfalls>
@@ -52,11 +136,18 @@
       <why_problemistic>Changes to working code introduce new bugs</why_problemistic>
       <correct_approach>Only change what is directly causing the bug. Leave everything else alone.</correct_approach>
     </pitfall>
+    <pitfall>
+      <description>LLM playtest unreliability</description>
+      <why_problemistic>LLM behavior is non-deterministic and may not reproduce bugs consistently</why_problemistic>
+      <correct_approach>Use MCP for deterministic bug validation and reproduction.</correct_approach>
+    </pitfall>
   </common_pitfalls>
 
   <quality_checklist>
     <category name="before_fix">
       <item>Error message and stack trace read completely</item>
+      <item>Bug validated using MCP tools</item>
+      <item>Test created that would have caught the bug</item>
       <item>Exact file and line identified</item>
       <item>Source code read with context</item>
       <item>architecture/gotchas.md checked</item>
