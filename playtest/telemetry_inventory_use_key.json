@@ -1,0 +1,140 @@
+{
+  "test_suite": "inventory_use_key_mcp",
+  "passed": 8,
+  "failed": 0,
+  "total": 8,
+  "tests": [
+    {
+      "name": "Potion use via UseCommand (heal+20)",
+      "passed": true,
+      "error": "",
+      "details": {
+        "success": true,
+        "error": null,
+        "health_before": 30,
+        "health_after": 50,
+        "item_consumed": true,
+        "data": {
+          "player_id": "51869bd2-0239-4fd2-9908-b252be279045",
+          "item_id": "potion_heal",
+          "item_name": "Health Potion",
+          "item_type": "potion",
+          "effect_applied": "heal+20"
+        }
+      }
+    },
+    {
+      "name": "Scroll use via UseCommand (learn_spell+1)",
+      "passed": true,
+      "error": "",
+      "details": {
+        "success": true,
+        "error": null,
+        "item_consumed": true,
+        "data": {
+          "player_id": "7a282c37-684d-4bd0-b244-4e79fbc6d867",
+          "item_id": "scroll_fire",
+          "item_name": "Scroll of Fireball",
+          "item_type": "scroll",
+          "effect_applied": "learn_spell+1"
+        }
+      }
+    },
+    {
+      "name": "Food use via UseCommand (nutrition+300)",
+      "passed": true,
+      "error": "",
+      "details": {
+        "success": true,
+        "error": null,
+        "item_consumed": true,
+        "data": {
+          "player_id": "ba5ffbc7-453c-4e0d-b431-1c769ed2a15d",
+          "item_id": "food_ration",
+          "item_name": "Ration",
+          "item_type": "food",
+          "effect_applied": "nutrition+300"
+        }
+      }
+    },
+    {
+      "name": "Wand use via UseCommand (magic_missile+10)",
+      "passed": true,
+      "error": "",
+      "details": {
+        "success": true,
+        "error": null,
+        "item_consumed": true,
+        "data": {
+          "player_id": "f4cdfac3-74f5-4ddd-8fd8-9513b24e8b5c",
+          "item_id": "wand_mm",
+          "item_name": "Wand of Magic Missile",
+          "item_type": "wand",
+          "effect_applied": "magic_missile+10"
+        }
+      }
+    },
+    {
+      "name": "Weapon equip via EquipCommand (main_hand)",
+      "passed": true,
+      "error": "",
+      "details": {
+        "success": true,
+        "error": null,
+        "equipped_item": "sword_001",
+        "data": {
+          "player_id": "54e56831-5ddd-4f63-aeb4-ccaac237d162",
+          "item_id": "sword_001",
+          "item_name": "Iron Sword",
+          "item_type": "weapon",
+          "equipment_slot": "main_hand"
+        }
+      }
+    },
+    {
+      "name": "Armor equip via EquipCommand (chest)",
+      "passed": true,
+      "error": "",
+      "details": {
+        "success": true,
+        "error": null,
+        "equipped_item": "armor_001",
+        "data": {
+          "player_id": "5dc1d9bb-8ef2-440d-a8e4-36e6f8b24f07",
+          "item_id": "armor_001",
+          "item_name": "Leather Armor",
+          "item_type": "armor",
+          "equipment_slot": "chest"
+        }
+      }
+    },
+    {
+      "name": "Accessory equip via EquipCommand (neck/ring)",
+      "passed": true,
+      "error": "",
+      "details": {
+        "success": true,
+        "error": null,
+        "equipped_ring": null,
+        "equipped_neck": "ring_prot",
+        "data": {
+          "player_id": "7d7e8736-ff2e-49bb-af28-cad4c3688a15",
+          "item_id": "ring_prot",
+          "item_name": "Ring of Protection",
+          "item_type": "accessory",
+          "equipment_slot": "neck"
+        }
+      }
+    },
+    {
+      "name": "MISC item not usable via UseCommand",
+      "passed": true,
+      "error": "",
+      "details": {
+        "success": false,
+        "error": "Cannot execute use command",
+        "data": null
+      }
+    }
+  ]
+}
