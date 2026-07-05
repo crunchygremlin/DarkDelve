@@ -1,0 +1,60 @@
+<decision_guidance>
+  <overview>
+    Decision criteria and guardrails for the Debugger mode.
+  </overview>
+
+  <principles>
+    <principle>Do not include runtime implementation details (no function names, command names, UI entry points, or execution syntax)</principle>
+    <principle>Prefer the smallest change that satisfies the request</principle>
+    <principle>Prefer a single source of truth; avoid duplicated rules across files</principle>
+    <principle>Ask a clarifying question only when critical ambiguity remains</principle>
+  </principles>
+
+  <boundaries>
+    <rule>Define clear responsibilities and explicit handoff points to other modes</rule>
+    <rule>The Debugger does NOT redesign systems - only fixes specific bugs</rule>
+    <rule>The Debugger does NOT refactor code - only applies minimal fixes</rule>
+    <rule>The Debugger does NOT add features - only fixes the reported issue</rule>
+  </boundaries>
+
+  <validation>
+    <rule>After changes, scan for contradictions and update examples to match</rule>
+    <rule>Verify MCP validation confirms the bug exists before fixing</rule>
+    <rule>Verify test would have caught the bug before the fix</rule>
+    <rule>Run ALL tests after any fix</rule>
+  </validation>
+
+  <when_to_ask_questions>
+    <scenario>Error message is unclear or missing critical information</scenario>
+    <scenario>Root cause cannot be determined from available information</scenario>
+    <scenario>Fix would require a design decision beyond bug fixing</scenario>
+    <scenario>Fix would require refactoring existing code</scenario>
+    <scenario>MCP validation cannot reproduce the reported issue</scenario>
+  </when_to_ask_questions>
+
+  <stop_conditions>
+    <condition>If the error is unclear — ask for more information</condition>
+    <condition>If the root cause cannot be determined — ask for help</condition>
+    <condition>If the fix requires a design decision — escalate to Architect</condition>
+    <condition>If the fix would require refactoring — escalate to Architect</condition>
+    <condition>If MCP validation cannot reproduce the bug — ask for reproduction steps</condition>
+  </stop_conditions>
+
+  <mcp_validation_decisions>
+    <decision_point>
+      <question>Can the bug be reproduced using MCP tools?</question>
+      <yes_path>Proceed with test creation and fix</yes_path>
+      <no_path>Ask for specific reproduction steps or check if bug is environment-specific</no_path>
+    </decision_point>
+    <decision_point>
+      <question>Is the bug in core game logic or UI/rendering?</question>
+      <core_path>Focus on darkdelve.py core systems</core_path>
+      <ui_path>Focus on presentation layer and renderer</ui_path>
+    </decision_point>
+    <decision_point>
+      <question>Does the bug affect single entity or multiple systems?</question>
+      <single_path>Apply targeted fix to specific component</single_path>
+      <multiple_path>Check for cascading effects, may need Architect review</multiple_path>
+    </decision_point>
+  </mcp_validation_decisions>
+</decision_guidance>

@@ -1,0 +1,268 @@
+<common_patterns>
+  <overview>
+    Common patterns and examples for debugging DarkDelve issues using MCP validation.
+  </overview>
+
+  <pattern name="mcp_game_initialization">
+    <description>Initialize a game instance for MCP validation</description>
+    <code language="python">
+<![CDATA[
+from darkdelve import Game
+
+def setup_game_for_mcp_validation():
+    """Initialize a fresh game instance for MCP-based debugging."""
+    game = Game()
+    game.initialize()
+    return game
+]]>
+    </code>
+  </pattern>
+
+  <pattern name="mcp_entity_positioning">
+    <description>Position entities for specific test scenarios</description>
+    <code language="python">
+<![CDATA[
+def position_entities_for_bug_scenario(game, player_pos, monster_pos):
+    """Position player and monsters for a specific bug scenario."""
+    game.player.x, game.player.y = player_pos
+    
+    # Find and position a monster
+    for entity in game.entities:
+        if entity.name == "Goblin":
+            entity.x, entity.y = monster_pos
+            return entity
+    return None
+]]>
+    </code>
+  </pattern>
+
+  <pattern name="mcp_stat_manipulation">
+    <description>Modify entity stats for edge case testing</description>
+    <code language="python">
+<![CDATA[
+def set_entity_stats_for_edge_case(entity, hp=None, power=None, defense=None):
+    """Set entity stats to specific values for edge case testing."""
+    if hp is not None:
+        entity.hp = hp
+        entity.max_hp = hp
+    if power is not None:
+        entity.power = power
+    if defense is not None:
+        entity.defense = defense
+    return entity
+]]>
+    </code>
+  </pattern>
+
+  <pattern name="mcp_inventory_setup">
+    <description>Set up inventory with specific items</description>
+    <code language="python">
+<![CDATA[
+from darkdelve import Item, ItemType, EquipmentSlot
+
+def add_weapon_to_inventory(entity, weapon_id, damage_bonus=5, to_hit_bonus=2):
+    """Add a weapon to an entity's inventory and equip it."""
+    weapon = Item(
+        id=weapon_id,
+        name="Iron Sword",
+        description="A sharp iron sword",
+        symbol="/",
+        item_type=ItemType.WEAPON,
+        weight=5,
+        value=100,
+        damage_bonus=damage_bonus,
+        to_hit_bonus=to_hit_bonus,
+        equipped_slot=EquipmentSlot.MAIN_HAND
+    )
+    entity.inventory.add_item(weapon)
+    slots = entity.inventory._get_valid_slots_for_item(weapon)
+    if slots:
+        entity.inventory.equip(weapon.id, slots[0])
+    return weapon
+]]>
+    </code>
+  </pattern>
+
+  <pattern name="mcp_action_execution">
+    <description>Execute game actions for validation</description>
+    <code language="python">
+<![CDATA[
+def execute_action_and_verify(game, action, expected_state_change=None):
+    """Execute an action and optionally verify state changes."""
+    initial_state = {
+        'player_x': game.player.x,
+        'player_y': game.player.y,
+        'player_hp': game.player.hp,
+    }
+    
+    game.process_action(action)
+    
+    if expected_state_change:
+        for key, expected_value in expected_state_change.items():
+            actual_value = getattr(game.player, key, None)
+            assert actual_value == expected_value, f"Expected {key}={expected_value}, got {actual_value}"
+    
+    return initial_state
+]]>
+    </code>
+  </pattern>
+
+  <pattern name="test_bug_reproduction">
+    <description>Pattern for creating tests that reproduce bugs</description>
+    <code language="python">
+<![CDATA[
+def test_bug_reproduction_pattern():
+    """
+    Pattern for creating a test that reproduces a bug:
+    1. Set up the specific scenario that triggers the bug
+    2. Execute the action that causes the bug
+    3. Verify the bug manifests as expected
+    4. Assert the expected behavior (which should fail before fix)
+    """
+    # Step 1: Set up scenario
+    game = Game()
+    game.initialize()
+    
+    # Position entities to trigger bug
+    game.player.x, game.player.y = 5, 5
+    
+    # Step 2: Execute action
+    game.process_action("d")  # move right
+    
+    # Step 3: Verify bug (this assertion will fail before fix)
+    # assert game.player.x == expected_x, "Bug: player should not move into wall"
+    
+    # Step 4: After fix, verify correct behavior
+    # assert game.player.x == 5  # player should stay in place
+    pass
+]]>
+    </code>
+  </pattern>
+
+  <pattern name="test_combat_scenario">
+    <description>Pattern for testing combat mechanics</description>
+    <code language="python">
+<![CDATA[
+from darkdelve import CombatResolver, Entity, Inventory
+
+def test_combat_scenario_pattern():
+    """
+    Pattern for testing combat scenarios:
+    1. Create attacker and defender with specific stats
+    2. Execute combat resolution
+    3. Verify damage calculation
+    4. Verify combat event details
+    """
+    # Step 1: Create entities
+    attacker = Entity(
+        x=0, y=0, char='@', color=(255,255,255),
+        name="Player", blocks=True,
+        hp=20, max_hp=20, power=10, defense=5, speed=100,
+        inventory=Inventory(max_weight=100)
+    )
+    
+    defender = Entity(
+        x=1, y=0, char='g', color=(100,200,100),
+        name="Goblin", blocks=True,
+        hp=10, max_hp=10, power=3, defense=1, speed=50,
+        inventory=Inventory(max_weight=100)
+    )
+    
+    # Step 2: Execute combat
+    result = CombatResolver.resolve_attack(attacker, defender)
+    
+    # Step 3: Verify damage
+    assert result.damage > 0, "Should deal damage"
+    assert result.damage <= attacker.power + 5, "Damage should be reasonable"
+    
+    # Step 4: Verify combat event
+    assert result.event is not None, "Should have combat event"
+    assert result.event.attacker_id == attacker.id
+    assert result.event.defender_id == defender.id
+]]>
+    </code>
+  </pattern>
+
+  <pattern name="test_movement_scenario">
+    <description>Pattern for testing movement mechanics</description>
+    <code language="python">
+<![CDATA[
+def test_movement_scenario_pattern():
+    """
+    Pattern for testing movement scenarios:
+    1. Set up map with specific wall/floor configuration
+    2. Position player at specific location
+    3. Attempt movement in various directions
+    4. Verify movement is allowed/blocked as expected
+    """
+    import numpy as np
+    from darkdelve import Game
+    
+    # Step 1: Create game with known map
+    game = Game()
+    game.initialize()
+    
+    # Step 2: Position player
+    game.player.x, game.player.y = 5, 5
+    
+    # Step 3: Test movement
+    # Check if position is walkable
+    is_walkable = not game.dungeon_map[game.player.x + 1, game.player.y]
+    
+    # Step 4: Verify movement
+    if is_walkable:
+        game.process_action("d")  # move right
+        assert game.player.x == 6, "Player should move right"
+    else:
+        game.process_action("d")  # try to move right
+        assert game.player.x == 5, "Player should not move into wall"
+]]>
+    </code>
+  </pattern>
+
+  <pattern name="test_inventory_scenario">
+    <description>Pattern for testing inventory mechanics</description>
+    <code language="python">
+<![CDATA[
+def test_inventory_scenario_pattern():
+    """
+    Pattern for testing inventory scenarios:
+    1. Set up player with specific inventory state
+    2. Execute inventory action (pickup, drop, equip, use)
+    3. Verify inventory state changes
+    4. Verify entity state changes
+    """
+    from darkdelve import Game, Item, ItemType, EquipmentSlot
+    
+    # Step 1: Create game and position player
+    game = Game()
+    game.initialize()
+    
+    # Step 2: Create and add item
+    item = Item(
+        id="test_sword",
+        name="Test Sword",
+        description="A test weapon",
+        symbol="/",
+        item_type=ItemType.WEAPON,
+        weight=5,
+        value=100,
+        damage_bonus=5,
+        to_hit_bonus=2,
+        equipped_slot=EquipmentSlot.MAIN_HAND
+    )
+    game.player.inventory.add_item(item)
+    
+    # Step 3: Verify item added
+    assert len(game.player.inventory.items) == 1
+    assert game.player.inventory.items[0].id == "test_sword"
+    
+    # Step 4: Equip item
+    slots = game.player.inventory._get_valid_slots_for_item(item)
+    if slots:
+        game.player.inventory.equip(item.id, slots[0])
+        assert game.player.inventory.equipment[slots[0]] == item
+]]>
+    </code>
+  </pattern>
+</common_patterns>

@@ -1,0 +1,146 @@
+<error_handling>
+  <overview>
+    Error scenarios and recovery patterns for the Debugger mode.
+  </overview>
+
+  <error_categories>
+    <category name="validation_errors">
+      <description>Errors during MCP validation or test creation</description>
+      <patterns>
+        <pattern>
+          <name>MCP tool not available</name>
+          <symptom>MCP tool returns "Game instance not available" or similar</symptom>
+          <resolution>
+            <step>Verify game instance is initialized</step>
+            <step>Check that MCP toolkit has access to game object</step>
+            <step>Ensure game is not in a crashed or invalid state</step>
+          </resolution>
+        </pattern>
+        <pattern>
+          <name>Test assertion fails unexpectedly</name>
+          <symptom>Test fails but bug is not reproducible via MCP</symptom>
+          <resolution>
+            <step>Re-validate bug using MCP with same test setup</step>
+            <step>Check for non-deterministic behavior</step>
+            <step>Verify test setup matches MCP validation exactly</step>
+          </resolution>
+        </pattern>
+      </patterns>
+    </category>
+
+    <category name="root_cause_errors">
+      <description>Errors during root cause analysis</description>
+      <patterns>
+        <pattern>
+          <name>Multiple possible root causes</name>
+          <symptom>Code inspection reveals multiple potential issues</symptom>
+          <resolution>
+            <step>Prioritize by impact and likelihood</step>
+            <step>Test each hypothesis with MCP validation</step>
+            <step>Fix the most specific cause first</step>
+          </resolution>
+        </pattern>
+        <pattern>
+          <name>Root cause in different file</name>
+          <symptom>Bug manifests in one file but root cause is elsewhere</symptom>
+          <resolution>
+            <step>Trace the data flow from source to symptom</step>
+            <step>Identify the actual origin of the issue</step>
+            <step>Fix at the source, not the symptom</step>
+          </resolution>
+        </pattern>
+      </patterns>
+    </category>
+
+    <category name="fix_errors">
+      <description>Errors during fix application</description>
+      <patterns>
+        <pattern>
+          <name>Fix introduces new test failures</name>
+          <symptom>After fix, other tests fail</symptom>
+          <resolution>
+            <step>Determine if failure is related to the fix</step>
+            <step>If related, the fix is incomplete or incorrect</step>
+            <step>If unrelated, it's a pre-existing issue to document</step>
+          </resolution>
+        </pattern>
+        <pattern>
+          <name>Fix doesn't resolve the bug</name>
+          <symptom>Test still fails after fix</symptom>
+          <resolution>
+            <step>Re-validate bug with MCP to confirm it still exists</step>
+            <step>Re-analyze root cause</step>
+            <step>Consider if fix was applied correctly</step>
+          </resolution>
+        </pattern>
+      </patterns>
+    </category>
+
+    <category name="mcp_validation_errors">
+      <description>Errors during MCP-based validation</description>
+      <patterns>
+        <pattern>
+          <name>Cannot reproduce bug via MCP</name>
+          <symptom>MCP validation shows expected behavior, but bug is reported</symptom>
+          <resolution>
+            <step>Ask for specific reproduction steps</step>
+            <step>Check if bug is environment-specific</step>
+            <step>Verify MCP setup matches user's environment</step>
+          </resolution>
+        </pattern>
+        <pattern>
+          <name>MCP tool errors</name>
+          <symptom>MCP tool returns error message</symptom>
+          <resolution>
+            <step>Read error message carefully</step>
+            <step>Check tool parameters</step>
+            <step>Verify game state allows the operation</step>
+          </resolution>
+        </pattern>
+      </patterns>
+    </category>
+  </error_categories>
+
+  <recovery_strategies>
+    <strategy name="rollback_and_reassess">
+      <description>When fix makes things worse</description>
+      <steps>
+        <step>Revert the fix using version control</step>
+        <step>Document what went wrong</step>
+        <step>Re-analyze the root cause</step>
+        <step>Consider alternative approaches</step>
+      </steps>
+    </strategy>
+
+    <strategy name="escalate_to_architect">
+      <description>When fix requires design decisions</description>
+      <steps>
+        <step>Document the issue and attempted fixes</step>
+        <step>Explain why current approach won't work</step>
+        <step>Request Architect mode for design guidance</step>
+      </steps>
+    </strategy>
+
+    <strategy name="add_regression_test">
+      <description>When bug was not caught by existing tests</description>
+      <steps>
+        <step>Create test that would have caught the bug</step>
+        <step>Verify test fails with current code</step>
+        <step>Apply fix</step>
+        <step>Verify test passes after fix</step>
+      </steps>
+    </strategy>
+  </recovery_strategies>
+
+  <debugging_checklist>
+    <item>Bug validated using MCP tools</item>
+    <item>Test created that reproduces the bug</item>
+    <item>Test fails with current code (confirms bug exists)</item>
+    <item>Root cause identified</item>
+    <item>Minimal fix applied</item>
+    <item>Test passes after fix</item>
+    <item>ALL tests pass</item>
+    <item>Regression test added if missing</item>
+    <item>architecture/gotchas.md updated if new pitfall</item>
+  </debugging_checklist>
+</error_handling>

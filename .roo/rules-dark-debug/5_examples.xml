@@ -1,0 +1,299 @@
+<complete_examples>
+  <overview>
+    Complete workflow examples for debugging DarkDelve issues using MCP validation.
+  </overview>
+
+  <example name="mcp_bug_validation_and_test_creation">
+    <scenario>
+      A bug is reported where the player cannot move when adjacent to a wall.
+      The LLM playtester may not reliably reproduce this issue.
+    </scenario>
+
+    <user_request>
+      Debug: Player cannot move when adjacent to a wall. Need to validate with MCP and create a test.
+    </user_request>
+
+    <workflow>
+      <step number="1">
+        <description>Validate bug using MCP</description>
+        <approach>
+          Initialize a game, position player near a wall, attempt movement, verify bug.
+        </approach>
+        <expected_outcome>Bug is confirmed to exist</expected_outcome>
+      </step>
+
+      <step number="2">
+        <description>Create test for the bug</description>
+        <approach>
+          Write a test that reproduces the bug and will catch regressions.
+        </approach>
+        <analysis>
+          Test should position player near wall, attempt movement, verify correct behavior.
+        </analysis>
+      </step>
+
+      <step number="3">
+        <description>Identify root cause</description>
+        <approach>
+          Read error messages, check dungeon_map logic, verify coordinate system.
+        </approach>
+      </step>
+
+      <step number="4">
+        <description>Apply minimal fix</description>
+        <approach>
+          Fix the specific logic error in movement code.
+        </approach>
+      </step>
+
+      <step number="5">
+        <description>Verify fix</description>
+        <approach>
+          Run the new test and all existing tests.
+        </approach>
+      </step>
+    </workflow>
+
+    <completion>
+      Bug validated using MCP, test created, root cause identified, minimal fix applied, all tests pass.
+    </completion>
+
+    <key_takeaways>
+      <takeaway>MCP provides deterministic bug validation</takeaway>
+      <takeaway>Tests should be created before fixing to ensure regression coverage</takeaway>
+      <takeaway>Minimal fixes are easier to verify and less likely to introduce new bugs</takeaway>
+    </key_takeaways>
+  </example>
+
+  <example name="combat_damage_calculation_bug">
+    <scenario>
+      Combat damage calculation is producing incorrect results.
+    </scenario>
+
+    <user_request>
+      Debug: Combat damage is not calculating correctly. Validate with MCP and create test.
+    </user_request>
+
+    <workflow>
+      <step number="1">
+        <description>Validate bug using MCP</description>
+        <approach>
+          Create test entities with known stats, execute combat, verify damage calculation.
+        </approach>
+        <expected_outcome>Damage calculation bug is confirmed</expected_outcome>
+      </step>
+
+      <step number="2">
+        <description>Create test for the bug</description>
+        <approach>
+          Write test_combat_damage_calculation_bug() that verifies expected damage formula.
+        </approach>
+      </step>
+
+      <step number="3">
+        <description>Identify root cause</description>
+        <approach>
+          Check CombatResolver.resolve_attack() implementation, verify damage formula.
+        </approach>
+      </step>
+
+      <step number="4">
+        <description>Apply minimal fix</description>
+        <approach>
+          Fix the specific line in damage calculation.
+        </approach>
+      </step>
+
+      <step number="5">
+        <description>Verify fix</description>
+        <approach>
+          Run test_combat_damage_calculation_bug() and all tests.
+        </approach>
+      </step>
+    </workflow>
+
+    <completion>
+      Combat damage bug validated, test created, root cause identified, fix applied, all tests pass.
+    </completion>
+
+    <key_takeaways>
+      <takeaway>Combat tests should use deterministic entity stats</takeaway>
+      <takeaway>Damage formula should be verified against game design</takeaway>
+      <takeaway>Always test edge cases (critical hits, minimum damage, etc.)</takeaway>
+    </key_takeaways>
+  </example>
+
+  <example name="inventory_pickup_bug">
+    <scenario>
+      Player cannot pick up items from the ground.
+    </scenario>
+
+    <user_request>
+      Debug: Player cannot pick up items. Validate with MCP and create test.
+    </user_request>
+
+    <workflow>
+      <step number="1">
+        <description>Validate bug using MCP</description>
+        <approach>
+          Position player on item, execute pickup action, verify item is added to inventory.
+        </approach>
+        <expected_outcome>Pickup bug is confirmed</expected_outcome>
+      </step>
+
+      <step number="2">
+        <description>Create test for the bug</description>
+        <approach>
+          Write test_inventory_pickup_bug() that verifies pickup mechanics.
+        </approach>
+      </step>
+
+      <step number="3">
+        <description>Identify root cause</description>
+        <approach>
+          Check pickup_item() implementation, verify inventory weight limits, check item spawning.
+        </approach>
+      </step>
+
+      <step number="4">
+        <description>Apply minimal fix</description>
+        <approach>
+          Fix the specific logic error in pickup or weight calculation.
+        </approach>
+      </step>
+
+      <step number="5">
+        <description>Verify fix</description>
+        <approach>
+          Run test_inventory_pickup_bug() and all tests.
+        </approach>
+      </step>
+    </workflow>
+
+    <completion>
+      Inventory pickup bug validated, test created, root cause identified, fix applied, all tests pass.
+    </completion>
+
+    <key_takeaways>
+      <takeaway>Inventory tests should verify both success and failure cases</takeaway>
+      <takeaway>Weight limits should be tested with edge cases</takeaway>
+      <takeaway>Always verify item is removed from map after pickup</takeaway>
+    </key_takeaways>
+  </example>
+
+  <example name="monster_spawning_in_walls">
+    <scenario>
+      Monsters are spawning inside walls instead of on floor tiles.
+    </scenario>
+
+    <user_request>
+      Debug: Monsters spawning in walls. Validate with MCP and create test.
+    </user_request>
+
+    <workflow>
+      <step number="1">
+        <description>Validate bug using MCP</description>
+        <approach>
+          Generate a level, check all monster positions against dungeon_map.
+        </approach>
+        <expected_outcome>Monsters found in wall positions</expected_outcome>
+      </step>
+
+      <step number="2">
+        <description>Create test for the bug</description>
+        <approach>
+          Write test_monster_spawning_in_walls() that verifies all monsters are on floor tiles.
+        </approach>
+      </step>
+
+      <step number="3">
+        <description>Identify root cause</description>
+        <approach>
+          Check spawn logic in generate_level(), verify dungeon_map coordinate logic.
+        </approach>
+      </step>
+
+      <step number="4">
+        <description>Apply minimal fix</description>
+        <approach>
+          Fix the spawn condition to check for floor tiles (False) not walls (True).
+        </approach>
+      </step>
+
+      <step number="5">
+        <description>Verify fix</description>
+        <approach>
+          Run test_monster_spawning_in_walls() and all tests.
+        </approach>
+      </step>
+    </workflow>
+
+    <completion>
+      Monster spawning bug validated, test created, root cause identified, fix applied, all tests pass.
+    </completion>
+
+    <key_takeaways>
+      <takeaway>Always verify dungeon_map[x, y] logic: True=wall, False=floor</takeaway>
+      <takeaway>Spawn tests should check all entity positions</takeaway>
+      <takeaway>Include both monster and item spawning in tests</takeaway>
+    </key_takeaways>
+  </example>
+
+  <example name="fov_coordinate_swap_bug">
+    <scenario>
+      Field of view is centered on wrong position when player is off-diagonal.
+    </scenario>
+
+    <user_request>
+      Debug: FOV centered on wrong position. Validate with MCP and create test.
+    </user_request>
+
+    <workflow>
+      <step number="1">
+        <description>Validate bug using MCP</description>
+        <approach>
+          Position player at non-diagonal coordinates, compute FOV, verify center position.
+        </approach>
+        <expected_outcome>FOV is centered on wrong coordinates</expected_outcome>
+      </step>
+
+      <step number="2">
+        <description>Create test for the bug</description>
+        <approach>
+          Write test_fov_coordinate_system() that verifies FOV center matches player position.
+        </approach>
+      </step>
+
+      <step number="3">
+        <description>Identify root cause</description>
+        <approach>
+          Check FOVSystem.compute() implementation, verify pov parameter order.
+        </approach>
+      </step>
+
+      <step number="4">
+        <description>Apply minimal fix</description>
+        <approach>
+          Fix the coordinate order in compute_fov() call: pov=(safe_x, safe_y).
+        </approach>
+      </step>
+
+      <step number="5">
+        <description>Verify fix</description>
+        <approach>
+          Run test_fov_coordinate_system() and all tests.
+        </approach>
+      </step>
+    </workflow>
+
+    <completion>
+      FOV coordinate bug validated, test created, root cause identified, fix applied, all tests pass.
+    </completion>
+
+    <key_takeaways>
+      <takeaway>DarkDelve uses dungeon_map[x, y] indexing, not [y, x]</takeaway>
+      <takeaway>FOV pov parameter should be (x, y) not (y, x)</takeaway>
+      <takeaway>Always test FOV with off-diagonal player positions</takeaway>
+    </key_takeaways>
+  </example>
+</complete_examples>
