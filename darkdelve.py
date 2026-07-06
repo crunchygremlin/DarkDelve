@@ -989,8 +989,13 @@ class CombatResolver:
         # Base to-hit includes power//2 and dex modifier (if available)
         base_to_hit = getattr(attacker, 'power', 0) // 2
         dex_mod = 0
-        if hasattr(attacker, 'stats') and isinstance(attacker.stats, dict):
-            dex_mod = (attacker.stats.get('dex', 10) - 10) // 2
+        if hasattr(attacker, """stats"""):
+            stats = attacker.stats
+            if hasattr(stats, """get_dexterity_modifier"""):
+                dex_mod = stats.get_dexterity_modifier()
+            else:
+                # Fallback for dictionary-like stats (used in tests)
+                dex_mod = (stats.get("""dex""", 10) - 10) // 2
         total_roll = d20_roll + base_to_hit + dex_mod + attacker.to_hit_bonus
         
         if d20_roll == 20:
@@ -2870,6 +2875,7 @@ class Game:
             "d": (tcod.event.Scancode.D, tcod.event.KeySym.D),
             "e": (tcod.event.Scancode.E, tcod.event.KeySym.E),
             "i": (tcod.event.Scancode.I, tcod.event.KeySym.I),
+            "u": (tcod.event.Scancode.U, tcod.event.KeySym.U),
             "c": (tcod.event.Scancode.C, tcod.event.KeySym.C),
             "g": (tcod.event.Scancode.G, tcod.event.KeySym.G),
             ",": (tcod.event.Scancode.COMMA, tcod.event.KeySym.COMMA),
@@ -3220,54 +3226,54 @@ class Game:
                                     slots = self.player.inventory._get_valid_slots_for_item(item)
                                     if slots:
                                         self.player.inventory.equip(item.id, slots[0])
-                        
-                        elif event.sym == tcod.event.KeySym.D:
-                            # Drop selected item
-                            if self.player and self.player.inventory:
-                                item = self.player.inventory.get_item(self.inventory_selection)
-                                if item:
-                                    if item.equipped:
-                                        self.add_message("Unequip the item before dropping it.")
-                                    else:
-                                        # Remove from inventory and place on ground
-                                        self.player.inventory.remove_item(item.id)
-                                        self.drop_item(item, self.player.x, self.player.y)
-                                        self.add_message(f"Dropped {item.name}.")
+
+                    elif event.sym == tcod.event.KeySym.D:
+                        # Drop selected item
+                        if self.player and self.player.inventory:
+                            item = self.player.inventory.get_item(self.inventory_selection)
+                            if item:
+                                if item.equipped:
+                                    self.add_message("Unequip the item before dropping it.")
+                                else:
+                                    # Remove from inventory and place on ground
+                                    self.player.inventory.remove_item(item.id)
+                                    self.drop_item(item, self.player.x, self.player.y)
+                                    self.add_message(f"Dropped {item.name}.")
+                                    # Adjust selection if needed
+                                    item_count = len(self.player.inventory.items)
+                                    if item_count > 0 and self.inventory_selection >= item_count:
+                                        self.inventory_selection = item_count - 1
+
+                    elif event.sym == tcod.event.KeySym.U:
+                        # Use/Equip selected item
+                        if self.player and self.player.inventory:
+                            item = self.player.inventory.get_item(self.inventory_selection)
+                            if item:
+                                if item.item_type in (ItemType.POTION, ItemType.SCROLL, ItemType.FOOD, ItemType.WAND):
+                                    # Use consumable
+                                    result = self.player.use_item(item)
+                                    if result:
+                                        self.add_message(f"Used {item.name}.")
                                         # Adjust selection if needed
                                         item_count = len(self.player.inventory.items)
                                         if item_count > 0 and self.inventory_selection >= item_count:
                                             self.inventory_selection = item_count - 1
-                        
-                        elif event.sym == tcod.event.KeySym.U:
-                            # Use/Equip selected item
-                            if self.player and self.player.inventory:
-                                item = self.player.inventory.get_item(self.inventory_selection)
-                                if item:
-                                    if item.item_type in (ItemType.POTION, ItemType.SCROLL, ItemType.FOOD, ItemType.WAND):
-                                        # Use consumable
-                                        result = self.player.use_item(item)
-                                        if result:
-                                            self.add_message(f"Used {item.name}.")
-                                            # Adjust selection if needed
-                                            item_count = len(self.player.inventory.items)
-                                            if item_count > 0 and self.inventory_selection >= item_count:
-                                                self.inventory_selection = item_count - 1
-                                        else:
-                                            self.add_message(f"Cannot use {item.name}.")
-                                    elif item.item_type in (ItemType.WEAPON, ItemType.ARMOR, ItemType.ACCESSORY):
-                                        # Equip/unequip equipment
-                                        if item.equipped:
-                                            self.player.inventory.unequip(item.id)
-                                            self.add_message(f"Unequipped {item.name}.")
-                                        else:
-                                            slots = self.player.inventory._get_valid_slots_for_item(item)
-                                            if slots:
-                                                self.player.inventory.equip(item.id, slots[0])
-                                                self.add_message(f"Equipped {item.name}.")
-                                            else:
-                                                self.add_message(f"Cannot equip {item.name}.")
                                     else:
-                                        self.add_message(f"{item.name} is not usable.")
+                                        self.add_message(f"Cannot use {item.name}.")
+                                elif item.item_type in (ItemType.WEAPON, ItemType.ARMOR, ItemType.ACCESSORY):
+                                    # Equip/unequip equipment
+                                    if item.equipped:
+                                        self.player.inventory.unequip(item.id)
+                                        self.add_message(f"Unequipped {item.name}.")
+                                    else:
+                                        slots = self.player.inventory._get_valid_slots_for_item(item)
+                                        if slots:
+                                            self.player.inventory.equip(item.id, slots[0])
+                                            self.add_message(f"Equipped {item.name}.")
+                                        else:
+                                            self.add_message(f"Cannot equip {item.name}.")
+                                else:
+                                    self.add_message(f"{item.name} is not usable.")
     
     def show_character(self):
         self.showing_character = True
