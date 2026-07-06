@@ -35,6 +35,39 @@
   {
     "name": "Adventurer",
     "class": "warrior",
+    "score": 10279,
+    "depth": 2,
+    "kills": 18,
+    "turns": 168,
+    "cause": "Unknown",
+    "date": "2026-07-04 21:20",
+    "seed": 1553069957
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
+    "score": 10258,
+    "depth": 2,
+    "kills": 17,
+    "turns": 167,
+    "cause": "Unknown",
+    "date": "2026-07-05 19:19",
+    "seed": 3559038681
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
+    "score": 10230,
+    "depth": 2,
+    "kills": 14,
+    "turns": 158,
+    "cause": "Unknown",
+    "date": "2026-07-05 03:05",
+    "seed": 429222600
+  },
+  {
+    "name": "Adventurer",
+    "class": "warrior",
     "score": 10222,
     "depth": 2,
     "kills": 19,
@@ -185,38 +218,5 @@
     "cause": "Unknown",
     "date": "2026-06-08 23:18",
     "seed": 721166728
-  },
-  {
-    "name": "Adventurer",
-    "class": "warrior",
-    "score": 10100,
-    "depth": 1,
-    "kills": 0,
-    "turns": 0,
-    "cause": "Unknown",
-    "date": "2026-06-19 21:46",
-    "seed": 2848501285
-  },
-  {
-    "name": "Adventurer",
-    "class": "warrior",
-    "score": 10100,
-    "depth": 1,
-    "kills": 0,
-    "turns": 0,
-    "cause": null,
-    "date": "2026-06-19 21:46",
-    "seed": 1629146528
-  },
-  {
-    "name": "Adventurer",
-    "class": "warrior",
-    "score": 10100,
-    "depth": 1,
-    "kills": 0,
-    "turns": 0,
-    "cause": "Unknown",
-    "date": "2026-06-19 22:09",
-    "seed": 1609959103
   }
 ]

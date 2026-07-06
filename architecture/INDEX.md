@@ -140,3 +140,4 @@ For tasks spanning multiple systems, read these files in order:
 | `tests/test_monster_emoji.py` | ~50 | 2026-06-30 | New — Tests for monster emoji lookup |
 | `tests/test_inventory_description_panel.py` | ~80 | 2026-06-30 | New — Tests for inventory description panel |
 | `playtest/test_inventory_use_key_mcp.py` | ~200 | 2026-07-04 | New — MCP playtest for inventory U key functionality |
+| `tests/test_inventory_use_drop_fix.py` | ~80 | 2026-07-05 | New — Tests for inventory use/drop key fix |

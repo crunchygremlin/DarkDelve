@@ -28,11 +28,11 @@
     <step number="3">
       <action>Determine pipeline stages</action>
       <details>
-        Based on complexity, decide which modes to invoke:
-        - SINGLE_FILE: Orchestrator, then Coder
-        - MULTI_FILE: Orchestrator, then Architect, then Coder, then Playtester
-        - SYSTEM: Orchestrator, then Architect, then Coder, then Playtester
-        - CRITICAL: Orchestrator, then Architect, then Coder, then Playtester, then Debugger (on failure)
+        Based on complexity, decide which modes to invoke following the specific workflow:
+        - SINGLE_FILE: Orchestrator -> Architect -> Orchestrator -> Coder -> Orchestrator
+        - MULTI_FILE: Orchestrator -> Architect -> Orchestrator -> Coder -> Orchestrator -> Play Tester -> Orchestrator
+        - SYSTEM: Orchestrator -> Architect -> Orchestrator -> Coder -> Orchestrator -> Play Tester -> Orchestrator
+        - CRITICAL: Orchestrator -> Architect -> Orchestrator -> Coder -> Orchestrator -> Play Tester -> Orchestrator -> Debugger (on failure, with looping capability)
       </details>
     </step>
   </initialization_steps>
@@ -48,13 +48,13 @@
       </steps>
     </phase>
 
-    <phase name="routing">
-      <description>Dispatch to appropriate modes</description>
+    <phase name="orchestration">
+      <description>Execute the specific workflow based on complexity classification</description>
       <steps>
-        <step>For SINGLE_FILE: Invoke Coder mode directly with task description</step>
-        <step>For MULTI_FILE: Invoke Architect mode first, then Coder with design output</step>
-        <step>For SYSTEM: Invoke Architect, then Coder, then Playtester</step>
-        <step>For CRITICAL: Full pipeline with Debugger on any failure</step>
+        <step>For SINGLE_FILE: Execute Orchestrator -> Architect -> Orchestrator -> Coder -> Orchestrator workflow</step>
+        <step>For MULTI_FILE: Execute Orchestrator -> Architect -> Orchestrator -> Coder -> Orchestrator -> Play Tester -> Orchestrator workflow</step>
+        <step>For SYSTEM: Execute Orchestrator -> Architect -> Orchestrator -> Coder -> Orchestrator -> Play Tester -> Orchestrator workflow</step>
+        <step>For CRITICAL: Execute Orchestrator -> Architect -> Orchestrator -> Coder -> Orchestrator -> Play Tester -> Orchestrator -> Debugger (on failure, with looping capability) workflow</step>
       </steps>
     </phase>
 
@@ -62,11 +62,28 @@
       <description>Monitor and collect results from each stage</description>
       <steps>
         <step>Track each stage result as TaskResult with stage, success, output, errors, and metrics</step>
-        <step>If a stage fails, determine if pipeline should continue or stop</step>
+        <step>If a stage fails, determine if workflow should continue, loop, or invoke Debugger based on retry count</step>
         <step>Collect all stage results into WorkflowResult</step>
         <step>Report final status to user</step>
       </steps>
     </phase>
+
+  <phase_transition_validation>
+    <rule priority="critical">After each mode completes, Orchestrator MUST verify the mode returned control before proceeding to next phase.</rule>
+    <rule priority="critical">Orchestrator MUST NOT invoke next mode until current mode signals completion via attempt_completion.</rule>
+    <rule priority="critical">Orchestrator MUST track retry counts for Play Tester loop (max 3 attempts).</rule>
+    <rule priority="critical">Orchestrator MUST only invoke Debugger after Play Tester loop exceeds maximum attempts.</rule>
+    <rule priority="high">Orchestrator MUST validate that each mode's output matches expected artifacts before handoff.</rule>
+  </phase_transition_validation>
+
+  <enforcement_rules>
+    <rule priority="critical">Orchestrator is the ONLY mode that decides workflow progression. Other modes MUST NOT invoke other modes directly.</rule>
+    <rule priority="critical">Architect MUST return to Orchestrator after design - never proceed to implementation.</rule>
+    <rule priority="critical">Coder MUST return to Orchestrator after implementation - never proceed to playtesting.</rule>
+    <rule priority="critical">Play Tester MUST return to Orchestrator after testing - never proceed to debugging.</rule>
+    <rule priority="critical">Debugger MUST return to Orchestrator after fixing - never proceed to other phases.</rule>
+    <rule priority="high">If any mode attempts to do work outside its phase, Orchestrator must stop and correct the workflow.</rule>
+  </enforcement_rules>
   </main_workflow>
 
   <complexity_classification>
@@ -74,45 +91,57 @@
       <rule>
         <complexity>CRITICAL</complexity>
         <keywords>core, engine, save system, rendering pipeline, game loop, event bus, entity system, combat system</keywords>
-        <pipeline>Orchestrator, Architect, Coder, Playtester, Debugger (on failure)</pipeline>
+        <pipeline>Orchestrator -> Architect -> Orchestrator -> Coder -> Orchestrator -> Play Tester -> Orchestrator -> Debugger (on failure, with looping capability)</pipeline>
       </rule>
       <rule>
         <complexity>SYSTEM</complexity>
         <keywords>system, feature, architecture, pipeline, framework, module, service, component, agent, multi-level (2+ matches)</keywords>
-        <pipeline>Orchestrator, Architect, Coder, Playtester</pipeline>
+        <pipeline>Orchestrator -> Architect -> Orchestrator -> Coder -> Orchestrator -> Play Tester -> Orchestrator</pipeline>
       </rule>
       <rule>
         <complexity>MULTI_FILE</complexity>
         <keywords>add, update, modify, extend, improve, enhance</keywords>
-        <pipeline>Orchestrator, Architect, Coder, Playtester</pipeline>
+        <pipeline>Orchestrator -> Architect -> Orchestrator -> Coder -> Orchestrator -> Play Tester -> Orchestrator</pipeline>
       </rule>
       <rule>
         <complexity>SINGLE_FILE</complexity>
         <keywords>(default)</keywords>
-        <pipeline>Orchestrator, Coder</pipeline>
+        <pipeline>Orchestrator -> Architect -> Orchestrator -> Coder -> Orchestrator</pipeline>
       </rule>
     </rules>
   </complexity_classification>
 
   <handoff_protocols>
     <handoff from="Orchestrator" to="Architect">
-      <trigger>Task classified as MULTI_FILE, SYSTEM, or CRITICAL</trigger>
+      <trigger>Task classified as MULTI_FILE, SYSTEM, or CRITICAL (initial handoff)</trigger>
       <artifact>Task description written to plans/task_description.md</artifact>
     </handoff>
-    <handoff from="Architect" to="Coder">
+    <handoff from="Architect" to="Orchestrator">
       <trigger>Design document complete</trigger>
       <artifact>Design document at plans/TASKNAME_design.md</artifact>
     </handoff>
-    <handoff from="Coder" to="Playtester">
+    <handoff from="Orchestrator" to="Coder">
+      <trigger>Design document reviewed and approved by Orchestrator</trigger>
+      <artifact>Design document at plans/TASKNAME_design.md</artifact>
+    </handoff>
+    <handoff from="Coder" to="Orchestrator">
       <trigger>Implementation complete, tests pass</trigger>
       <artifact>Code in src/, tests in tests/</artifact>
     </handoff>
-    <handoff from="Playtester" to="Debugger">
-      <trigger>Playtest failure or bug found</trigger>
+    <handoff from="Orchestrator" to="Play Tester">
+      <trigger>Implementation verified by Orchestrator</trigger>
+      <artifact>Code in src/, tests in tests/</artifact>
+    </handoff>
+    <handoff from="Play Tester" to="Orchestrator">
+      <trigger>Playtesting complete, results ready for evaluation</trigger>
       <artifact>Telemetry at playtest/playtest_telemetry.json</artifact>
     </handoff>
-    <handoff from="Debugger" to="Coder">
-      <trigger>Root cause found, fix applied</trigger>
+    <handoff from="Orchestrator" to="Debugger">
+      <trigger>Playtesting loop exceeded maximum attempts (3) without success</trigger>
+      <artifact>Telemetry and failure analysis from Play Tester</artifact>
+    </handoff>
+    <handoff from="Debugger" to="Orchestrator">
+      <trigger>Root cause analysis complete, fix applied and tested</trigger>
       <artifact>Fixed code, needs regression test</artifact>
     </handoff>
   </handoff_protocols>
@@ -126,7 +155,7 @@
 
   <completion_criteria>
     <criterion>Task complexity classified correctly</criterion>
-    <criterion>All required stages executed</criterion>
+    <criterion>Specific workflow executed based on complexity (Orchestrator -> Architect -> Orchestrator -> Coder -> Orchestrator -> [Play Tester -> Orchestrator]* -> [Debugger -> Orchestrator]*)</criterion>
     <criterion>Final code compiles and tests pass</criterion>
     <criterion>WorkflowResult produced with final status</criterion>
     <criterion>Architecture docs reviewed for staleness and updated if needed</criterion>

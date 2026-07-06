@@ -1,0 +1,99 @@
+{
+  "test_suite": "inventory_drop_key_mcp",
+  "passed": 5,
+  "failed": 0,
+  "total": 5,
+  "tests": [
+    {
+      "name": "Drop regular item from inventory",
+      "passed": true,
+      "error": "",
+      "details": {
+        "success": true,
+        "error": null,
+        "item_dropped": true,
+        "data": {
+          "player_id": "e6d866e9-6d83-4d06-a0f8-15adef60736c",
+          "item_id": "misc_coin",
+          "item_name": "Gold Coin",
+          "item_type": "misc",
+          "drop_position": {
+            "x": 0,
+            "y": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "Drop equipped item (should fail)",
+      "passed": true,
+      "error": "",
+      "details": {
+        "success": false,
+        "error": "Cannot execute drop command",
+        "item_still_equipped": false,
+        "data": null
+      }
+    },
+    {
+      "name": "Drop consumable item (potion)",
+      "passed": true,
+      "error": "",
+      "details": {
+        "success": true,
+        "error": null,
+        "item_dropped": true,
+        "data": {
+          "player_id": "bf1f1a36-de2d-41ad-8adc-d584836fdcae",
+          "item_id": "potion_heal",
+          "item_name": "Health Potion",
+          "item_type": "potion",
+          "drop_position": {
+            "x": 0,
+            "y": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "Drop weapon from inventory",
+      "passed": true,
+      "error": "",
+      "details": {
+        "success": true,
+        "error": null,
+        "item_dropped": true,
+        "data": {
+          "player_id": "f8ca13c0-cda2-44ee-8b81-4a9e221a2f73",
+          "item_id": "sword_001",
+          "item_name": "Iron Sword",
+          "item_type": "weapon",
+          "drop_position": {
+            "x": 0,
+            "y": 0
+          }
+        }
+      }
+    },
+    {
+      "name": "Drop armor from inventory",
+      "passed": true,
+      "error": "",
+      "details": {
+        "success": true,
+        "error": null,
+        "item_dropped": true,
+        "data": {
+          "player_id": "43c2ee1d-307a-44f1-a714-5636e53fc5f8",
+          "item_id": "armor_001",
+          "item_name": "Leather Armor",
+          "item_type": "armor",
+          "drop_position": {
+            "x": 0,
+            "y": 0
+          }
+        }
+      }
+    }
+  ]
+}

@@ -1,7 +1,9 @@
 <workflow_instructions>
   <mode_overview>
-    The Architect creates implementation plans for the Coder mode. The output is consumed
-    by a small, fast coder model that CANNOT make design decisions, cannot hesitate, and
+    The Architect creates implementation plans for the Coder mode as part of the Orchestrator's workflow.
+    The Architect receives direction from the Orchestrator, creates detailed implementation plans,
+    and returns control back to the Orchestrator for the next phase.
+    The output is consumed by a small, fast coder model that CANNOT make design decisions, cannot hesitate, and
     cannot hallucinate solutions. Instructions must be mechanically executable.
   </mode_overview>
 
@@ -60,13 +62,21 @@
     </phase>
 
     <phase name="output">
-      <description>Write design document to plans/ directory</description>
+      <description>Write design document to plans/ directory and return control to Orchestrator</description>
       <steps>
         <step>Write design document to plans/TASKNAME_design.md</step>
         <step>Include all 8 required sections</step>
         <step>Verify no ambiguity remains</step>
+        <step>Return control to Orchestrator with completed design document</step>
       </steps>
     </phase>
+
+  <enforcement_rules>
+    <rule priority="critical">MUST return control to Orchestrator after completing design document. Do NOT continue to implementation.</rule>
+    <rule priority="critical">MUST NOT write any implementation code. That is the Coder's job.</rule>
+    <rule priority="critical">MUST NOT run tests or validate implementation. That is the Coder's and Play Tester's job.</rule>
+    <rule priority="high">Signal completion by using attempt_completion tool with result summarizing the design document location and key decisions.</rule>
+  </enforcement_rules>
   </main_workflow>
 
   <output_format>

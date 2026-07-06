@@ -7,10 +7,11 @@
 
   <initialization_steps>
     <step number="1">
-      <action>Read the design document</action>
+      <action>Receive the design document from Orchestrator</action>
       <details>
         Read plans/TASKNAME_design.md completely. This is your ONLY source of truth.
         Do NOT deviate from what is written here.
+        Understand that you received this from the Orchestrator after the Architect phase.
       </details>
     </step>
     <step number="2">
@@ -54,14 +55,22 @@
     </phase>
 
     <phase name="reporting">
-      <description>Report what was implemented</description>
+      <description>Report what was implemented and return control to Orchestrator</description>
       <steps>
         <step>List all files created</step>
         <step>List all files modified</step>
         <step>Report test results (count passed/failed)</step>
         <step>Report any issues encountered</step>
+        <step>Return control to Orchestrator with implementation summary</step>
       </steps>
     </phase>
+
+  <enforcement_rules>
+    <rule priority="critical">MUST return control to Orchestrator after completing implementation and tests. Do NOT continue to playtesting.</rule>
+    <rule priority="critical">MUST NOT perform playtesting or use MCP tools for game interaction. That is the Play Tester's job.</rule>
+    <rule priority="critical">MUST NOT make design decisions. If design is unclear, STOP and report to Orchestrator.</rule>
+    <rule priority="high">Signal completion by using attempt_completion tool with result summarizing files created/modified and test results.</rule>
+  </enforcement_rules>
   </main_workflow>
 
   <implementation_rules>

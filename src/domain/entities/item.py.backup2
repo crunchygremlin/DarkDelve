@@ -36,7 +36,7 @@ class Item(Entity):
     @property
     def is_droppable(self) -> bool:
         """Check if item can be dropped (all items are droppable unless equipped)"""
-        return not getattr(self, 'equipped', False)
+        return not (getattr(self, 'equippable', False) and getattr(self, 'equipment_slot', None))
 
     @property
     def is_usable(self) -> bool:

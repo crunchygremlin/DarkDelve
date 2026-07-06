@@ -1,52 +1,27 @@
-# Task T-2026-0630-006: Critical Multi-System Bug Fixes
+Task ID: INV-U-KEY-001
+Title: Investigate and fix 'U' key functionality in inventory screen
+Description: 
+User reports that pressing 'U' in the inventory screen does nothing. However, unit tests show the underlying functionality works correctly. Need to investigate:
+1. Whether the inventory screen is properly displaying and receiving input
+2. If the 'U' key event is being processed correctly in the show_inventory() method
+3. Whether there are any blocking issues in the event loop that prevent key handling
+4. Verify that the player.use_item() and inventory.equip()/unequip() methods work as expected when called from the inventory screen
 
-## Task ID
-T-2026-0630-006
+Current evidence:
+- All unit tests pass (test_inventory_use_key_fix.py: 10/10)
+- MCP playtest passes (test_inventory_use_key_mcp.py: 8/8)
+- The show_inventory() method in darkdelve.py lines 3246-3275 contains 'U' key handling logic
+- The underlying player.use_item() and inventory methods are tested and working
 
-## Complexity Classification
-**CRITICAL** - Multiple core systems broken (inventory, stairs/visibility, DM/LLM)
+Expected outcome: Identify why 'U' key appears to do nothing in actual gameplay and fix the issue.
+Complexity: MULTI_FILE (may involve darkdelve.py and potentially input handling files)
+Files to examine:
+- darkdelve.py (show_inventory method, input handling)
+- Tests to understand expected behavior
 
-## Primary Objective
-Fix three critical game-breaking bugs:
-1. **Inventory Use/Drop Crash** - Using items from inventory crashes the game
-2. **Stairs Visibility Bug** - Stairs visible from anywhere on floor 1 (should only be visible in FOV)
-3. **DM/LLM Integration Broken** - Dungeon Master / LLM agent integration broken
+Deliverables:
+1. Design document explaining the root cause and solution
+2. Updated task description for Coder
+3. Updated architecture documentation if needed
 
-## Specific Bugs to Fix
-
-### Bug 1: Inventory Use/Drop Crash
-- **Location**: `src/application/game_commands/use_command.py`, `src/application/game_commands/drop_command.py`, `src/application/game_commands/equip_command.py`
-- **Symptom**: Using items from inventory crashes the game
-- **Related files**: `src/application/game_commands/use_command.py`, `src/application/game_commands/drop_command.py`, `src/application/game_commands/equip_command.py`, `src/application/game_queries/inventory_query.py`, `src/domain/services/inventory_service.py`, `tests/test_inventory_use_drop.py`
-
-### Bug 2: Stairs Visibility Bug (Floor 1)
-- **Location**: `src/domain/services/floor1_generator.py`, `src/domain/services/perception_service.py`, `src/presentation/renderers/tile_renderer.py`
-- **Symptom**: Stairs visible from anywhere on floor 1 (should only be visible in FOV)
-- **Related files**: `src/domain/services/floor1_generator.py`, `src/domain/services/perception_service.py`, `src/presentation/renderers/tile_renderer.py`, `src/domain/services/perception_service.py`, `tests/test_stairs.py`, `playtest/repro_floor1_stairs.py`
-
-### Bug 3: DM/LLM Integration Broken
-- **Location**: `src/domain/agents/dungeon_master_agent.py`, `src/domain/agents/commander_agent.py`, `src/domain/agents/integration.py`, `src/domain/services/dungeon_master_service.py`, `src/domain/agents/llm_agent.py`
-- **Symptom**: DM/LLM agent integration broken - DM not responding, LLM not being called properly
-- **Related files**: `src/domain/agents/dungeon_master_agent.py`, `src/domain/agents/commander_agent.py`, `src/domain/agents/integration.py`, `src/domain/services/dungeon_master_service.py`, `src/domain/agents/llm_agent.py`, `src/infrastructure/external/ollama_service.py`, `tests/test_dungeon_master_agent.py`, `tests/test_dungeon_master_service.py`
-
-## Pipeline Stages Required
-1. **Architect** - Design fixes for all three systems
-2. **Coder** - Implement fixes for all three bugs
-3. **Playtester** - Run playtests to verify all three bugs fixed
-4. **Debugger** - If any playtest fails, debug and fix
-
-## Success Criteria
-1. Inventory use/drop/equip commands work without crashing
-2. Stairs on floor 1 only visible within FOV (not visible from across the map)
-3. DM/LLM integration working - DM responds to events, LLM calls work
-4. All existing tests pass
-5. Playtest verification passes for all three issues
-
-## Related Files to Review
-- `playtest/reports/T-2026-0630-005_crash_verification.md` - Inventory crash report
-- `playtest/repro_floor1_stairs.py` - Stairs visibility repro
-- `playtest/reports/T-2026-0630-005_final_verification_v2.md` - Previous verification
-- `tests/test_inventory_use_drop.py` - Inventory tests
-- `tests/test_stairs.py` - Stairs tests
-- `tests/test_dungeon_master_agent.py` - DM tests
-- `tests/test_dungeon_master_service.py` - DM service tests
+Workflow: Orchestrator -> Architect -> Orchestrator -> Coder -> Orchestrator -> Play Tester -> Orchestrator
