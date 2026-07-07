@@ -141,3 +141,11 @@ For tasks spanning multiple systems, read these files in order:
 | `tests/test_inventory_description_panel.py` | ~80 | 2026-06-30 | New — Tests for inventory description panel |
 | `playtest/test_inventory_use_key_mcp.py` | ~200 | 2026-07-04 | New — MCP playtest for inventory U key functionality |
 | `tests/test_inventory_use_drop_fix.py` | ~80 | 2026-07-05 | New — Tests for inventory use/drop key fix |
+| `src/domain/services/dynamic_difficulty_service.py` | ~100 | 2026-07-07 | New — DynamicDifficultyService and DifficultyAdjustment for dynamic difficulty adjustment |
+| `src/application/services/dynamic_difficulty_service.py` | ~60 | 2026-07-07 | New — ApplicationDynamicDifficultyService for coordinating difficulty adjustment |
+| `tests/test_dynamic_difficulty.py` | ~100 | 2026-07-07 | New — Tests for dynamic difficulty adjustment system |
+| `src/application/services/llm_worker.py` | ~250 | 2026-07-07 | Modified — Added LLMWorker class with evaluate_player_stats method |
+| `src/application/services/floor1_generator.py` | ~260 | 2026-07-07 | Modified — Added difficulty_adjustment parameter to constructor and generate method |
+| `src/application/services/floor1_spawner.py` | ~310 | 2026-07-07 | Modified — Added difficulty_adjustment parameter and _apply_adjustment_to_count method |
+| `src/domain/services/dungeon_master_service.py` | ~160 | 2026-07-07 | Modified — Added apply_difficulty_adjustment methods |
+| `src/application/event_system/handlers/system_handler.py` | ~320 | 2026-07-07 | Modified — Added SystemHandler class for level change events |

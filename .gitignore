@@ -13,3 +13,5 @@ darkdelve.py.backup3
 darkdelve.py.backup4
 .gitignore
 src/application/game_commands/drop_command.py.backup
+playtest/playtest_telemetry.json
+cache/content.db
