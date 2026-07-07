@@ -1,16 +1,17 @@
 """
 Floor 1 Entity Spawner
 
-Spawns all entities for floor 1 based on Floor1Data.
+Spawns all entities for floor 1 based on Floor1Data with dynamic difficulty support.
 """
 
 import random
 from pathlib import Path
-from typing import List, Tuple, Optional, Set
+from typing import List, Tuple, Optional, Set, Callable
 import numpy as np
 import yaml
 
 from darkdelve import Entity, COLORS, MobTier, Item, ItemType
+from src.domain.services.dynamic_difficulty_service import DifficultyAdjustment
 
 
 # Monster stats from floor1_monsters.yaml (hardcoded for simplicity)
@@ -78,36 +79,59 @@ def load_templates(config: dict = None) -> dict:
 
 
 class Floor1Spawner:
-    """Spawns entities for floor 1."""
-    
-    def __init__(self, player: Entity, config: dict, dungeon_map: np.ndarray = None):
+    """Spawns entities for floor 1 with dynamic difficulty support."""
+
+    def __init__(
+        self,
+        player: Entity,
+        config: dict,
+        dungeon_map: np.ndarray = None,
+        difficulty_adjustment: Optional[DifficultyAdjustment] = None
+    ):
         self.player = player
         self.config = config
         self.dungeon_map = dungeon_map
         self.occupied_positions: Set[Tuple[int, int]] = set()
         self.templates = load_templates(config)
-    
+        self.difficulty_adjustment = difficulty_adjustment or DifficultyAdjustment.no_change()
+
     def spawn_all(self, floor1_data, roster) -> List[Entity]:
-        """Spawn all entities for floor 1."""
+        """Spawn all entities for floor 1 with difficulty adjustments."""
         entities = []
-        
+
         # Track player position
         self.occupied_positions.add((self.player.x, self.player.y))
-        
-        # Spawn guard patrols
-        entities.extend(self._spawn_guard_patrols(floor1_data))
-        
+
+        # Apply difficulty adjustments to spawning
+        adjusted_guard_count = self._apply_adjustment_to_count(
+            lambda: random.randint(2, 3),
+            self.difficulty_adjustment.spawn_rate_modifier
+        )
+
+        # Spawn guard patrols with adjusted counts
+        entities.extend(self._spawn_guard_patrols(floor1_data, adjusted_guard_count))
+
         # Spawn den creatures
         entities.extend(self._spawn_den_creatures(floor1_data))
-        
+
         # Spawn roaming creatures
         entities.extend(self._spawn_roaming(floor1_data))
-        
+
         # Spawn corpses with loot
         entities.extend(self._spawn_corpses(floor1_data))
-        
+
         return entities
-    
+
+    def _apply_adjustment_to_count(
+        self,
+        base_count_func: Callable[[], int],
+        modifier: float
+    ) -> int:
+        """Apply difficulty modifier to a count value."""
+        base_count = base_count_func()
+        adjusted_count = max(1, int(base_count * modifier))
+        return adjusted_count
+
     def _is_valid_position(self, x: int, y: int) -> bool:
         """Check if position is valid (on floor, not wall)."""
         if self.dungeon_map is None:
@@ -117,14 +141,14 @@ class Floor1Spawner:
         if x >= self.dungeon_map.shape[0] or y >= self.dungeon_map.shape[1]:
             return False
         return not self.dungeon_map[x, y]  # False = floor, True = wall
-    
+
     def _find_valid_position(self, x: int, y: int, max_attempts: int = 50) -> Tuple[int, int]:
         """Find a valid position near the given coordinates that's not occupied."""
         # Try the exact position first
         if self._is_valid_position(x, y) and (x, y) not in self.occupied_positions:
             self.occupied_positions.add((x, y))
             return (x, y)
-        
+
         # Try nearby positions
         for dx in range(-3, 4):
             for dy in range(-3, 4):
@@ -132,7 +156,7 @@ class Floor1Spawner:
                 if self._is_valid_position(nx, ny) and (nx, ny) not in self.occupied_positions:
                     self.occupied_positions.add((nx, ny))
                     return (nx, ny)
-        
+
         # Search the map for an unoccupied floor tile
         for _ in range(max_attempts):
             nx = random.randint(1, self.config['dungeon']['width'] - 2)
@@ -140,48 +164,48 @@ class Floor1Spawner:
             if self._is_valid_position(nx, ny) and (nx, ny) not in self.occupied_positions:
                 self.occupied_positions.add((nx, ny))
                 return (nx, ny)
-        
+
         # Fallback: return original position even if invalid
         return (x, y)
-    
-    def _spawn_guard_patrols(self, floor1_data) -> List[Entity]:
+
+    def _spawn_guard_patrols(self, floor1_data, count_override: int = None) -> List[Entity]:
         """Spawn guard patrol groups."""
         entities = []
-        
+
         for route in floor1_data.patrol_routes:
             if not route.waypoints:
                 continue
-            
-            # Spawn 2-3 guards at first waypoint
-            count = random.randint(2, 3)
+
+            # Spawn 2-3 guards at first waypoint (or use adjusted count)
+            count = count_override if count_override else random.randint(2, 3)
             start_x, start_y = route.waypoints[0]
-            
+
             for i in range(count):
                 offset_x = random.randint(-1, 1)
                 offset_y = random.randint(-1, 1)
                 x = start_x + offset_x
                 y = start_y + offset_y
-                
+
                 # Find valid position
                 x, y = self._find_valid_position(x, y)
-                
+
                 # First guard is sergeant, rest are regular
                 template_key = 'guard_sergeant' if i == 0 else 'dungeon_guard'
                 template = self.templates[template_key]
-                
+
                 entity = self._create_monster_entity(template, x, y)
                 entity.is_commander = (i == 0)  # Sergeant commands
                 entities.append(entity)
-        
+
         return entities
-    
+
     def _spawn_den_creatures(self, floor1_data) -> List[Entity]:
         """Spawn creatures in dens."""
         entities = []
-        
+
         for den in floor1_data.dens:
             cx, cy = den.center
-            
+
             for i in range(den.count):
                 # First creature is leader (queen/king), rest are minions
                 if i == 0 and den.creature_type == 'giant_spider':
@@ -190,45 +214,45 @@ class Floor1Spawner:
                     template_key = 'rat_king'
                 else:
                     template_key = den.creature_type
-                
+
                 # Find a random position near den center
                 angle = random.uniform(0, 2 * 3.14159)
                 dist = random.randint(0, max(1, den.radius - 1))
                 preferred_x = int(cx + dist * np.cos(angle))
                 preferred_y = int(cy + dist * np.sin(angle))
-                
+
                 # Use _find_valid_position to guarantee no overlap
                 x, y = self._find_valid_position(preferred_x, preferred_y)
-                
+
                 template = self.templates[template_key]
                 entity = self._create_monster_entity(template, x, y)
                 entity.home_position = (x, y)  # Stay near den
                 entities.append(entity)
-        
+
         return entities
-    
+
     def _spawn_roaming(self, floor1_data) -> List[Entity]:
         """Spawn roaming solitary creatures."""
         entities = []
-        
+
         for x, y, creature_type in floor1_data.roaming_spawns:
             # Find valid position
             x, y = self._find_valid_position(x, y)
-            
+
             template = self.templates[creature_type]
             entity = self._create_monster_entity(template, x, y)
             entities.append(entity)
-        
+
         return entities
-    
+
     def _spawn_corpses(self, floor1_data) -> List[Entity]:
         """Spawn adventurer corpses with loot."""
         entities = []
-        
+
         for x, y in floor1_data.corpses:
             # Find valid position
             x, y = self._find_valid_position(x, y)
-            
+
             corpse = Entity(
                 x=x, y=y,
                 char='%', color=(150, 100, 100),
@@ -240,15 +264,15 @@ class Floor1Spawner:
             corpse.is_corpse = True
             corpse.loot = self._generate_corpse_loot()
             entities.append(corpse)
-        
+
         return entities
-    
+
     def _create_monster_entity(self, template: dict, x: int, y: int) -> Entity:
         """Create a monster entity from template."""
         # Scale speed relative to player (player speed = 100)
         player_speed = self.player.speed if self.player else 100
         monster_speed = max(1, int(player_speed * template.get('speed', 60) / 100))
-        
+
         entity = Entity(
             x=x, y=y,
             char=template['symbol'],
@@ -263,11 +287,11 @@ class Floor1Spawner:
             intel_tier=1,
         )
         return entity
-    
+
     def _generate_corpse_loot(self) -> List[Item]:
         """Generate random loot for a corpse."""
         loot = []
-        
+
         # 50% chance of gold
         if random.random() < 0.5:
             gold_item = Item(
@@ -278,7 +302,7 @@ class Floor1Spawner:
                 value=random.randint(5, 20),
             )
             loot.append(gold_item)
-        
+
         # 30% chance of potion
         if random.random() < 0.3:
             potion = Item(
@@ -291,15 +315,15 @@ class Floor1Spawner:
                 value=25,
             )
             loot.append(potion)
-        
+
         # 20% chance of weapon
         if random.random() < 0.2:
             weapons = [
-                Item("Rusty Sword", "rusty_sword", ItemType.WEAPON, "/", 
+                Item("Rusty Sword", "rusty_sword", ItemType.WEAPON, "/",
                      damage_bonus=1, value=10),
-                Item("Wooden Club", "wooden_club", ItemType.WEAPON, '/', 
+                Item("Wooden Club", "wooden_club", ItemType.WEAPON, '/',
                      damage_bonus=1, value=8),
             ]
             loot.append(random.choice(weapons))
-        
+
         return loot

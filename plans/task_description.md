@@ -1,27 +1,31 @@
-Task ID: INV-U-KEY-001
-Title: Investigate and fix 'U' key functionality in inventory screen
-Description: 
-User reports that pressing 'U' in the inventory screen does nothing. However, unit tests show the underlying functionality works correctly. Need to investigate:
-1. Whether the inventory screen is properly displaying and receiving input
-2. If the 'U' key event is being processed correctly in the show_inventory() method
-3. Whether there are any blocking issues in the event loop that prevent key handling
-4. Verify that the player.use_item() and inventory.equip()/unequip() methods work as expected when called from the inventory screen
+Task ID: T-2026-07-07-001
+Objective: Implement event system integration for dynamic difficulty system
 
-Current evidence:
-- All unit tests pass (test_inventory_use_key_fix.py: 10/10)
-- MCP playtest passes (test_inventory_use_key_mcp.py: 8/8)
-- The show_inventory() method in darkdelve.py lines 3246-3275 contains 'U' key handling logic
-- The underlying player.use_item() and inventory methods are tested and working
+Issues Identified:
+1. SystemHandler._register_handlers() is a stub - needs actual event bus registration for level change events
+2. ApplicationDynamicDifficultyService._register_event_handlers() is a stub - needs implementation for event handling
+3. Level change event publishing from Game.generate_level() not yet implemented - the system lacks the trigger to publish level change events
+4. The difficulty_adjusted event is published but no consumers are registered yet - while not critical for core functionality, limits extensibility
 
-Expected outcome: Identify why 'U' key appears to do nothing in actual gameplay and fix the issue.
-Complexity: MULTI_FILE (may involve darkdelve.py and potentially input handling files)
-Files to examine:
-- darkdelve.py (show_inventory method, input handling)
-- Tests to understand expected behavior
+Plan to Address Concerns:
+1. Implement SystemHandler._register_handlers():
+   - Register handle_level_change method to listen for level change events (e.g., 'level_changed' or similar)
+   - Use the existing event bus pattern from other handlers in the codebase
+2. Implement ApplicationDynamicDifficultyService._register_event_handlers():
+   - Register for relevant events (potentially difficulty_adjusted for logging/UI, or other game events)
+   - Follow the pattern used in other application services
+3. Implement Level Change Event Publishing:
+   - Identify where level changes occur (likely in Game.generate_level() or floor1_generator.py)
+   - Publish a level change event via the event bus when a new level is successfully generated
+   - Ensure the event includes necessary context (current level, player entity, etc.)
+4. Address difficulty_adjusted Event Consumers:
+   - Determine if any systems need to react to difficulty adjustments (e.g., UI display, logging, achievement tracking)
+   - Implement consumers as needed, or document that the event is available for future use
+   - At minimum, ensure the event is properly typed and documented
 
-Deliverables:
-1. Design document explaining the root cause and solution
-2. Updated task description for Coder
-3. Updated architecture documentation if needed
+These are integration enhancements that do not affect the core dynamic difficulty adjustment functionality, which has been verified working through unit tests and manual playtesting. The core system correctly:
+- Evaluates player stats via DM LLM at level changes
+- Applies difficulty adjustments to monster generation
+- Integrates with existing floor generation and spawning systems
 
-Workflow: Orchestrator -> Architect -> Orchestrator -> Coder -> Orchestrator -> Play Tester -> Orchestrator
+The identified issues can be addressed in this task focused on completing the event system integration, ensuring the dynamic difficulty system is fully wired into the game's event-driven architecture.

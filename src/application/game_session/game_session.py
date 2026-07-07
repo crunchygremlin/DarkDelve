@@ -389,13 +389,36 @@ class GameSession:
     def update_play_time(self, delta_seconds: int) -> None:
         """
         Update play time.
-        
+
         Args:
             delta_seconds: Seconds to add to play time
         """
         self.statistics["play_time"] += delta_seconds
-        
+
         # Update total play time string
         hours = self.statistics["play_time"] // 3600
         minutes = (self.statistics["play_time"] % 3600) // 60
         self.state.total_play_time = f"{hours}h {minutes}m"
+
+    def publish_level_change_event(self, old_level: int, new_level: int):
+        """Publish a level change event to the event bus."""
+        from ..event_system.base_event import Event
+        
+        event = Event(
+            event_type="level_change",
+            source="game_session",
+            data={
+                "old_level": old_level,
+                "new_level": new_level,
+                "player_entity": self.player  # Assuming player is an Entity
+            }
+        )
+        self.event_bus.publish_event(event)
+
+    def advance_level(self):
+        """Advance the player to the next level."""
+        old_level = self.state.current_level
+        new_level = old_level + 1
+        self.state.current_level = new_level
+        # Publish level change event
+        self.publish_level_change_event(old_level, new_level)

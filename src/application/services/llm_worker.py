@@ -2,7 +2,7 @@
 
 import time
 import threading
-from typing import Optional, Any
+from typing import Optional, Any, Dict
 from queue import Queue, Empty
 
 from src.domain.value_objects.llm_logging import LLMLogger, LLMCallLog
@@ -218,3 +218,107 @@ def llm_worker_func(
         except Exception as e:
             # Log unexpected errors but keep worker running
             print(f"LLM worker error: {e}")
+
+
+class LLMWorker:
+    """Extended LLM worker for player stats evaluation."""
+
+    def __init__(self, ollama_service=None, dm_agent=None):
+        """Initialize the LLM worker.
+
+        Args:
+            ollama_service: Optional OllamaService instance
+            dm_agent: Optional DungeonMasterAgent instance
+        """
+        self.ollama_service = ollama_service
+        self.dm_agent = dm_agent
+
+    def evaluate_player_stats(
+        self,
+        player_stats: Dict[str, int],
+        current_level: int
+    ) -> Dict[str, Any]:
+        """
+        Evaluate player stats using DM LLM and return difficulty adjustment recommendations.
+        
+        Args:
+            player_stats: Dictionary of player stats (health, attack, defense, etc.)
+            current_level: Current level the player is on
+            
+        Returns:
+            Dictionary containing difficulty adjustment recommendations
+        """
+        # Construct prompt for DM LLM
+        prompt = self._build_evaluation_prompt(player_stats, current_level)
+
+        # Query LLM (no caching as per requirements)
+        response = self._query_llm(prompt, use_cache=False)
+
+        # Parse and return response
+        return self._parse_evaluation_response(response)
+
+    def _build_evaluation_prompt(
+        self,
+        player_stats: Dict[str, int],
+        current_level: int
+    ) -> str:
+        """Build prompt for DM LLM to evaluate player stats."""
+        return f"""
+        As the Dungeon Master, evaluate the player's current stats and recommend 
+        difficulty adjustments for the next level.
+        
+        Player Stats:
+        - Health: {player_stats.get('health', 0)}
+        - Attack: {player_stats.get('attack', 0)}
+        - Defense: {player_stats.get('defense', 0)}
+        - Power Level: {player_stats.get('power_level', 0)}
+        - Current Level: {current_level}
+        
+        Provide your assessment in JSON format with the following structure:
+        {{
+            "difficulty_modifier": float,  // Overall difficulty multiplier (0.5 to 2.0)
+            "specific_adjustments": {{
+                "spawn_rate": float,       // Monster spawn rate multiplier (0.5 to 2.0)
+                "monster_health": float,   // Monster health multiplier (0.5 to 2.0)
+                "monster_damage": float    // Monster damage multiplier (0.5 to 2.0)
+            }},
+            "reasoning": "string"          // Brief explanation of your assessment
+        }}
+        
+        Base your assessment on:
+        - If player stats are significantly above average for their level, increase difficulty
+        - If player stats are significantly below average for their level, decrease difficulty
+        - If player stats are appropriate for their level, maintain current difficulty
+        """
+
+    def _query_llm(self, prompt: str, use_cache: bool = False) -> str:
+        """Query the LLM with the given prompt."""
+        # Implementation would call the actual LLM service
+        # use_cache=False ensures no caching as per requirements
+        if self.ollama_service:
+            return self.ollama_service.generate(prompt)
+        return ""
+
+    def _parse_evaluation_response(self, response: str) -> Dict[str, Any]:
+        """Parse LLM response into structured format."""
+        try:
+            import json
+            # Find JSON object in response
+            start = response.find('{')
+            end = response.rfind('}') + 1
+            if start >= 0 and end > start:
+                json_str = response[start:end]
+                return json.loads(json_str)
+        except Exception:
+            pass
+
+        # Return default adjustment if parsing fails
+        return {
+            "difficulty_modifier": 1.0,
+            "specific_adjustments": {
+                "spawn_rate": 1.0,
+                "monster_health": 1.0,
+                "monster_damage": 1.0
+            },
+            "reasoning": "Failed to parse LLM response, using default difficulty"
+        }

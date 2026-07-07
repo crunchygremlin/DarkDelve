@@ -131,3 +131,60 @@ class DungeonMasterService:
     def get_level(self) -> Optional[DungeonLevel]:
         """Get the current level."""
         return self.current_level
+
+    def apply_difficulty_adjustment(
+        self,
+        base_monster_count: int,
+        adjustment: Any
+    ) -> int:
+        """Apply difficulty adjustment to monster count.
+
+        Args:
+            base_monster_count: The base number of monsters to spawn
+            adjustment: DifficultyAdjustment object with spawn_rate_modifier
+
+        Returns:
+            Adjusted monster count
+        """
+        if adjustment is None:
+            return base_monster_count
+        modifier = getattr(adjustment, 'spawn_rate_modifier', 1.0)
+        return max(1, int(base_monster_count * modifier))
+
+    def apply_monster_health_adjustment(
+        self,
+        base_health: int,
+        adjustment: Any
+    ) -> int:
+        """Apply difficulty adjustment to monster health.
+
+        Args:
+            base_health: The base health value
+            adjustment: DifficultyAdjustment object with monster_health_modifier
+
+        Returns:
+            Adjusted health value
+        """
+        if adjustment is None:
+            return base_health
+        modifier = getattr(adjustment, 'monster_health_modifier', 1.0)
+        return max(1, int(base_health * modifier))
+
+    def apply_monster_damage_adjustment(
+        self,
+        base_damage: int,
+        adjustment: Any
+    ) -> int:
+        """Apply difficulty adjustment to monster damage.
+
+        Args:
+            base_damage: The base damage value
+            adjustment: DifficultyAdjustment object with monster_damage_modifier
+
+        Returns:
+            Adjusted damage value
+        """
+        if adjustment is None:
+            return base_damage
+        modifier = getattr(adjustment, 'monster_damage_modifier', 1.0)
+        return max(1, int(base_damage * modifier))
