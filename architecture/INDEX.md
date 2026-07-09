@@ -149,3 +149,7 @@ For tasks spanning multiple systems, read these files in order:
 | `src/application/services/floor1_spawner.py` | ~310 | 2026-07-07 | Modified — Added difficulty_adjustment parameter and _apply_adjustment_to_count method |
 | `src/domain/services/dungeon_master_service.py` | ~160 | 2026-07-07 | Modified — Added apply_difficulty_adjustment methods |
 | `src/application/event_system/handlers/system_handler.py` | ~320 | 2026-07-07 | Modified — Added SystemHandler class for level change events |
+| `tests/test_position_immutability.py` | ~100 | 2026-07-08 | New — Tests for Position immutability and translate method removal |
+| `src/domain/value_objects/combat_config.py` | ~15 | 2026-07-09 | New — Fuzion combat configuration constants |
+| `src/shared/utils/dice.py` | ~20 | 2026-07-09 | New — Dice parsing utility for weapon damage |
+| `tests/test_fuzion_combat.py` | ~80 | 2026-07-09 | New — Tests for Fuzion d10 combat system |

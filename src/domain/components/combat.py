@@ -139,8 +139,8 @@ class Combat(Component):
             
         return bonus
         
-    def get_bonus_defense(self) -> int:
-        """Get bonus defense from equipment and effects"""
+    def get_armor_value(self) -> int:
+        """Get armor value from equipment and effects"""
         bonus = self.bonus_defense
         
         # Add bonus from status effects
@@ -148,6 +148,10 @@ class Combat(Component):
             bonus += effect_data["data"].get("defense_bonus", 0)
             
         return bonus
+
+    def get_bonus_defense(self) -> int:
+        """Get bonus defense from equipment and effects - DEPRECATED alias"""
+        return self.get_armor_value()
         
     def set_attack_power(self, power: int) -> None:
         """Set attack power"""

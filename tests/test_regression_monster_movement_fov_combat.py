@@ -307,8 +307,8 @@ class TestToHitRegression(unittest.TestCase):
             inventory=Inventory(max_weight=100),
         )
 
-        # Roll 20 (natural 20) always hits
-        with patch('random.randint', return_value=20):
+        # Roll 10 (natural 10) is critical in d10 system
+        with patch('random.randint', return_value=10):
             event = CombatResolver.resolve_attack(attacker, defender)
 
         self.assertFalse(event.out_of_range)
@@ -328,8 +328,8 @@ class TestToHitRegression(unittest.TestCase):
             inventory=Inventory(max_weight=100),
         )
 
-        # Roll 20 should still hit (natural 20 always hits)
-        with patch('random.randint', return_value=20):
+        # Roll 10 (natural 10) is critical in d10 system
+        with patch('random.randint', return_value=10):
             event = CombatResolver.resolve_attack(attacker, defender)
 
         self.assertFalse(event.out_of_range)

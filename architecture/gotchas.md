@@ -684,6 +684,7 @@ This forces `compute()` to create a fresh `np.zeros()` array for the new level.
 - Always reset `fov_system.explored = None` when generating a new level
 - Consider adding a `reset()` method to `FOVSystem` for clarity
 - Add tests that verify explored state is fresh for each level
+
 ## Damage Cap Clamping Order
 
 ### Problem
@@ -719,3 +720,63 @@ elif attacker_is_player:
 - Always apply balance clamping AFTER all damage modifications (dice, bonuses, crits) but BEFORE the final `CombatEvent` is constructed.
 - Test with both critical hits and normal hits to verify clamping works correctly in both cases.
 - The cap is `max_hp // 5` (monster→player) and floor is `max_hp // 4` (player→monster).
+
+## Position Value Object Immutability
+
+### Problem
+The `Position` class was not properly immutable, allowing mutation of `x` and `y` attributes after creation. This violates the value object pattern and can cause issues when using Position objects as dictionary keys or in sets.
+
+### Root Cause
+The `@dataclass` decorator was used without `frozen=True`, and the `translate()` method was mutating the instance in place instead of returning a new Position object.
+
+### Solution
+1. Add `frozen=True` to the `@dataclass` decorator to make Position immutable
+2. Remove the `translate()` method entirely (it was unused and duplicated the functionality of the `move()` method)
+3. The `move()` method already returns a new Position instance, which is the correct immutable behavior
+
+### Affected Code
+- [`src/domain/value_objects/position.py`](src/domain/value_objects/position.py:1) - Position class
+
+## Fuzion AC Clamp Order
+
+### Problem
+When adding damage cap/floor clamping to the Fuzion d10 combat system, the clamping must be applied at the correct point in the calculation pipeline. Applying it before critical hit multiplication, or after the `CombatEvent` is created, causes incorrect behavior.
+
+### Root Cause
+The damage calculation pipeline in `resolve_attack()` is:
+1. Roll d10 → determine hit/miss/critical
+2. Roll weapon dice → base damage
+3. Add power bonus and damage_bonus
+4. **If critical → multiply damage by 2**
+5. **Subtract Armor Value (AV)**
+6. **← CLAMPING MUST GO HERE ←**
+7. Create `CombatEvent` with final damage
+
+If clamping is applied before step 4, critical hits are calculated on the clamped value (too low). If clamping is applied after step 7, the `CombatEvent` already has the unclamped value and the defender takes unclamped damage.
+
+### Solution
+Apply clamping after critical multiplication and AV subtraction but before `CombatEvent` creation:
+
+```python
+# After critical multiplication and AV subtraction, before CombatEvent creation:
+if defender_is_player:
+    damage = clamp_monster_damage(damage, defender.max_hp)
+elif attacker_is_player:
+    damage = clamp_player_damage(damage, defender.max_hp)
+```
+
+### Affected Code
+- [`darkdelve.py`](darkdelve.py:890) - `CombatResolver.resolve_attack()`
+- [`src/domain/services/combat_service.py`](src/domain/services/combat_service.py:222) - `calculate_damage()`
+- [`src/domain/value_objects/damage_caps.py`](src/domain/value_objects/damage_caps.py:1) - Clamping functions
+
+### Prevention
+- Always apply balance clamping AFTER all damage modifications (dice, bonuses, crits, AV) but BEFORE the final `CombatEvent` is constructed.
+- Test with both critical hits and normal hits to verify clamping works correctly in both cases.
+- The cap is `max_hp // 5` (monster→player) and floor is `max_hp // 4` (player→monster).
+
+### Prevention
+- Always use `@dataclass(frozen=True)` for value objects to ensure immutability
+- Ensure methods that modify coordinates return new instances rather than mutating in place
+- The `move()` method provides the correct immutable translation behavior
+- Search the codebase before removing methods to ensure they are not used elsewhere

@@ -37,6 +37,10 @@ from src.infrastructure.persistence.combat_damage_log import CombatDamageLog
 # Import damage balance clamping
 from src.domain.value_objects.damage_caps import clamp_monster_damage, clamp_player_damage
 
+# Import Fuzion combat system
+from src.domain.value_objects.combat_config import COMBAT_CONFIG
+from src.shared.utils.dice import parse_dice
+
 # Import emoji lookup tables
 from src.presentation.item_emoji import get_item_emoji
 from src.presentation.monster_emoji import get_monster_emoji
@@ -358,14 +362,16 @@ class SkillType(Enum):
 
 @dataclass
 class CombatEvent:
-    turn: int
-    attacker_name: str
-    defender_name: str
-    to_hit_bonus: int
-    target_ac: int
-    d20_roll: int
-    total_roll: int
-    result: HitResult
+    turn: int = 0
+    attacker_name: str = ""
+    defender_name: str = ""
+    to_hit_bonus: int = 0
+    target_ac: int = 0          # DEPRECATED alias field — KEPT AS REAL FIELD this release
+    d20_roll: int = 0           # DEPRECATED alias field — KEPT AS REAL FIELD this release
+    total_roll: int = 0
+    result: HitResult = HitResult.MISS
+    target_dv: int = 0          # NEW field
+    d10_roll: int = 0           # NEW field
     damage: int = 0
     flavor_text: str = ""
     out_of_range: bool = False
@@ -376,9 +382,9 @@ class CombatEvent:
         
         Args:
             perspective: One of "attacker_is_player", "defender_is_player", "neutral"
-                - "attacker_is_player": Player is the attacker (first-person language)
-                - "defender_is_player": Player is the defender (second-person language)
-                - "neutral": Neither is player (third-person language)
+            - "attacker_is_player": Player is the attacker (first-person language)
+            - "defender_is_player": Player is the defender (second-person language)
+            - "neutral": Neither is player (third-person language)
         """
         if getattr(self, 'out_of_range', False):
             if perspective == "attacker_is_player":
@@ -388,7 +394,7 @@ class CombatEvent:
             else:
                 return f"{self.attacker_name} is out of range to attack {self.defender_name}!"
         
-        roll_text = f"[Roll: {self.total_roll} vs AC {self.target_ac}]"
+        roll_text = f"[Roll: {self.total_roll} vs DV {self.target_dv}]"
         
         if self.result == HitResult.CRITICAL:
             if perspective == "attacker_is_player":
@@ -633,15 +639,15 @@ class Inventory:
         return sum(self._weight_value(item.effects.get("weight", item.weight)) for item in self.items)
     
     def get_defense_bonus(self) -> int:
-        return sum(item.defense_bonus for item in self.equipment.values() if item and item.equipped)
+        return sum((item.defense_bonus or 0) for item in self.equipment.values() if item and item.equipped)
     
     def get_damage_bonus(self) -> int:
         weapon = self.equipment[EquipmentSlot.MAIN_HAND]
-        return weapon.damage_bonus if weapon and weapon.equipped else 0
+        return (weapon.damage_bonus or 0) if weapon and weapon.equipped else 0
     
     def get_to_hit_bonus(self) -> int:
         weapon = self.equipment[EquipmentSlot.MAIN_HAND]
-        return weapon.to_hit_bonus if weapon and weapon.equipped else 0
+        return (weapon.to_hit_bonus or 0) if weapon and weapon.equipped else 0
 
 @dataclass
 class MobTemplate:
@@ -657,6 +663,7 @@ class MobTemplate:
     loot_table: List[Dict] = field(default_factory=list)
     description: str = ""
     ai_type: str = "aggressive"
+    armor_value: int = 0
 
 @dataclass
 class MobRoster:
@@ -791,12 +798,28 @@ class Entity:
         return self.hp > 0
     
     @property
+    def defense_value(self) -> int:
+        stats = getattr(self, 'stats', None)
+        if stats is None:
+            reflex = 0
+        elif hasattr(stats, 'get_modifier'):           # Stats object (defect #8 defensive)
+            reflex = stats.get_modifier('dexterity')
+        else:                                          # dict-like stats (tests)
+            reflex = (stats.get('dex', 10) - 10) // 2
+        comp_def = int(self.defense * COMBAT_CONFIG.DEFENSE_COMPRESSION)
+        dodge = getattr(self, 'dodge_bonus', 0)
+        return COMBAT_CONFIG.BASE_DV + reflex + comp_def + dodge
+
+    @property
     def armor_class(self) -> int:
-        base_ac = 10 + self.defense
+        # DEPRECATED alias – remove after one release
+        return self.defense_value
+
+    @property
+    def armor_value(self) -> int:
         if self.inventory:
-            equipment_bonus = self.inventory.get_defense_bonus()
-            return base_ac + equipment_bonus
-        return base_ac
+            return self.inventory.get_defense_bonus()
+        return 0
     
     @property
     def to_hit_bonus(self) -> int:
@@ -963,87 +986,58 @@ class Entity:
 
 class CombatResolver:
     @staticmethod
-    def resolve_attack(
-        attacker: Entity,
-        defender: Entity,
-        weapon_dice: str = "1d6",
-        max_range: int = 1
-    ) -> CombatEvent:
+    def resolve_attack(attacker, defender, weapon_dice="1d6", max_range=1) -> CombatEvent:
         # Range guard: melee attacks only work at adjacent distance
         distance = abs(attacker.x - defender.x) + abs(attacker.y - defender.y)
         if distance > max_range:
-            return CombatEvent(
-                turn=0,
-                attacker_name=attacker.name,
-                defender_name=defender.name,
-                to_hit_bonus=attacker.to_hit_bonus,
-                target_ac=defender.armor_class,
-                d20_roll=0,
-                total_roll=0,
-                result=HitResult.MISS,
-                damage=0,
-                out_of_range=True,
-            )
+            return CombatEvent(turn=0, attacker_name=attacker.name, defender_name=defender.name,
+                             to_hit_bonus=attacker.to_hit_bonus,
+                             target_ac=defender.defense_value, target_dv=defender.defense_value,
+                             d20_roll=0, d10_roll=0, total_roll=0,
+                             result=HitResult.MISS, damage=0, out_of_range=True)
 
-        d20_roll = random.randint(1, 20)
-        # Base to-hit includes power//2 and dex modifier (if available)
-        base_to_hit = getattr(attacker, 'power', 0) // 2
-        dex_mod = 0
-        if hasattr(attacker, """stats"""):
-            stats = attacker.stats
-            if hasattr(stats, """get_dexterity_modifier"""):
-                dex_mod = stats.get_dexterity_modifier()
-            else:
-                # Fallback for dictionary-like stats (used in tests)
-                dex_mod = (stats.get("""dex""", 10) - 10) // 2
-        total_roll = d20_roll + base_to_hit + dex_mod + attacker.to_hit_bonus
-        
-        if d20_roll == 20:
+        d10 = random.randint(1, COMBAT_CONFIG.DIE_SIDES)
+        # Defensive reflex (mirrors existing resolve_attack @ darkdelve.py:992)
+        stats = getattr(attacker, 'stats', None)
+        if stats is None:
+            reflex_atk = 0
+        elif hasattr(stats, 'get_modifier'):
+            reflex_atk = stats.get_modifier('dexterity')
+        else:
+            reflex_atk = (stats.get('dex', 10) - 10) // 2
+        base = attacker.power // 2
+        atk_total = d10 + reflex_atk + base + attacker.to_hit_bonus
+        dv = defender.defense_value
+        if d10 == COMBAT_CONFIG.DIE_SIDES:
             result = HitResult.CRITICAL
-        elif d20_roll == 1:
+        elif d10 == 1:
             result = HitResult.CRITICAL_FAIL
-        elif total_roll >= defender.armor_class:
+        elif atk_total >= dv:                      # >= matches darkdelve original (line 1005)
             result = HitResult.HIT
         else:
             result = HitResult.MISS
-        
         damage = 0
-        if result in [HitResult.HIT, HitResult.CRITICAL]:
-            try:
-                parts = weapon_dice.replace('d', ' ').split()
-                num_dice = int(parts[0])
-                dice_size = int(parts[1])
-                modifier = int(parts[2]) if len(parts) > 2 else 0
-            except:
-                num_dice, dice_size, modifier = 1, 6, 0
-            
-            damage = sum(random.randint(1, dice_size) for _ in range(num_dice))
-            damage += modifier + (attacker.power // 2) + attacker.damage_bonus
-            
+        if result in (HitResult.HIT, HitResult.CRITICAL):
+            num, size, mod = parse_dice(weapon_dice)
+            damage = sum(random.randint(1, size) for _ in range(num)) + mod + (attacker.power // 2) + attacker.damage_bonus
             if result == HitResult.CRITICAL:
                 damage *= 2
-        
-        # Apply balance clamping
-        if hasattr(defender, 'max_hp') and defender.max_hp > 0:
-            attacker_is_player = getattr(attacker, 'inventory', None) is not None and hasattr(attacker, 'xp')
-            defender_is_player = getattr(defender, 'inventory', None) is not None and hasattr(defender, 'xp')
-            
-            if defender_is_player:
-                damage = clamp_monster_damage(damage, defender.max_hp)
-            elif attacker_is_player:
-                damage = clamp_player_damage(damage, defender.max_hp)
-        
-        return CombatEvent(
-            turn=0,
-            attacker_name=attacker.name,
-            defender_name=defender.name,
-            to_hit_bonus=attacker.to_hit_bonus,
-            target_ac=defender.armor_class,
-            d20_roll=d20_roll,
-            total_roll=total_roll,
-            result=result,
-            damage=damage,
-        )
+            av = defender.armor_value
+            if result == HitResult.CRITICAL and COMBAT_CONFIG.CRIT_IGNORES_AV:
+                av = 0
+            damage = max(COMBAT_CONFIG.MIN_DMG, damage - av)
+            if hasattr(defender, 'max_hp') and defender.max_hp > 0:
+                defender_is_player = getattr(defender, 'inventory', None) is not None and hasattr(defender, 'xp')
+                attacker_is_player = getattr(attacker, 'inventory', None) is not None and hasattr(attacker, 'xp')
+                if defender_is_player:
+                    damage = clamp_monster_damage(damage, defender.max_hp)
+                elif attacker_is_player:
+                    damage = clamp_player_damage(damage, defender.max_hp)
+        return CombatEvent(turn=0, attacker_name=attacker.name, defender_name=defender.name,
+                         to_hit_bonus=attacker.to_hit_bonus,
+                         target_ac=dv, target_dv=dv,            # both populated for alias parity
+                         d20_roll=d10, d10_roll=d10,
+                         total_roll=atk_total, result=result, damage=damage)
 
 # =============================================================================
 # ENERGY-BASED TURN SYSTEM
@@ -2040,11 +2034,13 @@ class UI:
         level = getattr(player, "level", "?")
         depth = getattr(state, "depth", "?")
         try:
-            armor_class = player.armor_class
+            defense_value = player.defense_value
+            armor_value = player.armor_value
         except AttributeError:
-            armor_class = getattr(player, "armor_class", "?")
+            defense_value = getattr(player, "defense_value", "?")
+            armor_value = getattr(player, "armor_value", "?")
         status = (
-            f"HP {hp}/{max_hp}  AC {armor_class}  "
+            f"HP {hp}/{max_hp}  DV {defense_value} AV {armor_value}  "
             f"Level {level}  Depth {depth}  Turn {turn}  "
             f"Gold {getattr(player, 'gold', 0)}  Nutrition {getattr(player, 'nutrition', 0)}/{getattr(player, 'max_nutrition', 0)}"
         )
@@ -3579,7 +3575,7 @@ class Game:
             f"  INT: {self.player.stats['int']}  WIS: {self.player.stats['wis']}  CHA: {self.player.stats['cha']}",
             f"",
             f"Combat:",
-            f"  Power: {self.player.power}  Defense: {self.player.defense}  AC: {self.player.armor_class}",
+            f"  Power: {self.player.power}  Defense: {self.player.defense}  DV: {self.player.defense_value} AV: {self.player.armor_value}",
             f"  To-Hit: +{self.player.to_hit_bonus}  Damage: +{self.player.damage_bonus}",
             f"",
             f"Skills: {', '.join(self.player.known_skills) if self.player.known_skills else 'None'}",

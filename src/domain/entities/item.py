@@ -100,6 +100,11 @@ class Item(Entity):
         
         return new_item
         
+    @property
+    def armor_value(self) -> int:
+        """Armor Value - returns defense_bonus"""
+        return self.defense_bonus
+
     def equip(self, slot: str) -> bool:
         """Mark item as equippable and set slot"""
         if self.item_type in ["weapon", "armor", "accessory"]:

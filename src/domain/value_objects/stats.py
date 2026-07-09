@@ -59,8 +59,16 @@ class Stats:
         base_mana = 10
         return base_mana + self.get_intelligence_modifier() * 2
         
+    def get_defense_value(self) -> int:
+        """Calculate defense value based on dexterity and defense"""
+        from src.domain.value_objects.combat_config import COMBAT_CONFIG
+        base_dv = COMBAT_CONFIG.BASE_DV
+        dex_mod = self.get_dexterity_modifier()
+        comp_def = int(getattr(self, 'defense', 0) * COMBAT_CONFIG.DEFENSE_COMPRESSION)
+        return base_dv + dex_mod + comp_def
+
     def get_armor_class(self) -> int:
-        """Calculate armor class based on dexterity"""
+        """Calculate armor class based on dexterity - DEPRECATED alias"""
         base_ac = 10
         return base_ac + self.get_dexterity_modifier()
         

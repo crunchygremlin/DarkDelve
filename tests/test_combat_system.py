@@ -83,8 +83,8 @@ class TestCombatSystem(unittest.TestCase):
         
     def test_critical_hits(self):
         """Test critical hit mechanics"""
-        # Force a critical hit by mocking d20 roll
-        with patch('random.randint', return_value=20):
+        # Force a critical hit by mocking d10 roll (natural 10 = critical in d10 system)
+        with patch('random.randint', return_value=10):
             event = CombatResolver.resolve_attack(self.player, self.enemy)
             self.assertEqual(event.result, HitResult.CRITICAL)
             self.assertGreater(event.damage, 0)  # Critical hits deal damage
@@ -239,16 +239,17 @@ class TestCombatSystem(unittest.TestCase):
         
     def test_combat_critical_hits(self):
         """Test critical hit mechanics"""
-        # Force a critical hit by mocking d20 roll
-        with patch('random.randint', return_value=20):
+        # Force a critical hit by mocking d10 roll (natural 10 = critical in d10 system)
+        with patch('random.randint', return_value=10):
             event = CombatResolver.resolve_attack(self.player, self.enemy)
             self.assertEqual(event.result, HitResult.CRITICAL)
             self.assertGreater(event.damage, 0)  # Critical hits deal damage
         
     def test_combat_misses(self):
         """Test miss mechanics"""
-        # Force a miss by mocking low d20 roll
-        with patch('random.randint', return_value=5):
+        # Force a miss: low non-1 d10 vs raised defender DV=10
+        self.enemy.defense = 10
+        with patch('random.randint', return_value=2):
             event = CombatResolver.resolve_attack(self.player, self.enemy)
             self.assertEqual(event.result, HitResult.MISS)
             self.assertEqual(event.damage, 0)  # Misses deal no damage
@@ -509,9 +510,9 @@ class TestStartingGearAutoEquip(unittest.TestCase):
         # Player should have to_hit_bonus > 0 (from equipped weapon)
         self.assertGreater(player.to_hit_bonus, 0,
                            "Player has no to_hit_bonus - starting weapon not equipped")
-        # Player should have armor_class > base (10 + defense)
-        self.assertGreater(player.armor_class, 12,
-                           "Player AC too low - starting armor not equipped")
+        # Player should have armor_value > 0 (from equipped armor)
+        self.assertGreater(player.armor_value, 0,
+                           "Player armor_value too low - starting armor not equipped")
 
     def test_player_can_deal_damage_to_monster(self):
         """Player with starting gear should be able to damage a monster within a few hits."""

@@ -1,14 +1,25 @@
 """
 Combat service for handling combat-related operations.
 """
+import random
 from typing import List, Dict, Any, Optional, Tuple
-from random import randint
 from ..entities.player import Player
 from ..entities.mob import Mob
 from ..components.combat import Combat
 from ..value_objects.combat_event import CombatEvent, CombatEventType
 from ..value_objects.stats import Stats
 from src.shared.interfaces.service import ICombatService
+from src.domain.value_objects.combat_config import COMBAT_CONFIG
+from src.shared.utils.dice import parse_dice
+
+
+def _reflex_mod(entity) -> int:
+    stats = getattr(entity, 'stats', None)
+    if stats is None:
+        return 0
+    if hasattr(stats, 'get_modifier'):
+        return stats.get_modifier('dexterity')
+    return (stats.get('dex', 10) - 10) // 2
 
 
 class CombatService(ICombatService):
@@ -60,13 +71,14 @@ class CombatService(ICombatService):
         
         return True
     
-    def execute_attack(self, attacker: Player, target: Mob) -> Dict[str, Any]:
+    def execute_attack(self, attacker: Player, target: Mob, weapon_dice: str = "1d6") -> Dict[str, Any]:
         """
         Execute an attack from attacker to target.
         
         Args:
             attacker: The entity attacking
             target: The entity being attacked
+            weapon_dice: Dice notation for weapon damage (default "1d6")
             
         Returns:
             Dict[str, Any]: Attack result information
@@ -80,18 +92,18 @@ class CombatService(ICombatService):
                 "critical": False
             }
         
-        # Calculate attack roll
+        # Calculate attack roll (stores self._last_d10 for the crit check)
         attack_roll = self.calculate_attack_roll(attacker)
-        defense_roll = self.calculate_defense_roll(target)
+        # Calculate DEFENSE VALUE (renamed from calculate_defense_roll; update caller @ :85)
+        defense_value = self.calculate_defense_value(target)
         
-        # Determine if attack hits
-        hit = attack_roll > defense_roll
+        # Hit test: use >= to match darkdelve.resolve_attack (was >)
+        hit = attack_roll >= defense_value
         
         if hit:
-            # Calculate damage
-            damage = self.calculate_damage(attacker, target)
-            
-            # Check for critical hit
+            # Damage (weapon dice parsed inside; crit doubling done below)
+            damage = self.calculate_damage(attacker, target, weapon_dice)
+            # Critical determined from the SAME d10 used for the attack roll (caller unchanged)
             critical = self.is_critical_hit(attacker)
             if critical:
                 damage *= 2
@@ -168,7 +180,7 @@ class CombatService(ICombatService):
         
         return True
     
-    def calculate_attack_roll(self, attacker: Player) -> int:
+    def calculate_attack_roll(self, attacker) -> int:
         """
         Calculate attack roll for an attacker.
         
@@ -178,65 +190,44 @@ class CombatService(ICombatService):
         Returns:
             int: Attack roll value
         """
-        # Base attack + dexterity modifier + weapon bonus
-        base_attack = attacker.attack_power
-        dex_modifier = attacker.stats.get_modifier("dexterity")
-        weapon_bonus = attacker.get_equipped_attack_bonus()
-        
-        # Add random factor
-        attack_roll = base_attack + dex_modifier + weapon_bonus + randint(1, 20)
-        
-        return attack_roll
-    
-    def calculate_defense_roll(self, target: Mob) -> int:
+        d10 = random.randint(1, COMBAT_CONFIG.DIE_SIDES)
+        self._last_d10 = d10                      # stored so crit uses the SAME d10
+        base = getattr(attacker, 'attack_power', getattr(attacker, 'power', 0)) // 2
+        return d10 + _reflex_mod(attacker) + base + attacker.get_equipped_attack_bonus()
+
+    def calculate_defense_value(self, target) -> int:   # RENAMED from calculate_defense_roll
         """
-        Calculate defense roll for a target.
+        Calculate defense value for a target.
         
         Args:
             target: The entity defending
             
         Returns:
-            int: Defense roll value
+            int: Defense value
         """
-        # Base defense + dexterity modifier + armor bonus
-        base_defense = target.defense
-        dex_modifier = target.stats.get_modifier("dexterity")
-        armor_bonus = target.get_equipped_defense_bonus()
-        
-        # Add random factor
-        defense_roll = base_defense + dex_modifier + armor_bonus + randint(1, 20)
-        
-        return defense_roll
-    
-    def calculate_damage(self, attacker: Player, target: Mob) -> int:
+        comp_def = int(target.defense * COMBAT_CONFIG.DEFENSE_COMPRESSION)
+        return COMBAT_CONFIG.BASE_DV + _reflex_mod(target) + comp_def + getattr(target, 'dodge_bonus', 0)
+
+    def calculate_damage(self, attacker, target, weapon_dice: str = "1d6") -> int:
         """
         Calculate damage for an attack.
         
         Args:
             attacker: The entity attacking
             target: The entity being attacked
+            weapon_dice: Dice notation for weapon damage
             
         Returns:
             int: Damage amount
         """
-        # Base damage + strength modifier + weapon damage
-        base_damage = attacker.attack_power
-        str_modifier = attacker.stats.get_modifier("strength")
-        weapon_damage = attacker.get_equipped_damage_bonus()
-        
-        # Calculate total damage
-        damage = base_damage + str_modifier + weapon_damage
-        
-        # Ensure minimum damage
-        damage = max(1, damage)
-        
-        # Apply damage reduction from target's armor
-        damage_reduction = target.get_equipped_damage_reduction()
-        damage = max(1, damage - damage_reduction)
-        
-        return damage
-    
-    def is_critical_hit(self, attacker: Player) -> bool:
+        num, size, mod = parse_dice(weapon_dice)
+        base = sum(random.randint(1, size) for _ in range(num)) + mod
+        base += getattr(attacker, 'attack_power', getattr(attacker, 'power', 0)) // 2
+        base += attacker.get_equipped_damage_bonus()
+        av = target.get_equipped_defense_bonus()        # Armor Value
+        return max(COMBAT_CONFIG.MIN_DMG, base - av)    # NOTE: no crit doubling here
+
+    def is_critical_hit(self, attacker) -> bool:        # KEEP attacker param (caller @ :95 unchanged)
         """
         Check if an attack is a critical hit.
         
@@ -246,9 +237,8 @@ class CombatService(ICombatService):
         Returns:
             bool: True if critical hit, False otherwise
         """
-        # Critical hit on natural 20 or high enough roll
-        critical_threshold = 19  # Natural 19 or 20
-        return randint(1, 20) >= critical_threshold
+        from src.domain.value_objects.combat_config import COMBAT_CONFIG
+        return getattr(self, '_last_d10', 0) == COMBAT_CONFIG.DIE_SIDES
     
     def handle_defeat(self, attacker: Player, target: Mob) -> None:
         """
