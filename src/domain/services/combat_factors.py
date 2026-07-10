@@ -1,24 +1,18 @@
 import random
 from typing import Tuple, List, Any
-from src.domain.value_objects.combat_config import COMBAT_CONFIG
+from src.domain.value_objects.combat_config import COMBAT_CONFIG, FUZION_CONFIG
 from src.shared.utils.dice import parse_dice
-
-# Monster skill name (string) -> (category, bonus)
-#   "attack" -> adds to ATTACK VALUE (weapon_mastery-equivalent)
-#   "dv"     -> adds to DEFENSE VALUE (tactical_awareness-equivalent)
-#   "av"     -> adds to ARMOR VALUE (armor_mastery-equivalent)
-MOB_SKILL_BONUS_MAP: dict = {
-    "bite": ("attack", 2), "claw": ("attack", 2), "slash": ("attack", 2),
-    "sting": ("attack", 1), "feral": ("attack", 1), "power_attack": ("attack", 3),
-    "rend": ("attack", 2), "whirlwind": ("attack", 2), "maul": ("attack", 3),
-    "howl": ("dv", 1), "war_cry": ("dv", 1), "guard": ("dv", 2), "parry": ("dv", 2),
-    "dodge": ("dv", 2), "keen": ("dv", 1), "command": ("dv", 1), "evade": ("dv", 2),
-    "shield": ("av", 2), "armor": ("av", 2), "tough": ("av", 1),
-    "scales": ("av", 2), "plating": ("av", 3), "dash": ("dv", 0),
-}
+from src.domain.services.fuzion_skill_service import (
+    get_skill_bonuses as fuzion_get_skill_bonuses,
+    governing_char,
+    MOB_SKILL_MAP
+)
 
 SKILL_BONUS_DIVISOR: int = 5      # SkillSet float value -> integer bonus
 LEVEL_BONUS_PER_LEVEL: int = 1    # each level adds this to attack & defense values
+
+# Re-export for backward compatibility with test_fuzion_entities.py
+MOB_SKILL_BONUS_MAP = MOB_SKILL_MAP
 
 
 def _reflex_mod(entity: Any) -> int:
@@ -60,35 +54,8 @@ def _tier_to_level(tier: Any) -> int:
 
 
 def get_skill_bonuses(entity: Any) -> Tuple[int, int, int]:
-    # Returns (weapon_mastery_bonus, armor_mastery_bonus, tactical_awareness_bonus)
-    # Case 1: PowerComponent with SkillSet (Player / System B)
-    pc = entity.get_component("power") if hasattr(entity, 'get_component') else None
-    if pc is not None and hasattr(pc, 'skills'):
-        sk = pc.skills
-        wm = int(getattr(sk, 'weapon_mastery', 0) // SKILL_BONUS_DIVISOR)
-        am = int(getattr(sk, 'armor_mastery', 0) // SKILL_BONUS_DIVISOR)
-        ta = int(getattr(sk, 'tactical_awareness', 0) // SKILL_BONUS_DIVISOR)
-        return wm, am, ta
-    # Case 2: entity carries a SkillSet-like object directly
-    sk = getattr(entity, 'skill_set', None)
-    if sk is not None:
-        wm = int(getattr(sk, 'weapon_mastery', 0) // SKILL_BONUS_DIVISOR)
-        am = int(getattr(sk, 'armor_mastery', 0) // SKILL_BONUS_DIVISOR)
-        ta = int(getattr(sk, 'tactical_awareness', 0) // SKILL_BONUS_DIVISOR)
-        return wm, am, ta
-    # Case 3: monster string-list skills (MobTemplate.skills / Entity.skills)
-    skills = getattr(entity, 'skills', []) or []
-    wm = av = dv = 0
-    for s in skills:
-        cat, val = MOB_SKILL_BONUS_MAP.get(s, (None, 0))
-        if cat == "attack":
-            wm += val
-        elif cat == "dv":
-            dv += val
-        elif cat == "av":
-            av += val
-    # armor_mastery bonus derived from av skill contribution; tactical from dv
-    return wm, av, dv
+    """Returns (attack_bonus, dv_bonus, av_bonus) using Fuzion skill categories."""
+    return fuzion_get_skill_bonuses(entity)
 
 
 def get_to_hit_bonus(entity: Any) -> int:

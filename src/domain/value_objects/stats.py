@@ -150,6 +150,34 @@ class Stats:
             "charisma": self.charisma
         }
         
+    def to_primary(self) -> 'PrimaryCharacteristics':
+        """Convert D&D Stats to Fuzion PrimaryCharacteristics (deprecated shim)."""
+        from src.domain.value_objects.fuzion_stats import PrimaryCharacteristics
+        return PrimaryCharacteristics(
+            int=self.intelligence,
+            will=self.wisdom,
+            pre=self.charisma,
+            tech=10,
+            ref=self.dexterity,
+            dex=self.dexterity,
+            con=self.constitution,
+            str=self.strength,
+            body=10,
+            move=10,
+        )
+
+    @classmethod
+    def from_primary(cls, pc: 'PrimaryCharacteristics') -> 'Stats':
+        """Create D&D Stats from Fuzion PrimaryCharacteristics (deprecated shim)."""
+        return cls(
+            strength=pc.str,
+            dexterity=pc.dex,
+            constitution=pc.con,
+            intelligence=pc.int,
+            wisdom=pc.will,
+            charisma=pc.pre,
+        )
+
     @classmethod
     def from_dict(cls, data: Dict[str, int]) -> 'Stats':
         """Create stats from dictionary"""

@@ -804,3 +804,67 @@ Created `src/domain/services/combat_factors.py` as the single source of truth fo
 - `Entity.defense_value` property remains BASE DV (no skill/level) for test compatibility
 - Monster string skills map via `MOB_SKILL_BONUS_MAP` to numeric bonuses
 - `combat_factors` must never import `darkdelve` or `mob` (circular import)
+
+---
+
+## Fuzion Governing Characteristic Mapping
+
+### Problem
+Fuzion skills use different governing characteristics than D&D stats. For example, `fighting` uses `ref` (not `dex`), and `technique` uses `tech` (not `int`). Using the wrong characteristic breaks combat calculations.
+
+### Root Cause
+The `GOVERNING_CHAR_MAP` in `fuzion_skill_service.py` maps skill categories to their correct Fuzion characteristics. However, legacy code or incorrect assumptions may use D&D stat mappings instead.
+
+### Solution
+Always use `governing_char(entity, category)` to get the correct characteristic value for a skill category. The map is:
+
+| Skill Category | Governing Char |
+|----------------|--------------|
+| fighting | ref |
+| ranged_weapon | dex |
+| awareness | int |
+| control | will |
+| body | str |
+| social | pre |
+| technique | tech |
+| performance | pre |
+| education | int |
+
+### Affected Code
+- `src/domain/services/fuzion_skill_service.py` - `governing_char()` function
+- `src/domain/services/combat_factors.py` - Uses `governing_char()` for attack calculations
+
+### Prevention
+- Never assume D&D stat mappings for Fuzion skills
+- Always use `governing_char()` when calculating skill-based values
+- Add tests that verify correct characteristic is used for each skill category
+
+## Runtime Player Missing Fuzion Fields
+
+### Problem
+The in-game player Entity created by `Game.create_player()` does not have `characteristics`, `derived`, or `skill_set` attributes. These Fuzion fields exist only on the domain `Player` class (`src/domain/entities/player.py`), causing save/load round-trips to lose Fuzion data.
+
+### Root Cause
+`Game.create_player()` instantiates the legacy `Entity` dataclass directly without attaching Fuzion fields. While `_serialize_player()` uses `hasattr()` guards to serialize these fields if present, and `migrate_v1_to_v2()` adds defaults for missing fields, neither can preserve actual Fuzion values that were never on the runtime object.
+
+### Solution
+Attach Fuzion fields to the runtime player Entity in `create_player()`:
+
+```python
+from src.domain.value_objects.fuzion_stats import PrimaryCharacteristics, DerivedCharacteristics, SkillSet
+
+self.player.characteristics = PrimaryCharacteristics()
+self.player.derived = DerivedCharacteristics.from_primary(self.player.characteristics)
+self.player.skill_set = SkillSet.everyman()
+```
+
+### Affected Code
+- `darkdelve.py` - `Game.create_player()` method (lines 2389-2429)
+- `darkdelve.py` - `SaveSystem._serialize_player()` method (lines 1590-1628)
+- `darkdelve.py` - `SaveSystem.migrate_v1_to_v2()` method (lines 1691-1719)
+
+### Prevention
+- Always verify that runtime entities have all required Fuzion fields after creation
+- Add tests that verify save/load round-trip preserves Fuzion values
+- Keep `Entity.defense_value` as BASE DV (no skill/level) for test compatibility
+- Do not double-count `armor_value` on Player - it's separate from `defense_value`

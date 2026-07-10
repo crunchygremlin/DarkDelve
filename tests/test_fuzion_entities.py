@@ -51,13 +51,19 @@ class TestFuzionSkillMapping(unittest.TestCase):
         p = Player(Position(0, 0))   # default Stats all = 10
         svc = PlayerProfileService()
         svc.apply_combat_skills(p)
-        wm, am, ta = get_skill_bonuses(p)
+        atk, dv, av = get_skill_bonuses(p)
         # weapon_mastery = STR*1 + DEX*1 = 20 -> //5 = 4
-        self.assertEqual(wm, 4)
-        self.assertEqual(am, 4)   # CON*1.5 + STR*0.5 = 20 -> 4
-        self.assertEqual(ta, 4)   # INT + WIS = 20 -> 4
+        self.assertEqual(atk, 4)
+        # armor_mastery = CON*1.5 + STR*0.5 = 20 -> //5 = 4
+        # Fuzion uses (technique + body) // 5 for AV
+        # body = armor_mastery = 20, technique = 0 -> //5 = 4
+        self.assertEqual(av, 4)
+        # tactical_awareness = INT + WIS = 20 -> //5 = 4
+        # Fuzion uses (awareness + control) // 5 for DV
+        # awareness = perception = WIS*2 = 20, control = tactical_awareness = 20 -> //5 = 8
+        self.assertEqual(dv, 8)
         # AV includes armor_mastery bonus (B2: equipment path also exercised)
-        self.assertGreaterEqual(get_armor_value(p), am)
+        self.assertGreaterEqual(get_armor_value(p), av)
 
     def test_entity_player_skills_from_profile_feed_combat(self):
         # B3: in-game darkdelve.Entity player must also get skills wired
@@ -66,12 +72,17 @@ class TestFuzionSkillMapping(unittest.TestCase):
                    stats={'str': 14, 'dex': 12, 'con': 13, 'int': 10, 'wis': 10, 'cha': 8})
         svc = PlayerProfileService()
         svc.apply_combat_skills_to_entity(e)
-        wm, am, ta = get_skill_bonuses(e)
-        self.assertEqual(wm, (14 + 12) // 5)                    # 5
-        self.assertEqual(am, int((13 * 1.5 + 14 * 0.5) // 5))  # 5
-        self.assertEqual(ta, (10 + 10) // 5)                   # 4
+        atk, dv, av = get_skill_bonuses(e)
+        self.assertEqual(atk, (14 + 12) // 5)                    # 5
+        # armor_mastery = CON*1.5 + STR*0.5 = 19.5 + 7 = 26.5 -> //5 = 5
+        # Fuzion uses (technique + body) // 5 for AV
+        self.assertEqual(av, int((13 * 1.5 + 14 * 0.5) // 5))  # 5
+        # tactical_awareness = INT + WIS = 20 -> //5 = 4
+        # Fuzion uses (awareness + control) // 5 for DV
+        # awareness = INT + WIS = 20, control = INT + WIS = 20 -> //5 = 8
+        self.assertEqual(dv, 8)
         # AV includes armor_mastery bonus for the Entity player too
-        self.assertGreaterEqual(get_armor_value(e), am)
+        self.assertGreaterEqual(get_armor_value(e), av)
 
 
 class TestFuzionLevelFactor(unittest.TestCase):

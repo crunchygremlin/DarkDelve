@@ -63,27 +63,42 @@ class DefensivePower:
 
 @dataclass
 class SkillSet:
-    """Skill categories for an entity."""
-    # Stealth & Movement
-    sneakiness: float = 0.0
-    stealth: float = 0.0
-    acrobatics: float = 0.0
-    # Perception
-    perception: float = 0.0
-    investigation: float = 0.0
-    # Communication
-    intimidation: float = 0.0
-    persuasion: float = 0.0
-    deception: float = 0.0
-    language: float = 0.0
-    # Knowledge
-    arcane_knowledge: float = 0.0
-    survival: float = 0.0
-    medicine: float = 0.0
-    # Combat Skills
+    """9 Fuzion skill categories (level = OP spent)."""
+    # New Fuzion fields
+    fighting: float = 0.0
+    ranged_weapon: float = 0.0
+    awareness: float = 0.0
+    control: float = 0.0
+    body: float = 0.0
+    social: float = 0.0
+    technique: float = 0.0
+    performance: float = 0.0
+    education: float = 0.0
+    # Legacy fields for backward compatibility
     weapon_mastery: float = 0.0
     armor_mastery: float = 0.0
     tactical_awareness: float = 0.0
+    perception: float = 0.0
+    stealth: float = 0.0
+    sneakiness: float = 0.0
+    acrobatics: float = 0.0
+    persuasion: float = 0.0
+    deception: float = 0.0
+    intimidation: float = 0.0
+    investigation: float = 0.0
+    language: float = 0.0
+    arcane_knowledge: float = 0.0
+    survival: float = 0.0
+    medicine: float = 0.0
+
+    def __init__(self, **kwargs):
+        """Accept both new Fuzion fields and legacy field names for backward compatibility."""
+        # Set fields using object.__setattr__ for dataclass compatibility
+        for field_name in self.__dataclass_fields__:
+            if field_name in kwargs:
+                object.__setattr__(self, field_name, kwargs[field_name])
+            else:
+                object.__setattr__(self, field_name, self.__dataclass_fields__[field_name].default)
 
     def as_dict(self) -> Dict[str, float]:
         """Convert to dictionary representation."""
@@ -110,8 +125,8 @@ class PlayerProfile:
         lines.append(f"Defensive: ARMOR={dfn.physical_armor:.1f}, "
                      f"weakest={dfn.weakest_defense()}({min(dfn.as_dict().values()):.1f})")
         sk = self.skills
-        lines.append(f"Skills: perception={sk.perception:.1f}, "
-                     f"sneakiness={sk.sneakiness:.1f}, language={sk.language:.1f}")
+        lines.append(f"Skills: fighting={sk.fighting:.1f}, "
+                     f"ranged_weapon={sk.ranged_weapon:.1f}, awareness={sk.awareness:.1f}")
         lines.append(f"Playstyle: {self.playstyle_indicators}")
         lines.append(f"Items: {', '.join(self.inventory_summary[:10])}")
         return "\n".join(lines)

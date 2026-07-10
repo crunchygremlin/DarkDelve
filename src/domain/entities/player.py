@@ -2,6 +2,7 @@ from typing import Dict, List, Optional, Any
 from .entity import Entity
 from ..value_objects.position import Position
 from ..value_objects.stats import Stats
+from ..value_objects.fuzion_stats import PrimaryCharacteristics, DerivedCharacteristics, SkillSet
 from ..components.inventory import Inventory
 from ..components.equipment import Equipment
 
@@ -9,16 +10,18 @@ from ..components.equipment import Equipment
 class Player(Entity):
     """Player entity class"""
     
-    def __init__(self, position: Position, name: str = "Player"):
+    def __init__(self, position: Position, name: str = "Player", characteristics: PrimaryCharacteristics = None):
         super().__init__(name=name)
         self.position = position
-        self.stats = Stats()
+        self.characteristics = characteristics if characteristics is not None else PrimaryCharacteristics()
+        self.derived = DerivedCharacteristics.from_primary(self.characteristics)
+        self.stats = Stats()  # Deprecated shim
         self.inventory = Inventory()
         self.equipment = Equipment()
         self.level = 1
         self.experience = 0
-        self.health = 100
-        self.max_health = 100
+        self.health = self.derived.hits
+        self.max_health = self.derived.hits
         self.mana = 50
         self.max_mana = 50
         self.attack_power = 10  # Base attack power
@@ -381,6 +384,8 @@ class Player(Entity):
             "mana": self.mana,
             "max_mana": self.max_mana,
             "stats": self.stats.to_dict(),
+            "characteristics": self.characteristics.to_dict(),
+            "derived": self.derived.hits,
             "inventory": self.inventory.to_dict(),
             "equipment": self.equipment.to_dict()
         }

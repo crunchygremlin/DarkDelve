@@ -1,7 +1,8 @@
-"""Damage calculator component for Hero-System RPG damage model."""
+"""Damage calculator component for Fuzion RPG damage model."""
 from typing import Any, Optional
 from .component import Component
 from ..value_objects.damage_model import DamageCalculator, DamageResult
+from ..value_objects.fuzion_damage import FuzionDamageCalculator, FuzionDamageResult
 
 
 __all__ = [
@@ -15,6 +16,7 @@ class DamageComponent(Component):
     def __init__(self, component_id: Optional[str] = None):
         super().__init__(component_id)
         self._calculator = DamageCalculator()
+        self._fuzion_calculator = FuzionDamageCalculator()
 
     def calculate_damage(
         self,
@@ -33,6 +35,25 @@ class DamageComponent(Component):
             defender_armor=defender_armor,
             is_critical=is_critical,
             critical_multiplier=critical_multiplier,
+        )
+
+    def calculate_fuzion_damage(
+        self,
+        attacker: Any,
+        target: Any,
+        weapon_dc: int,
+        damage_type: str = "physical",
+        is_critical: bool = False,
+        aimed_location: str = "body",
+    ) -> FuzionDamageResult:
+        """Calculate damage using Fuzion model."""
+        return self._fuzion_calculator.calculate(
+            attacker=attacker,
+            target=target,
+            weapon_dc=weapon_dc,
+            damage_type=damage_type,
+            is_critical=is_critical,
+            aimed_location=aimed_location,
         )
 
     def apply_block(

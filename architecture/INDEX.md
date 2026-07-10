@@ -153,3 +153,24 @@ For tasks spanning multiple systems, read these files in order:
 | `src/domain/value_objects/combat_config.py` | ~15 | 2026-07-09 | New — Fuzion combat configuration constants |
 | `src/shared/utils/dice.py` | ~20 | 2026-07-09 | New — Dice parsing utility for weapon damage |
 | `tests/test_fuzion_combat.py` | ~80 | 2026-07-09 | New — Tests for Fuzion d10 combat system |
+---
+
+## FZ-001 Fuzion System Files
+
+The following files were added or modified as part of the FZ-001 Fuzion RPG redesign:
+
+| File | Purpose |
+|------|---------|
+| `plans/FZ-001_design.md` | Canonical design document for Fuzion system |
+| `plans/FZ-001_task_description.md` | Task description for Fuzion implementation |
+| `src/domain/value_objects/fuzion_stats.py` | PrimaryCharacteristics, DerivedCharacteristics, SkillSet (9 categories) |
+| `src/domain/value_objects/fuzion_damage.py` | FuzionDamageResult, FuzionDamageCalculator |
+| `src/domain/services/fuzion_skill_service.py` | Skill bonus resolution, Rule-of-X enforcement |
+| `config/fuzion.yaml` | Fuzion configuration (skills, DC tables, caps) |
+| `tests/test_fuzion_stats.py` | Tests for characteristics/derived/skills |
+| `tests/test_fuzion_damage.py` | Tests for DC/Hits/Stun/KD/SD/ED/knockback |
+| `tests/test_fuzion_skill_service.py` | Tests for skill re-map and Rule-of-X |
+| `tests/test_fuzion_migration.py` | Backward-compat shim tests |
+| `tests/test_fuzion_combat.py` | Tests for Fuzion d10 combat system |
+
+**Note:** FZ-001 supersedes `plans/proposals/stat_system_overhaul_proposal.md` (D&D model). Do NOT implement that proposal.

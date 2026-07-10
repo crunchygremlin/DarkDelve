@@ -180,7 +180,7 @@ class PlayerProfileService:
             player: The player entity
             
         Returns:
-            SkillSet: Computed skills
+            SkillSet: Computed skills (9 Fuzion categories)
         """
         stats = player.stats if hasattr(player, 'stats') else None
         STR = stats.strength if stats else 10
@@ -190,23 +190,54 @@ class PlayerProfileService:
         WIS = stats.wisdom if stats else 10
         CHA = stats.charisma if stats else 10
         
+        # Compute old skill formulas and map to new Fuzion categories
+        # Old formulas preserved for backward compatibility
+        weapon_mastery = STR * 1.0 + DEX * 1.0
+        armor_mastery = CON * 1.5 + STR * 0.5
+        tactical_awareness = INT * 1.0 + WIS * 1.0
+        perception = WIS * 2.0
+        stealth = DEX * 1.0 + WIS * 0.5
+        sneakiness = DEX * 1.5 + CHA * 0.5
+        acrobatics = DEX * 1.5 + STR * 0.5
+        persuasion = CHA * 2.0
+        deception = CHA * 1.5 + INT * 0.5
+        intimidation = STR * 1.0 + CHA * 1.0
+        investigation = INT * 1.5 + WIS * 0.5
+        language = INT * 1.0 + CHA * 1.0
+        arcane_knowledge = INT * 2.0
+        survival = WIS * 1.5 + CON * 0.5
+        medicine = WIS * 1.5 + INT * 0.5
+        
+        # Set both new Fuzion fields and legacy fields for backward compatibility
+        # Note: For backward compatibility, we set fighting = weapon_mastery and ranged_weapon = 0
+        # This ensures the attack bonus matches the old weapon_mastery // 5 formula
         return SkillSet(
-            sneakiness=DEX * 1.5 + CHA * 0.5,
-            stealth=DEX * 1.0 + WIS * 0.5,
-            acrobatics=DEX * 1.5 + STR * 0.5,
-            perception=WIS * 2.0,
-            investigation=INT * 1.5 + WIS * 0.5,
-            intimidation=STR * 1.0 + CHA * 1.0,
-            persuasion=CHA * 2.0,
-            deception=CHA * 1.5 + INT * 0.5,
-            language=INT * 1.0 + CHA * 1.0,
-            arcane_knowledge=INT * 2.0,
-            survival=WIS * 1.5 + CON * 0.5,
-            medicine=WIS * 1.5 + INT * 0.5,
-            weapon_mastery=STR * 1.0 + DEX * 1.0,
-            armor_mastery=CON * 1.5 + STR * 0.5,
-            tactical_awareness=INT * 1.0 + WIS * 1.0
-         )
+            fighting=weapon_mastery,
+            ranged_weapon=0,  # Not used in old formula
+            awareness=perception,
+            control=tactical_awareness,
+            body=armor_mastery,
+            social=persuasion,
+            technique=0,  # Not used in old formula
+            performance=arcane_knowledge,
+            education=investigation,
+            # Legacy fields
+            weapon_mastery=weapon_mastery,
+            armor_mastery=armor_mastery,
+            tactical_awareness=tactical_awareness,
+            perception=perception,
+            stealth=stealth,
+            sneakiness=sneakiness,
+            acrobatics=acrobatics,
+            persuasion=persuasion,
+            deception=deception,
+            intimidation=intimidation,
+            investigation=investigation,
+            language=language,
+            arcane_knowledge=arcane_knowledge,
+            survival=survival,
+            medicine=medicine
+        )
      
     def apply_combat_skills(self, player: Player) -> None:
         """Compute SkillSet from stats and attach to a PowerComponent on the player
@@ -237,9 +268,12 @@ class PlayerProfileService:
             CON = getattr(stats, 'constitution', 10); INT = getattr(stats, 'intelligence', 10)
             WIS = getattr(stats, 'wisdom', 10); CHA = getattr(stats, 'charisma', 10)
         skillset = SkillSet(
-            weapon_mastery=STR * 1.0 + DEX * 1.0,
-            armor_mastery=CON * 1.5 + STR * 0.5,
-            tactical_awareness=INT * 1.0 + WIS * 1.0,
+            fighting=STR * 1.0 + DEX * 1.0,
+            ranged_weapon=0,  # Not used in old formula
+            body=CON * 1.5 + STR * 0.5,
+            technique=0,  # Not used in old formula
+            awareness=INT * 1.0 + WIS * 1.0,
+            control=INT * 1.0 + WIS * 1.0,
         )
         pc = entity.get_component("power")
         if pc is None:

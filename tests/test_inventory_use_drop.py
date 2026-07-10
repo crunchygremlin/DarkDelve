@@ -18,6 +18,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.domain.entities.player import Player
 from src.domain.entities.item import Item
 from src.domain.value_objects.position import Position
+from src.domain.value_objects.fuzion_stats import PrimaryCharacteristics
 from src.application.game_commands.use_command import UseCommand
 from src.application.game_commands.drop_command import DropCommand
 
@@ -30,7 +31,11 @@ class TestUseCommand(unittest.TestCase):
 
     def test_use_potion_heals_player(self):
         """Using a heal potion via UseCommand should restore HP."""
-        player = Player(position=Position(0, 0), name="Tester")
+        player = Player(
+            position=Position(0, 0),
+            name="Tester",
+            characteristics=PrimaryCharacteristics(body=14)
+        )
         potion = Item(
             item_id="potion_heal",
             name="Health Potion",

@@ -473,6 +473,12 @@ class Item:
     glyph: Optional[str] = None
     color: Tuple[int, int, int] = (255, 255, 255)
     equipment_slot: Optional[EquipmentSlot] = None
+    # Fuzion fields
+    dc: int = 0                             # Damage Class
+    kd: int = 0                             # Killing Defense
+    sd: int = 0                             # Stun Defense
+    ed: int = 0                             # Energy Defense
+    required_skill: Optional[str] = None      # Required skill category to equip/use
     
     def __post_init__(self):
         if self.glyph is not None:
@@ -995,7 +1001,8 @@ class CombatResolver:
     @staticmethod
     def resolve_attack(attacker, defender, weapon_dice="1d6", max_range=1) -> CombatEvent:
         from src.domain.services.combat_factors import (
-            calculate_attack_value, calculate_defense_value, calculate_damage)
+            calculate_attack_value, calculate_defense_value)
+        from src.domain.value_objects.fuzion_damage import FuzionDamageCalculator
         distance = abs(attacker.x - defender.x) + abs(attacker.y - defender.y)
         if distance > max_range:
             return CombatEvent(turn=0, attacker_name=attacker.name, defender_name=defender.name,
@@ -1016,7 +1023,12 @@ class CombatResolver:
         damage = 0
         if result in (HitResult.HIT, HitResult.CRITICAL):
             is_crit = (result == HitResult.CRITICAL)
-            damage = calculate_damage(attacker, defender, weapon_dice, is_crit)
+            # P3 FIX: Route damage through FuzionDamageCalculator
+            # Convert weapon_dice (e.g., "1d6") to weapon_dc (number of d6)
+            num_dice, _, _ = parse_dice(weapon_dice)
+            weapon_dc = max(1, num_dice)
+            fuzion_result = FuzionDamageCalculator().calculate(attacker, defender, weapon_dc, is_critical=is_crit)
+            damage = fuzion_result.hits
             if hasattr(defender, 'max_hp') and defender.max_hp > 0:
                 defender_is_player = getattr(defender, 'inventory', None) is not None and hasattr(defender, 'xp')
                 attacker_is_player = getattr(attacker, 'inventory', None) is not None and hasattr(attacker, 'xp')
@@ -1541,13 +1553,15 @@ class HighScores:
 # =============================================================================
 
 class SaveSystem:
+    SAVE_VERSION = "v2"
+    
     def __init__(self, path: Path):
         self.path = path
         self.path.mkdir(parents=True, exist_ok=True)
     
     def save(self, state: GameState, player: Entity, dungeon_map: np.ndarray, entities: List[Entity], energy_system: EnergySystem):
         save_data = {
-            "version": CONFIG['game']['version'],
+            "version": self.SAVE_VERSION,
             "state": {
                 "run_id": state.run_id,
                 "seed": state.seed,
@@ -1563,22 +1577,7 @@ class SaveSystem:
                 "player_class": state.player_class,
                 "flags": list(state.flags),
             },
-            "player": {
-                "x": player.x, "y": player.y,
-                "hp": player.hp, "max_hp": player.max_hp,
-                "power": player.power, "defense": player.defense,
-                "speed": player.speed, "level": player.level,
-                "xp": player.xp, "xp_to_next": player.xp_to_next,
-                "skill_points": player.skill_points,
-                "known_skills": player.known_skills,
-                "nutrition": player.nutrition,
-                "gold": player.gold,
-                "kill_count": player.kill_count,
-                "stats": player.stats,
-                "effects": player.effects,
-                "identified_types": list(player.identified_types),
-                "inventory": self._serialize_inventory(player.inventory),
-            },
+            "player": self._serialize_player(player),
             "dungeon_map": dungeon_map.tolist(),
             "entities": [self._serialize_entity(e) for e in entities if e is not player],
             "energy_system": [{"entity": self._serialize_entity(e["entity"]), "energy": e["energy"], "speed": e["speed"]} for e in energy_system.entities],
@@ -1587,6 +1586,46 @@ class SaveSystem:
         save_file = self.path / f"save_{state.run_id}.json"
         with open(save_file, 'w') as f:
             json.dump(save_data, f)
+    
+    def _serialize_player(self, player: Entity) -> Dict:
+        """Serialize player with Fuzion fields."""
+        data = {
+            "x": player.x, "y": player.y,
+            "hp": player.hp, "max_hp": player.max_hp,
+            "power": player.power, "defense": player.defense,
+            "speed": player.speed, "level": player.level,
+            "xp": player.xp, "xp_to_next": player.xp_to_next,
+            "skill_points": player.skill_points,
+            "known_skills": player.known_skills,
+            "nutrition": player.nutrition,
+            "gold": player.gold,
+            "kill_count": player.kill_count,
+            "stats": player.stats,
+            "effects": player.effects,
+            "identified_types": list(player.identified_types),
+            "inventory": self._serialize_inventory(player.inventory),
+        }
+        # P4 FIX: Serialize Fuzion fields
+        if hasattr(player, 'characteristics') and player.characteristics is not None:
+            data["characteristics"] = player.characteristics.to_dict()
+        if hasattr(player, 'derived') and player.derived is not None:
+            data["derived"] = {
+                "stun": player.derived.stun,
+                "hits": player.derived.hits,
+                "sd": player.derived.sd,
+                "rec": player.derived.rec,
+                "run": player.derived.run,
+                "sprint": player.derived.sprint,
+                "leap": player.derived.leap,
+                "ed": player.derived.ed,
+                "end": player.derived.end,
+                "spd": player.derived.spd,
+                "res": player.derived.res,
+                "hum": player.derived.hum,
+            }
+        if hasattr(player, 'skill_set') and player.skill_set is not None:
+            data["skill_set"] = player.skill_set.as_dict()
+        return data
     
     def _serialize_inventory(self, inv: Inventory) -> Dict:
         return {
@@ -1608,7 +1647,7 @@ class SaveSystem:
         }
     
     def _serialize_entity(self, entity: Entity) -> Dict:
-        return {
+        data = {
             "x": entity.x, "y": entity.y, "char": entity.char,
             "color": entity.color, "name": entity.name, "blocks": entity.blocks,
             "hp": entity.hp, "max_hp": entity.max_hp, "power": entity.power,
@@ -1616,13 +1655,68 @@ class SaveSystem:
             "intel_tier": entity.intel_tier, "is_commander": entity.is_commander,
             "home_position": entity.home_position, "effects": entity.effects,
         }
+        # P4 FIX: Serialize Fuzion fields for entities
+        if hasattr(entity, 'characteristics') and entity.characteristics is not None:
+            data["characteristics"] = entity.characteristics.to_dict()
+        if hasattr(entity, 'derived') and entity.derived is not None:
+            data["derived"] = {
+                "stun": entity.derived.stun,
+                "hits": entity.derived.hits,
+                "sd": entity.derived.sd,
+                "rec": entity.derived.rec,
+                "run": entity.derived.run,
+                "sprint": entity.derived.sprint,
+                "leap": entity.derived.leap,
+                "ed": entity.derived.ed,
+                "end": entity.derived.end,
+                "spd": entity.derived.spd,
+                "res": entity.derived.res,
+                "hum": entity.derived.hum,
+            }
+        if hasattr(entity, 'skill_set') and entity.skill_set is not None:
+            data["skill_set"] = entity.skill_set.as_dict()
+        return data
     
     def load(self, run_id: str) -> Optional[Dict]:
         save_file = self.path / f"save_{run_id}.json"
         if save_file.exists():
             with open(save_file) as f:
-                return json.load(f)
+                data = json.load(f)
+            # P4 FIX: Migrate v1 saves to v2
+            if data.get("version") == "v1":
+                data = self.migrate_v1_to_v2(data)
+            return data
         return None
+    
+    def migrate_v1_to_v2(self, state: Dict) -> Dict:
+        """Migrate v1 save format to v2 with Fuzion fields."""
+        player_data = state.get("player", {})
+        # Add characteristics if missing
+        if "characteristics" not in player_data:
+            player_data["characteristics"] = {"int": 10, "will": 10, "pre": 10, "tech": 10, "ref": 10, "dex": 10, "con": 10, "str": 10, "body": 10, "move": 10}
+        # Add derived if missing - derive health from hits
+        if "derived" not in player_data:
+            hits = player_data.get("hp", 50)
+            player_data["derived"] = {
+                "stun": hits,
+                "hits": hits,
+                "sd": 20,
+                "rec": 20,
+                "run": 20,
+                "sprint": 30,
+                "leap": 10,
+                "ed": 20,
+                "end": 100,
+                "spd": 5,
+                "res": 30,
+                "hum": 100,
+            }
+        # Add skill_set if missing
+        if "skill_set" not in player_data:
+            player_data["skill_set"] = {"fighting": 2.0, "ranged_weapon": 2.0, "awareness": 2.0, "control": 2.0, "body": 2.0, "social": 2.0, "technique": 2.0, "performance": 2.0, "education": 2.0}
+        state["player"] = player_data
+        state["version"] = "v2"
+        return state
     
     def delete(self, run_id: str):
         save_file = self.path / f"save_{run_id}.json"
@@ -2312,6 +2406,12 @@ class Game:
             inventory=Inventory(max_weight=100),
         )
         
+        
+        # P4 FIX: Attach Fuzion fields to runtime player Entity for save/load round-trip
+        from src.domain.value_objects.fuzion_stats import PrimaryCharacteristics, DerivedCharacteristics, SkillSet
+        self.player.characteristics = PrimaryCharacteristics()
+        self.player.derived = DerivedCharacteristics.from_primary(self.player.characteristics)
+        self.player.skill_set = SkillSet.everyman()
         # Add starting gear
         for gear_id in class_config['start_gear']:
             item = self.create_item_by_id(gear_id)

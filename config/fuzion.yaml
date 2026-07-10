@@ -1,0 +1,102 @@
+# Fuzion RPG Configuration
+# Skill categories and governing characteristics
+
+# Governing characteristic for each skill category
+governing_char_map:
+  fighting: ref
+  ranged_weapon: dex
+  awareness: int
+  control: will
+  body: str
+  social: pre
+  technique: tech
+  performance: pre
+  education: int
+
+# Skill type mapping: category -> bonus type (attack, dv, av)
+skill_to_bonus:
+  fighting: attack
+  ranged_weapon: attack
+  awareness: dv
+  control: dv
+  body: av
+  technique: av
+  social: dv
+  performance: dv
+  education: dv
+
+# Monster skill string -> (category, bonus) mapping
+mob_skill_map:
+  bite: ["attack", 2]
+  claw: ["attack", 2]
+  slash: ["attack", 2]
+  sting: ["attack", 1]
+  feral: ["attack", 1]
+  power_attack: ["attack", 3]
+  rend: ["attack", 2]
+  whirlwind: ["attack", 2]
+  maul: ["attack", 3]
+  howl: ["dv", 1]
+  war_cry: ["dv", 1]
+  guard: ["dv", 2]
+  parry: ["dv", 2]
+  dodge: ["dv", 2]
+  keen: ["dv", 1]
+  command: ["dv", 1]
+  evade: ["dv", 2]
+  shield: ["av", 2]
+  armor: ["av", 2]
+  tough: ["av", 1]
+  scales: ["av", 2]
+  plating: ["av", 3]
+  dash: ["dv", 0]
+
+# Weapon DC (Damage Class) table
+weapon_dc:
+  fist: 3
+  kick: 4
+  sword: 4
+  dagger: 3
+  bow: 5
+  crossbow: 5
+  mace: 4
+  staff: 3
+  axe: 5
+
+# Everyman skills start at level 2 free
+everyman_skills:
+  - fighting
+  - ranged_weapon
+  - awareness
+  - control
+  - body
+  - social
+  - technique
+  - performance
+  - education
+
+# Aimed shot multipliers
+aimed_multipliers:
+  head: 2.0
+  vitals: 1.5
+  body: 1.0
+
+# Rule of X caps (campaign power limits)
+rule_of_x:
+  attack: 20
+  defense: 20
+
+# Dice mode: "interlock" (1d10) or "hero" (3d6)
+dice_mode: "interlock"
+hero_dv_flat: 10
+
+# Characteristic point caps
+characteristic_caps:
+  min: 1
+  max: 20
+  campaign_everyday: 20
+  campaign_heroic: 50
+  campaign_superheroic: 90
+
+# Knockback divisor
+knockback_divisor: 5

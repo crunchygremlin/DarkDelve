@@ -2,6 +2,7 @@ from typing import Dict, List, Optional, Any
 from .entity import Entity
 from ..value_objects.position import Position
 from ..value_objects.stats import Stats
+from ..value_objects.fuzion_stats import PrimaryCharacteristics, DerivedCharacteristics, SkillSet
 from ..components.inventory import Inventory
 from ..components.combat import Combat
 from ..components.movement import Movement
@@ -20,6 +21,9 @@ class Mob(Entity):
         self.position = position
         self.mob_type = mob_type
         self.stats = Stats()
+        self.characteristics = PrimaryCharacteristics()
+        self.derived = DerivedCharacteristics.from_primary(self.characteristics)
+        self.skill_set = SkillSet()
         self.inventory = Inventory()
         self.combat = Combat()
         self.movement = Movement()
@@ -61,8 +65,12 @@ class Mob(Entity):
             self.stats.intelligence = 6
             self.stats.wisdom = 8
             self.stats.charisma = 6
-            self.health = 30
-            self.max_health = 30
+            self.characteristics = PrimaryCharacteristics(
+                int=6, will=8, pre=6, tech=10, ref=12, dex=12, con=10, str=8, body=10, move=10
+            )
+            self.derived = DerivedCharacteristics.from_primary(self.characteristics)
+            self.health = self.derived.hits
+            self.max_health = self.derived.hits
         elif self.mob_type == "orc":
             self.stats.strength = 16
             self.stats.dexterity = 8
@@ -70,8 +78,12 @@ class Mob(Entity):
             self.stats.intelligence = 6
             self.stats.wisdom = 8
             self.stats.charisma = 6
-            self.health = 50
-            self.max_health = 50
+            self.characteristics = PrimaryCharacteristics(
+                int=6, will=8, pre=6, tech=10, ref=8, dex=8, con=14, str=16, body=10, move=10
+            )
+            self.derived = DerivedCharacteristics.from_primary(self.characteristics)
+            self.health = self.derived.hits
+            self.max_health = self.derived.hits
         elif self.mob_type == "dragon":
             self.stats.strength = 24
             self.stats.dexterity = 16
@@ -79,8 +91,12 @@ class Mob(Entity):
             self.stats.intelligence = 18
             self.stats.wisdom = 16
             self.stats.charisma = 14
-            self.health = 200
-            self.max_health = 200
+            self.characteristics = PrimaryCharacteristics(
+                int=18, will=16, pre=14, tech=10, ref=16, dex=16, con=20, str=24, body=10, move=10
+            )
+            self.derived = DerivedCharacteristics.from_primary(self.characteristics)
+            self.health = self.derived.hits
+            self.max_health = self.derived.hits
         else:  # generic
             self.stats.strength = 10
             self.stats.dexterity = 10
@@ -88,8 +104,10 @@ class Mob(Entity):
             self.stats.intelligence = 10
             self.stats.wisdom = 10
             self.stats.charisma = 10
-            self.health = 20
-            self.max_health = 20
+            self.characteristics = PrimaryCharacteristics()
+            self.derived = DerivedCharacteristics.from_primary(self.characteristics)
+            self.health = self.derived.hits
+            self.max_health = self.derived.hits
             
     def move_to(self, new_position: Position) -> None:
         """Move mob to new position"""

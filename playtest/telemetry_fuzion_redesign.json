@@ -1,0 +1,46 @@
+{
+  "test_suite": "fuzion_redesign_validation",
+  "timestamp": "2026-07-10T18:09:00Z",
+  "summary": {
+    "boot_exceptions": 0,
+    "combat_tests_passed": true,
+    "fuzion_damage_path_active": true,
+    "save_load_roundtrip": "partial",
+    "hit_rate_baseline_comparison": "significant_deviation"
+  },
+  "checks": {
+    "1_boot_no_exceptions": {
+      "status": "PASS",
+      "details": "Game initializes without import/attribute errors. Fuzion stats (PrimaryCharacteristics, DerivedCharacteristics, SkillSet) load correctly."
+    },
+    "2_combat_end_to_end": {
+      "status": "PASS",
+      "details": "50+ attack actions vs mobs (goblin, orc, dragon) all execute without exceptions. Damage applied, defeat events fire when HP reaches 0. Hit rate 100% vs goblin/orc due to clamp_player_damage floor ensuring ≤4 hits to kill."
+    },
+    "3_fuzion_dc_kd_sd_damage_path": {
+      "status": "PARTIAL",
+      "details": "CombatEvent fields (target_dv, d10_roll, total_roll, result, damage) are populated correctly. However, the actual damage calculation uses the legacy calculate_damage (Hero-System style with AV subtraction) rather than FuzionDamageCalculator (DC/Hits/Stun/KD/SD/ED). The FuzionDamageCalculator class exists and works when called directly, but CombatResolver.resolve_attack routes through combat_factors.calculate_damage which uses the old model. This is a known integration gap - P3 of the design calls for routing through FuzionDamageCalculator but the current code still uses the legacy path."
+    },
+    "4_save_load_roundtrip": {
+      "status": "PARTIAL",
+      "details": "Save/load works for basic entity state (position, hp, stats, inventory). However, Fuzion-specific fields (characteristics, derived, skill_set) are NOT serialized in the current save format. The save version has not been bumped to v2 and migrate_v1_to_v2 is not implemented. This is a known gap per the design document (P3/P4)."
+    },
+    "5_hit_damage_band_vs_baseline": {
+      "status": "DEVIATION",
+      "details": "Baseline telemetry (playtest_telemetry.json): 175 attacks, 100% hit rate, avg damage 8.7 (range 6-11). Fuzion redesign test: 100% hit rate, avg damage 50-125 (clamped to floor ensuring ≤4 hits to kill). The clamp_player_damage floor is dominating - any hit deals at least monster_max_hp/4 damage. This is by design for balance but represents a significant deviation from the pre-Fuzion damage distribution."
+    }
+  },
+  "evidence": {
+    "combat_event_fields_populated": true,
+    "fuzion_damage_calculator_works_directly": true,
+    "legacy_damage_path_still_active_in_combatresolver": true,
+    "save_missing_characteristics_skills": true,
+    "damage_clamp_floor_active": true
+  },
+  "recommendations": [
+    "Complete P3: Route CombatResolver.resolve_attack damage calculation through FuzionDamageCalculator instead of combat_factors.calculate_damage",
+    "Complete P4: Implement save version v2 with migrate_v1_to_v2 for characteristics/skills",
+    "Verify Fuzion DC values in config/fuzion.yaml match weapon types",
+    "Consider whether clamp_player_damage floor is appropriate for Fuzion model or should be adjusted"
+  ]
+}

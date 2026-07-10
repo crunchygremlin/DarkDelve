@@ -1,0 +1,109 @@
+{
+  "test_suite": "fuzion_redesign_validation_attempt2",
+  "timestamp": "2026-07-10T18:58:40.703843Z",
+  "checks": {
+    "1_boot_no_exceptions": true,
+    "2_combat_end_to_end": false,
+    "3_fuzion_damage_path_active": true,
+    "4_save_load_roundtrip": false,
+    "5_hit_damage_band": true
+  },
+  "evidence": {
+    "1_boot": {
+      "status": "PASS",
+      "details": "Game initializes without import/attribute errors. Fuzion stats load correctly."
+    },
+    "2_combat": {
+      "status": "PARTIAL",
+      "attacks_executed": 36,
+      "damage_events": 42,
+      "defeat_events": 20,
+      "exceptions": 0,
+      "damage_samples": [
+        2,
+        4,
+        2,
+        1,
+        4,
+        2,
+        4,
+        5,
+        5,
+        5,
+        5,
+        4,
+        3,
+        2,
+        4,
+        5,
+        2,
+        2,
+        3,
+        2
+      ],
+      "combat_events_count": 100
+    },
+    "3_fuzion_path": {
+      "status": "PASS",
+      "uses_fuzion_calculator": true,
+      "uses_legacy_path": false,
+      "combat_event_fields": {
+        "target_dv": true,
+        "d10_roll": true,
+        "total_roll": true,
+        "result": true,
+        "damage": true
+      },
+      "kd_subtracts_hits": true,
+      "sd_subtracts_stun": true,
+      "unarmed_stun_only": false
+    },
+    "4_save_load": {
+      "status": "FAIL",
+      "v2_roundtrip": false,
+      "v2_characteristics": false,
+      "v2_derived": false,
+      "v2_skill_set": false,
+      "v1_migrated": true,
+      "v1_characteristics": true,
+      "v1_derived": true,
+      "v1_skill_set": true
+    },
+    "5_damage_band": {
+      "status": "REPORTED",
+      "current": {
+        "total_attacks": 100,
+        "hit_rate": 0.42,
+        "avg_damage": 3.6666666666666665,
+        "min_damage": 1,
+        "max_damage": 12,
+        "damage_samples": [
+          2,
+          4,
+          2,
+          1,
+          4,
+          2,
+          4,
+          5,
+          5,
+          5,
+          5,
+          4,
+          3,
+          2,
+          4,
+          5,
+          2,
+          2,
+          3,
+          2
+        ]
+      },
+      "vs_attempt1_deviation_flag": false,
+      "vs_baseline_deviation_flag": false,
+      "note": "Clamp floor ensures <=4 hits to kill; deviation from baseline expected"
+    }
+  },
+  "telemetry_data": []
+}
