@@ -49,8 +49,10 @@ class TestFuzionCombat(unittest.TestCase):
     def test_damage_absorbs_av(self):
         atk = self.make_player(power=10)
         dfn = self.make_player(def_bonus=25)
-        ev = CombatResolver.resolve_attack(atk, dfn, weapon_dice="5d6")
-        self.assertGreaterEqual(ev.damage, COMBAT_CONFIG.MIN_DMG)
+        # Mock d10 roll to ensure a hit (not critical fail)
+        with patch('random.randint', return_value=5):
+            ev = CombatResolver.resolve_attack(atk, dfn, weapon_dice="5d6")
+            self.assertGreaterEqual(ev.damage, COMBAT_CONFIG.MIN_DMG)
 
     def test_combat_event_renamed_fields(self):
         # Defect #1: old names remain REAL fields, so populate BOTH pairs and assert equality.

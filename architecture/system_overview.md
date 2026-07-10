@@ -42,7 +42,7 @@ DarkDelve follows a SOLID layered architecture with clear separation of concerns
 - **Entities**: Player, Mob, Item base classes
 - **Components**: Combat, Movement, Inventory, AI, Equipment
 - **Value Objects**: Position, Stats, CombatEvent, InventorySlot, CombatConfig
-- **Services**: Combat, Movement, Inventory, AI, Survival (Fuzion d10 combat system implemented)
+- **Services**: Combat, Movement, Inventory, AI, Survival (Fuzion d10 DV/AV combat model - monsters, items, skills (weapon_mastery/armor_mastery/tactical_awareness), level, and difficulty factors now integrated via src/domain/services/combat_factors.py single source of truth)
 
 ### 2. Application Layer ✅ COMPLETED
 - **Commands**: Move, Attack, Pickup, Use, Equip, Drop with undo/redo

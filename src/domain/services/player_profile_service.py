@@ -206,7 +206,47 @@ class PlayerProfileService:
             weapon_mastery=STR * 1.0 + DEX * 1.0,
             armor_mastery=CON * 1.5 + STR * 0.5,
             tactical_awareness=INT * 1.0 + WIS * 1.0
+         )
+     
+    def apply_combat_skills(self, player: Player) -> None:
+        """Compute SkillSet from stats and attach to a PowerComponent on the player
+        (src.domain Player) so combat_factors.get_skill_bonuses Case 1 can read
+        weapon_mastery/armor_mastery/tactical_awareness during combat."""
+        from src.domain.components.power_component import PowerComponent
+        skills = self._compute_skills(player)
+        pc = player.get_component("power")
+        if pc is None:
+            pc = PowerComponent(entity_id=player.id)
+            player.add_component("power", pc)
+        pc.skills = skills
+
+    
+    def apply_combat_skills_to_entity(self, entity: Any) -> None:
+        """B3 FIX: attach a PowerComponent+SkillSet to the in-game darkdelve.Entity
+        player (used by CombatResolver) so skills are first-class for ALL entities.
+        Handles darkdelve.Entity.stats (dict) and src.domain Player.stats (Stats obj)."""
+        from src.domain.components.power_component import PowerComponent
+        from src.domain.value_objects.power_levels import SkillSet
+        stats = getattr(entity, 'stats', None)
+        if isinstance(stats, dict):
+            STR = stats.get('str', 10); DEX = stats.get('dex', 10)
+            CON = stats.get('con', 10); INT = stats.get('int', 10)
+            WIS = stats.get('wis', 10); CHA = stats.get('cha', 10)
+        else:
+            STR = getattr(stats, 'strength', 10); DEX = getattr(stats, 'dexterity', 10)
+            CON = getattr(stats, 'constitution', 10); INT = getattr(stats, 'intelligence', 10)
+            WIS = getattr(stats, 'wisdom', 10); CHA = getattr(stats, 'charisma', 10)
+        skillset = SkillSet(
+            weapon_mastery=STR * 1.0 + DEX * 1.0,
+            armor_mastery=CON * 1.5 + STR * 0.5,
+            tactical_awareness=INT * 1.0 + WIS * 1.0,
         )
+        pc = entity.get_component("power")
+        if pc is None:
+            pc = PowerComponent(entity_id=getattr(entity, 'id', None))
+            entity.add_component("power", pc)
+        pc.skills = skillset
+
     
     def _compute_playstyle(self, player: Player) -> Dict[str, float]:
         """

@@ -782,6 +782,11 @@ class Entity:
     xp_to_next: int = 100
     skill_points: int = 0
     known_skills: List[str] = field(default_factory=list)
+    armor_value_override: int = 0
+    skills: List[str] = field(default_factory=list)
+    combat_dv_modifier: float = 1.0
+    combat_av_modifier: float = 1.0
+    combat_attack_modifier: float = 1.0
     nutrition: int = 1000
     max_nutrition: int = 2000
     gold: int = 0
@@ -817,9 +822,11 @@ class Entity:
 
     @property
     def armor_value(self) -> int:
+        base = 0
         if self.inventory:
-            return self.inventory.get_defense_bonus()
-        return 0
+            base += self.inventory.get_defense_bonus()
+        base += self.armor_value_override
+        return base
     
     @property
     def to_hit_bonus(self) -> int:
@@ -852,7 +859,7 @@ class Entity:
     def distance_to(self, other: 'Entity') -> int:
         return abs(self.x - other.x) + abs(self.y - other.y)
     
-    def add_component(self, component: Any, name: str) -> None:
+    def add_component(self, name: str, component: Any) -> None:
         self.components[name] = component
     
     def get_component(self, name: str) -> Optional[Any]:
@@ -987,7 +994,8 @@ class Entity:
 class CombatResolver:
     @staticmethod
     def resolve_attack(attacker, defender, weapon_dice="1d6", max_range=1) -> CombatEvent:
-        # Range guard: melee attacks only work at adjacent distance
+        from src.domain.services.combat_factors import (
+            calculate_attack_value, calculate_defense_value, calculate_damage)
         distance = abs(attacker.x - defender.x) + abs(attacker.y - defender.y)
         if distance > max_range:
             return CombatEvent(turn=0, attacker_name=attacker.name, defender_name=defender.name,
@@ -995,37 +1003,20 @@ class CombatResolver:
                              target_ac=defender.defense_value, target_dv=defender.defense_value,
                              d20_roll=0, d10_roll=0, total_roll=0,
                              result=HitResult.MISS, damage=0, out_of_range=True)
-
-        d10 = random.randint(1, COMBAT_CONFIG.DIE_SIDES)
-        # Defensive reflex (mirrors existing resolve_attack @ darkdelve.py:992)
-        stats = getattr(attacker, 'stats', None)
-        if stats is None:
-            reflex_atk = 0
-        elif hasattr(stats, 'get_modifier'):
-            reflex_atk = stats.get_modifier('dexterity')
-        else:
-            reflex_atk = (stats.get('dex', 10) - 10) // 2
-        base = attacker.power // 2
-        atk_total = d10 + reflex_atk + base + attacker.to_hit_bonus
-        dv = defender.defense_value
+        d10, atk_total = calculate_attack_value(attacker, weapon_dice)
+        dv = calculate_defense_value(defender)
         if d10 == COMBAT_CONFIG.DIE_SIDES:
             result = HitResult.CRITICAL
         elif d10 == 1:
             result = HitResult.CRITICAL_FAIL
-        elif atk_total >= dv:                      # >= matches darkdelve original (line 1005)
+        elif atk_total >= dv:
             result = HitResult.HIT
         else:
             result = HitResult.MISS
         damage = 0
         if result in (HitResult.HIT, HitResult.CRITICAL):
-            num, size, mod = parse_dice(weapon_dice)
-            damage = sum(random.randint(1, size) for _ in range(num)) + mod + (attacker.power // 2) + attacker.damage_bonus
-            if result == HitResult.CRITICAL:
-                damage *= 2
-            av = defender.armor_value
-            if result == HitResult.CRITICAL and COMBAT_CONFIG.CRIT_IGNORES_AV:
-                av = 0
-            damage = max(COMBAT_CONFIG.MIN_DMG, damage - av)
+            is_crit = (result == HitResult.CRITICAL)
+            damage = calculate_damage(attacker, defender, weapon_dice, is_crit)
             if hasattr(defender, 'max_hp') and defender.max_hp > 0:
                 defender_is_player = getattr(defender, 'inventory', None) is not None and hasattr(defender, 'xp')
                 attacker_is_player = getattr(attacker, 'inventory', None) is not None and hasattr(attacker, 'xp')
@@ -1035,7 +1026,7 @@ class CombatResolver:
                     damage = clamp_player_damage(damage, defender.max_hp)
         return CombatEvent(turn=0, attacker_name=attacker.name, defender_name=defender.name,
                          to_hit_bonus=attacker.to_hit_bonus,
-                         target_ac=dv, target_dv=dv,            # both populated for alias parity
+                         target_ac=dv, target_dv=dv,
                          d20_roll=d10, d10_roll=d10,
                          total_roll=atk_total, result=result, damage=damage)
 
@@ -2331,6 +2322,11 @@ class Game:
                     slots = self.player.inventory._get_valid_slots_for_item(item)
                     if slots:
                         self.player.inventory.equip(item.id, slots[0])
+        
+        # Apply Fuzion combat skills to player entity
+        from src.domain.services.player_profile_service import PlayerProfileService
+        svc = PlayerProfileService()
+        svc.apply_combat_skills_to_entity(self.player)
     
     def create_item_by_id(self, item_id: str) -> Optional[Item]:
         # Check default items with case-insensitive lookup.
@@ -2532,9 +2528,16 @@ class Game:
                         speed=monster_speed,
                         intel_tier=self._tier_value(template.tier),
                         is_commander=template.tier == MobTier.BOSS,
+                        armor_value_override=template.armor_value,
+                        skills=list(template.skills),
                     )
                     entity.home_position = (x, y)
                     self.entities.append(entity)
+                    # Apply Fuzion-aware difficulty modifiers if available
+                    adj = getattr(self, 'difficulty_adjustment', None)
+                    if adj is not None:
+                        from src.domain.services.combat_factors import apply_difficulty
+                        apply_difficulty(entity, adj)
                     
                     # Assign agent to monster
                     if template.tier == MobTier.BOSS:

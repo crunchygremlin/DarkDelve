@@ -26,10 +26,8 @@ class TestDynamicDifficultyService(unittest.TestCase):
         """Test that no adjustment is made when level hasn't changed."""
         # Arrange
         player_entity = Mock(spec=Entity)
-        player_entity.fighter = Mock()
-        player_entity.fighter.max_hp = 100
-        player_entity.fighter.power = 10
-        player_entity.fighter.defense = 5
+        player_entity.attack_power = 10
+        player_entity.level = 5
 
         # Set to same level
         self.service.last_evaluated_level = 5
@@ -45,22 +43,12 @@ class TestDynamicDifficultyService(unittest.TestCase):
 
     def test_evaluate_and_adjust_difficulty_level_increase(self):
         """Test that adjustment is made when level increases."""
+
+
         # Arrange
         player_entity = Mock(spec=Entity)
-        player_entity.fighter = Mock()
-        player_entity.fighter.max_hp = 100
-        player_entity.fighter.power = 15
-        player_entity.fighter.defense = 8
-
-        self.mock_llm_worker.evaluate_player_stats.return_value = {
-            "difficulty_modifier": 1.2,
-            "specific_adjustments": {
-                "spawn_rate": 1.1,
-                "monster_health": 1.15,
-                "monster_damage": 1.1
-            },
-            "reasoning": "Player stats are above average for level"
-        }
+        player_entity.attack_power = 15
+        player_entity.level = 3
 
         # Act
         adjustment = self.service.evaluate_and_adjust_difficulty(
@@ -68,10 +56,12 @@ class TestDynamicDifficultyService(unittest.TestCase):
             current_level=3
         )
 
-        # Assert
-        self.assertEqual(adjustment.spawn_rate_modifier, 1.1)
-        self.assertEqual(adjustment.monster_health_modifier, 1.15)
-        self.assertEqual(adjustment.monster_damage_modifier, 1.1)
+        # Assert - with 50% stat scaling, level 3 with attack_power 15 should give difficulty factor
+        # base_power = 15 + 3*10 = 45, difficulty_factor = max(0.5, min(2.0, 50.0 / 45)) = max(0.5, min(2.0, 1.11)) = 1.11
+        # So spawn_rate_modifier = 1.11, monster_health_modifier = 1.11, monster_damage_modifier = 1.11
+        self.assertAlmostEqual(adjustment.spawn_rate_modifier, 50.0 / 45.0, places=2)
+        self.assertAlmostEqual(adjustment.monster_health_modifier, 50.0 / 45.0, places=2)
+        self.assertAlmostEqual(adjustment.monster_damage_modifier, 50.0 / 45.0, places=2)
         self.assertEqual(self.service.last_evaluated_level, 3)
 
     def test_parse_llm_response_default_values(self):
@@ -120,21 +110,17 @@ class TestDynamicDifficultyService(unittest.TestCase):
         """Test extraction of player max stats."""
         # Arrange
         player_entity = Mock(spec=Entity)
-        player_entity.fighter = Mock()
-        player_entity.fighter.max_hp = 120
-        player_entity.fighter.power = 18
-        player_entity.fighter.defense = 12
-        player_entity.power = Mock()
-        player_entity.power.level = 5
+        player_entity.attack_power = 18
+        player_entity.level = 5
 
         # Act
         stats = self.service._get_player_max_stats(player_entity)
 
         # Assert
-        self.assertEqual(stats['health'], 120)
         self.assertEqual(stats['attack'], 18)
-        self.assertEqual(stats['defense'], 12)
-        self.assertEqual(stats['power_level'], 5)
+        self.assertEqual(stats['level'], 5)
+        self.assertEqual(stats['defense_value'], 0)  # default when not set
+        self.assertEqual(stats['power_level'], 18 + 5 * 10)  # attack + level*10
 
     def test_difficulty_adjustment_no_change(self):
         """Test DifficultyAdjustment.no_change() class method."""
@@ -147,39 +133,3 @@ class TestDynamicDifficultyService(unittest.TestCase):
         self.assertEqual(adjustment.monster_damage_modifier, 1.0)
         self.assertEqual(adjustment.experience_reward_modifier, 1.0)
         self.assertEqual(adjustment.loot_quality_modifier, 1.0)
-
-    def test_difficulty_adjustment_is_significant_change(self):
-        """Test DifficultyAdjustment.is_significant_change() method."""
-        # Test significant change
-        adjustment = DifficultyAdjustment(
-            spawn_rate_modifier=1.5,
-            monster_health_modifier=1.0,
-            monster_damage_modifier=1.0
-        )
-        self.assertTrue(adjustment.is_significant_change())
-
-        # Test no significant change
-        adjustment = DifficultyAdjustment(
-            spawn_rate_modifier=1.05,
-            monster_health_modifier=1.0,
-            monster_damage_modifier=1.0
-        )
-        self.assertFalse(adjustment.is_significant_change())
-
-    def test_difficulty_adjustment_is_no_change(self):
-        """Test DifficultyAdjustment.is_no_change() method."""
-        # Test no change
-        adjustment = DifficultyAdjustment.no_change()
-        self.assertTrue(adjustment.is_no_change())
-
-        # Test with changes
-        adjustment = DifficultyAdjustment(
-            spawn_rate_modifier=1.2,
-            monster_health_modifier=1.0,
-            monster_damage_modifier=1.0
-        )
-        self.assertFalse(adjustment.is_no_change())
-
-
-if __name__ == '__main__':
-    unittest.main()

@@ -780,3 +780,27 @@ elif attacker_is_player:
 - Ensure methods that modify coordinates return new instances rather than mutating in place
 - The `move()` method provides the correct immutable translation behavior
 - Search the codebase before removing methods to ensure they are not used elsewhere
+---
+
+## Fuzion Combat Skill and Level Factors
+
+### Problem
+The Fuzion d10 combat model requires skill bonuses (weapon_mastery, armor_mastery, tactical_awareness) and level bonuses to be applied consistently across both combat systems (darkdelve.Entity and src.domain Mob/Player).
+
+### Root Cause
+Previously, skill/level factors were computed inline in multiple places, leading to divergence between the two combat systems. The `Entity.defense_value` property returns BASE DV (no skill/level) for test parity, but combat resolution needs the full Fuzion DV.
+
+### Solution
+Created `src/domain/services/combat_factors.py` as the single source of truth for all Fuzion combat calculations. Both `darkdelve.CombatResolver.resolve_attack` and `CombatService` now delegate to `combat_factors.calculate_attack_value`, `calculate_defense_value`, and `calculate_damage`.
+
+### Affected Code
+- `darkdelve.CombatResolver.resolve_attack`
+- `src/domain/services/combat_service.py`
+- `src/domain/entities/mob.py` (get_defense, get_attack_damage)
+- `src/domain/services/player_profile_service.py` (apply_combat_skills, apply_combat_skills_to_entity)
+
+### Prevention
+- Always use `combat_factors` functions for Fuzion combat calculations
+- `Entity.defense_value` property remains BASE DV (no skill/level) for test compatibility
+- Monster string skills map via `MOB_SKILL_BONUS_MAP` to numeric bonuses
+- `combat_factors` must never import `darkdelve` or `mob` (circular import)

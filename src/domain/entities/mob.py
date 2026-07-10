@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from .entity import Entity
 from ..value_objects.position import Position
 from ..value_objects.stats import Stats
@@ -12,7 +12,10 @@ from ..value_objects.perception import PerceptionModifiers
 class Mob(Entity):
     """Mobile entity (monster/NPC) class"""
     
-    def __init__(self, position: Position, name: str = "Mob", mob_type: str = "generic"):
+    def __init__(self, position: Position, name: str = "Mob", mob_type: str = "generic",
+                 power: int = 0, defense: int = 0, level: int = 1, tier: Any = None,
+                 skills: List[str] = None, armor_value: int = 0, dodge_bonus: int = 0,
+                 to_hit_bonus: int = 0, damage_bonus: int = 0):
         super().__init__(name=name)
         self.position = position
         self.mob_type = mob_type
@@ -31,8 +34,23 @@ class Mob(Entity):
         perception = PerceptionComponent(entity_id=self.id, modifiers=PerceptionModifiers("default"))
         self.add_component("perception", perception)
         
-        # Set default stats based on mob type
+        # B1 FIX: set mob-type stats FIRST so power/defense derive from FINAL stats,
+        # not the default Stats() (strength=10). _set_default_stats overwrites self.stats.
         self._set_default_stats()
+        # NEW combat attributes (fix System B AttributeError in CombatService).
+        # power/defense derived from FINAL mob-type stats (orc strength=16 -> power=8).
+        self.power = power if power else (self.stats.strength // 2)
+        self.defense = defense if defense else (self.stats.constitution // 2)
+        self.level = level
+        self.tier = tier
+        self.skills = list(skills or [])
+        self.armor_value_override = armor_value
+        self.dodge_bonus = dodge_bonus
+        self.to_hit_bonus = to_hit_bonus
+        self.damage_bonus = damage_bonus
+        self.combat_dv_modifier = 1.0
+        self.combat_av_modifier = 1.0
+        self.combat_attack_modifier = 1.0
         
     def _set_default_stats(self) -> None:
         """Set default stats based on mob type"""
@@ -95,14 +113,13 @@ class Mob(Entity):
         """Check if mob is alive"""
         return self.health > 0
         
-    def get_attack_damage(self) -> int:
-        """Get attack damage"""
-        base_damage = self.stats.strength // 2
-        return max(1, base_damage + self.combat.get_bonus_damage())
+    def get_attack_damage(self, weapon_dice: str = "1d6") -> int:
+        from src.domain.services.combat_factors import get_base_damage
+        return get_base_damage(self, weapon_dice)
         
     def get_defense(self) -> int:
-        """Get defense value"""
-        return self.stats.constitution // 2 + self.combat.get_bonus_defense()
+        from src.domain.services.combat_factors import calculate_defense_value
+        return calculate_defense_value(self)
         
     def update(self, delta_time: float) -> None:
         """Update mob state"""

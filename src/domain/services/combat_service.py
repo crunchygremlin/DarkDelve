@@ -11,15 +11,8 @@ from ..value_objects.stats import Stats
 from src.shared.interfaces.service import ICombatService
 from src.domain.value_objects.combat_config import COMBAT_CONFIG
 from src.shared.utils.dice import parse_dice
-
-
-def _reflex_mod(entity) -> int:
-    stats = getattr(entity, 'stats', None)
-    if stats is None:
-        return 0
-    if hasattr(stats, 'get_modifier'):
-        return stats.get_modifier('dexterity')
-    return (stats.get('dex', 10) - 10) // 2
+from src.domain.services.combat_factors import (
+    calculate_attack_value, calculate_defense_value, calculate_damage)
 
 
 class CombatService(ICombatService):
@@ -190,12 +183,11 @@ class CombatService(ICombatService):
         Returns:
             int: Attack roll value
         """
-        d10 = random.randint(1, COMBAT_CONFIG.DIE_SIDES)
-        self._last_d10 = d10                      # stored so crit uses the SAME d10
-        base = getattr(attacker, 'attack_power', getattr(attacker, 'power', 0)) // 2
-        return d10 + _reflex_mod(attacker) + base + attacker.get_equipped_attack_bonus()
+        d10, atk = calculate_attack_value(attacker)
+        self._last_d10 = d10                     # crit uses SAME d10
+        return atk
 
-    def calculate_defense_value(self, target) -> int:   # RENAMED from calculate_defense_roll
+    def calculate_defense_value(self, target) -> int:
         """
         Calculate defense value for a target.
         
@@ -205,8 +197,7 @@ class CombatService(ICombatService):
         Returns:
             int: Defense value
         """
-        comp_def = int(target.defense * COMBAT_CONFIG.DEFENSE_COMPRESSION)
-        return COMBAT_CONFIG.BASE_DV + _reflex_mod(target) + comp_def + getattr(target, 'dodge_bonus', 0)
+        return calculate_defense_value(target)     # no name clash: module fn
 
     def calculate_damage(self, attacker, target, weapon_dice: str = "1d6") -> int:
         """
@@ -220,12 +211,8 @@ class CombatService(ICombatService):
         Returns:
             int: Damage amount
         """
-        num, size, mod = parse_dice(weapon_dice)
-        base = sum(random.randint(1, size) for _ in range(num)) + mod
-        base += getattr(attacker, 'attack_power', getattr(attacker, 'power', 0)) // 2
-        base += attacker.get_equipped_damage_bonus()
-        av = target.get_equipped_defense_bonus()        # Armor Value
-        return max(COMBAT_CONFIG.MIN_DMG, base - av)    # NOTE: no crit doubling here
+        is_crit = getattr(self, '_last_d10', 0) == COMBAT_CONFIG.DIE_SIDES
+        return calculate_damage(attacker, target, weapon_dice, is_crit)
 
     def is_critical_hit(self, attacker) -> bool:        # KEEP attacker param (caller @ :95 unchanged)
         """

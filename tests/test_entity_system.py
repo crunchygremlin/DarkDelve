@@ -179,8 +179,8 @@ class TestEntitySystem(unittest.TestCase):
         combat_component = MagicMock()
         movement_component = MagicMock()
         
-        self.player.add_component(combat_component, "combat")
-        self.player.add_component(movement_component, "movement")
+        self.player.add_component("combat", combat_component)
+        self.player.add_component("movement", movement_component)
         
         # Test retrieving components
         retrieved_combat = self.player.get_component("combat")

@@ -9,7 +9,7 @@ class Item(Entity):
     
     def __init__(self, item_id: Optional[str] = None, name: str = "Item",
                  item_type: str = "generic", description: str = "",
-                 value: int = 0, weight: float = 1.0):
+                 value: int = 0, weight: float = 1.0, weapon_dice: str = "1d6"):
         super().__init__(entity_id=item_id, name=name)
         self.item_type = item_type
         self.description = description
@@ -27,6 +27,8 @@ class Item(Entity):
         self.defense_bonus = 0
         self.health_bonus = 0
         self.speed_bonus = 0
+        self.weapon_dice = weapon_dice
+        # attack_bonus -> to-hit (attack value); defense_bonus -> AV (armor_value property)
         
     @property
     def is_equipment(self) -> bool:
