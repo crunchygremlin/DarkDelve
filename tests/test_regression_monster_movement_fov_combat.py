@@ -271,11 +271,11 @@ class TestToHitRegression(unittest.TestCase):
     """Regression test: player to-hit must include stat contribution."""
 
     def test_to_hit_includes_power_bonus(self):
-        """Attack roll must include power//2 as base to-hit."""
+        """Attack roll must include power//4 as base to-hit (capped)."""
         attacker = Entity(
             x=5, y=5, char="@", color=COLORS['player'],
             name="Strong Player", blocks=True,
-            power=16, defense=5,  # power//2 = 8
+            power=16, defense=5,  # power//4 = 4
             inventory=Inventory(max_weight=100),
         )
         defender = Entity(
@@ -285,7 +285,7 @@ class TestToHitRegression(unittest.TestCase):
             inventory=Inventory(max_weight=100),
         )
 
-        # Roll 10 + power//2(8) = 18 vs AC 15 → HIT
+        # Roll 10 + power//4(4) = 14 vs AC 15 → HIT
         with patch('random.randint', return_value=10):
             event = CombatResolver.resolve_attack(attacker, defender)
 
@@ -297,13 +297,13 @@ class TestToHitRegression(unittest.TestCase):
         attacker = Entity(
             x=5, y=5, char="@", color=COLORS['player'],
             name="Weak Player", blocks=True,
-            power=5, defense=2,  # power//2 = 2
+            power=5, defense=2,  # power//4 = 1
             inventory=Inventory(max_weight=100),
         )
         defender = Entity(
             x=6, y=5, char="g", color=COLORS['enemy_normal'],
             name="Goblin", blocks=True,
-            power=8, defense=5,  # AC = 10 + 5 = 15
+            power=8, defense=5,  # defense//4 = 1, compressed to 0
             inventory=Inventory(max_weight=100),
         )
 

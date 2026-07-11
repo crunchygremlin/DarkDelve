@@ -131,7 +131,10 @@ class CombatDamageLog:
             unique_attackers, unique_defenders
         """
         total_damage = sum(e.damage for e in self.entries)
-        hits = sum(1 for e in self.entries if e.hit and e.event_type == "hit")
+        # CB-001 FIX B: count ALL successful attacks (HIT and CRITICAL) as hits.
+        # `e.hit` is already True for both (set in record_event line 80), so this
+        # includes criticals that the old `e.event_type == "hit"` filter excluded.
+        hits = sum(1 for e in self.entries if e.hit)
         criticals = sum(1 for e in self.entries if e.critical)
         misses = sum(1 for e in self.entries if e.event_type == "miss")
         critical_fails = sum(1 for e in self.entries if e.event_type == "critical_fail")

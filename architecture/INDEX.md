@@ -97,6 +97,7 @@
 | `tests/test_content_repository.py` | ~91 | 2026-06-30 | New — Tests for ContentRepository |
 | `tests/test_content_seeder.py` | ~91 | 2026-06-30 | New — Tests for ContentSeeder |
 | `tests/test_content_generation_service.py` | ~91 | 2026-06-30 | New — Tests for ContentGenerationService |
+| `plans/CB-001_design.md` | ~257 | 2026-07-11 | New — Combat rebalance + logging fix design (CB-001) |
 
 ---
 

@@ -349,7 +349,7 @@ class TestCombatDamageLogSummary(unittest.TestCase):
         summary = self.log.get_summary()
         
         self.assertEqual(summary["total_damage_dealt"], 24)  # 5+3+0+12+4
-        self.assertEqual(summary["total_hits"], 3)
+        self.assertEqual(summary["total_hits"], 4)           # CHANGED 3 -> 4 (3 HIT + 1 CRITICAL)
         self.assertEqual(summary["total_misses"], 1)
         self.assertEqual(summary["total_critical_hits"], 1)
         self.assertEqual(summary["total_events"], 5)
@@ -370,6 +370,21 @@ class TestCombatDamageLogSummary(unittest.TestCase):
         self.assertEqual(summary["total_damage_dealt"], 0)
         self.assertEqual(summary["total_hits"], 0)
         self.assertEqual(summary["total_misses"], 3)
+
+    def test_critical_counted_in_total_hits(self):
+        event = self._make_event(result=HitResult.CRITICAL, damage=12, turn=0)
+        self.log.record_event(event, self._make_entity("Player"), self._make_entity("Orc"))
+        summary = self.log.get_summary()
+        self.assertEqual(summary["total_hits"], 1)
+
+    def test_hit_event_is_consistent(self):
+        event = self._make_event(result=HitResult.HIT, damage=5, turn=0)
+        self.log.record_event(event, self._make_entity("Player"), self._make_entity("Goblin"))
+        summary = self.log.get_summary()
+        self.assertEqual(summary["total_hits"], 1)
+        self.assertEqual(len(self.log.entries), 1)
+        self.assertTrue(self.log.entries[0].hit)
+        self.assertEqual(self.log.entries[0].event_type, "hit")
 
 
 class TestCombatDamageLogClear(unittest.TestCase):

@@ -1,50 +1,51 @@
-# FUZION-ENT-001 — Propagate Fuzion AV/DV Combat Model to All Entities
+# Task: Combat Balance Broken — Abyssal Guardian (and boss-tier mobs) unbeatable
 
-## Classification
-SYSTEM (core combat integration across monsters, items, difficulty factors, skills, and level; touches both combat systems and the entity/component layer).
-
+## Task ID: CB-001
+## Complexity: SYSTEM
 ## Goal
-Ensure EVERY combatant entity in DarkDelve uses the Fuzion-inspired d10 Attack-Value vs Defense-Value (DV) + Armor Value (AV) model consistently, and that the model treats SKILLS (weapon_mastery, armor_mastery, tactical_awareness) and LEVEL as first-class combat factors. Integrate: monsters, items, difficulty factors, skills, level.
+Rebalance the combat system so boss-tier monsters (exemplified by "Abyssal Guardian")
+are challenging but BEATABLE: the player must have a viable hit chance against them,
+and they must not auto-hit the player every turn. Also fix the combat-event logging
+inconsistency where hits are recorded as misses.
 
-## Background
-FUZION-AC-001 replaced the d20+AC system in `darkdelve.py` `CombatResolver` and `src/domain/services/combat_service.py` with the d10 DV/AV model. The surrounding entity ecosystem was NOT updated:
+## Evidence (logs/combat_damage_8b6e2599.json)
+- Player (Adventurer) attack rolls: 12-20. Against normal mobs (DV 7: Cave Rat,
+  Dungeon Guard, Giant Spider, Spider Queen) the player HITS (flavor "HIT!"/"CRITICAL HIT", damage applied).
+- Against Abyssal Guardian (DV 23) the player ALWAYS MISSES (rolls 12-20 < 23).
+- Abyssal Guardian attack rolls: 37-46. Player DV: 19-22. AG ALWAYS HITS (frequent CRITs).
+- Normal mobs DV ~7; AG DV 23 (~3x). AG attack 37-46 vs player attack 12-20 (~2-3x).
+- Combat summary reports total_hits: 0, yet many events have damage>0 and
+  "HIT!"/"CRITICAL HIT!" flavor -> `hit`/`event_type` disagree with `damage`/flavor.
 
-- `src/domain/entities/mob.py` `Mob.get_defense()` / `get_attack_damage()` still use OLD `constitution//2` math.
-- `combat_service.py` `calculate_defense_value(target)` reads `target.defense` — but `Mob` (System B) has NO `defense` attribute -> AttributeError at runtime. The two combat systems diverge.
-- `darkdelve.py` `MobTemplate.armor_value` (added in FUZION-AC-001) is never applied to spawned monster AV.
-- `MobTemplate.skills` (string list) is never used in combat.
-- Skills (`weapon_mastery`, `armor_mastery`, `tactical_awareness`) are computed in `player_profile_service.py` but only feed LLM profile text, not combat math.
-- `dynamic_difficulty_service.py` scales only monster HP/damage, not DV/AV/attack, and references stale `player_entity.power.level` / `fighter` attributes.
-- `darkdelve.py` `Entity.level` is not used in combat math (user: "level is a more important factor in standard rogue").
-- Items have `armor_value` but `attack_bonus`/`defense_bonus` integration into AV/attack should be verified; consider adding `weapon_dice`.
+## Suspected Root Cause
+1. calculate_attack_value (src/domain/services/combat_factors.py:104) includes
+   get_power(attacker) // 2. Boss mobs have power 50-75 (content.db templates) -> +25-37
+   attack; player power ~10-20 -> +5-10. The power//2 term dominates and creates a
+   ~25-37 point attack gap between tiers -> high-tier mobs unhittable & always-hitting.
+2. calculate_defense_value (combat_factors.py:115) scales with defense/level; boss DV (23)
+   far exceeds player attack (12-20).
+3. Resolution uses TWO systems: `result` (HIT/MISS) from combat_factors `atk_total >= dv`,
+   while `damage` comes from FuzionDamageCalculator. Logged `hit`/`event_type` disagree
+   with `damage`/flavor -> investigate darkdelve.CombatResolver.resolve_attack (darkdelve.py:1000),
+   Game.attack (darkdelve.py:3171), CombatDamageLog.record_event (combat_damage_log.py:51).
 
-## Scope (Architect must design all of these)
-1. MONSTERS (both entity systems):
-   - System A (`darkdelve.py`): wire `MobTemplate.armor_value` and `MobTemplate.skills` into the spawned `Entity` (AV + skill-based bonuses).
-   - System B (`src/domain/entities/mob.py`): replace OLD `get_defense()`/`get_attack_damage()` with Fuzion DV/AV; add `defense`, `power`, `to_hit_bonus`, `damage_bonus`, `armor_value`, `defense_value` to `Mob` so `combat_service.py` works without AttributeError.
-2. ITEMS: verify/extend `Item.armor_value` and `attack_bonus`/`defense_bonus` feed AV/attack; add `weapon_dice` field if needed for damage resolution.
-3. DIFFICULTY FACTORS: make `dynamic_difficulty_service.py` scale monster DV/AV/attack (Fuzion-aware), not just HP/damage; fix stale references.
-4. SKILLS: wire `weapon_mastery` -> attack value, `armor_mastery` -> AV/DV, `tactical_awareness` -> DV in BOTH combat systems. Define how `MobTemplate.skills` (string list) map to numeric skill bonuses.
-5. LEVEL: add `player.level` (and monster tier/level) as a factor in attack/defense values per user intent.
+## Files to investigate / likely edit
+- src/domain/services/combat_factors.py (attack/defense formulas - primary rebalance)
+- src/domain/value_objects/combat_config.py (BASE_DV=6, DEFENSE_COMPRESSION=0.4)
+- darkdelve.py (CombatResolver.resolve_attack, CombatEvent, Game.attack)
+- src/infrastructure/persistence/combat_damage_log.py (hit/event_type logging)
+- src/domain/entities/mob.py (mob stats + combat_*_modifier defaults)
+- src/application/services/dynamic_difficulty_service.py (difficulty scaling)
+- cache/content.db (boss stat templates: power/defense/tier)
+- logs/combat_damage_8b6e2599.json (evidence)
 
-## Constraints
-- Keep BOTH combat systems (darkdelve.CombatResolver and combat_service.CombatService) mathematically aligned (single source of truth via combat_config + shared helpers like parse_dice).
-- Keep deprecated aliases (`armor_class`, `target_ac`, `d20_roll`) for one release.
-- Do NOT break the 96 passing combat tests / 1158 full-suite tests. New behavior MUST be covered by new tests.
-- Respect architecture docs; update INDEX.md / gotchas.md / system_overview.md as needed.
+## Acceptance Criteria
+- Player has a reasonable hit chance (target ~25-50%) vs boss-tier mobs at level.
+- Boss-tier mobs do NOT auto-hit the player every turn (player dodges sometimes).
+- Combat-event `hit`/`event_type` accurately reflect `damage`/flavor (summary total_hits>0 on hits).
+- All existing tests pass; add/extend tests for rebalanced formulas + logging fix.
+- No regression to normal (non-boss) mob combat.
 
-## Documents the Architect MUST read (with why)
-1. `plans/FUZION-AC-001_impl_design.md` — authoritative Fuzion math (DV = BASE_DV + reflex_mod + int(defense*0.4) + dodge; AV absorption; MIN_DMG floor; crit = d10==10; parse_dice). All entities must converge on this.
-2. `darkdelve.py` lines 652-666 (`MobTemplate`), 754-834 (`Entity` with defense_value/armor_value/to_hit_bonus/damage_bonus), 964-1046 (`CombatResolver.resolve_attack`). Shows System A's Fuzion implementation and monster stat origin.
-3. `src/domain/entities/mob.py` (full) — System B Mob with OLD `get_defense()`/`get_attack_damage()`.
-4. `src/domain/entities/item.py` (full) — Item armor_value/attack_bonus/defense_bonus.
-5. `src/domain/entities/player.py` (full) — Player level, attack_power, equipment, take_damage (OLD math).
-6. `src/domain/services/combat_service.py` (full) — System B combat; reads target.defense/attacker.power -> breaks on Mob.
-7. `src/domain/components/power_component.py` + `src/domain/value_objects/power_levels.py` — SkillSet (weapon_mastery/armor_mastery/tactical_awareness) definitions.
-8. `src/domain/services/player_profile_service.py` (lines ~170-210) — how skills are currently computed from stats (LLM only).
-9. `src/domain/services/dynamic_difficulty_service.py` (full) — DifficultyAdjustment; scales HP/damage only; stale refs.
-10. `src/application/services/content_seeder.py` (monster section) — how monsters are seeded with skills/power/defense/tier.
-11. `architecture/system_overview.md`, `architecture/INDEX.md`, `architecture/gotchas.md` — for doc upkeep.
-
-## Deliverable
-A design doc at `plans/FUZION-ENT-001_design.md` specifying exact changes per file, pseudocode for DV/AV computation including skill & level factors, how `MobTemplate.skills` map to numeric bonuses, difficulty integration, and a test plan. Must keep both combat systems aligned and all existing tests green.
+## Scope / Constraints
+- Only perform the work outlined here. Do not refactor unrelated systems.
+- These instructions supersede any conflicting general instructions.

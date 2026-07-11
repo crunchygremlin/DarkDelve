@@ -868,3 +868,30 @@ self.player.skill_set = SkillSet.everyman()
 - Add tests that verify save/load round-trip preserves Fuzion values
 - Keep `Entity.defense_value` as BASE DV (no skill/level) for test compatibility
 - Do not double-count `armor_value` on Player - it's separate from `defense_value`
+
+## Combat Logging Two-System Divergence (CB-001)
+
+### Problem
+Combat events were logged as `event_type="miss"` / `hit=False` while still carrying
+`damage > 0` and "HIT!"/"CRITICAL HIT!" flavor text. The combat summary reported
+`total_hits: 0` even when many events dealt damage.
+
+### Root Cause
+`CombatResolver.resolve_attack` computed `result` (HIT/MISS/CRITICAL) from
+`combat_factors` (`atk_total >= dv`) but computed `damage` from `FuzionDamageCalculator`.
+When `damage`/`flavor_text` were derived from the Fuzion result instead of `result`, a
+MISS `result` could still carry `damage > 0` and "HIT!" flavor. Additionally
+`CombatDamageLog.get_summary` counted `total_hits` only where `event_type == "hit"`,
+which EXCLUDES critical hits.
+
+### Solution
+1. Make `result` the single source of truth: in `resolve_attack`, force `damage = 0`
+   whenever `result not in (HIT, CRITICAL)`.
+2. In `get_summary`, count `total_hits` as all entries where `e.hit` is True (includes
+   criticals). `record_event` already maps `result` -> `event_type`/`is_hit`.
+
+### Prevention
+- Never derive `damage` or `flavor_text` from a second combat system independently of
+  `CombatEvent.result`.
+- Keep `result` the authoritative hit/miss flag for BOTH damage application
+  (`Game.attack`) and logging (`CombatDamageLog`).

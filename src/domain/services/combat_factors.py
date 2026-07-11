@@ -106,7 +106,9 @@ def calculate_attack_value(attacker: Any, weapon_dice: str = "1d6") -> Tuple[int
     d10 = random.randint(1, COMBAT_CONFIG.DIE_SIDES)
     wm, _, _ = get_skill_bonuses(attacker)
     level_bonus = get_level(attacker) * LEVEL_BONUS_PER_LEVEL
-    atk = (d10 + _reflex_mod(attacker) + get_power(attacker) // 2
+    # CB-001: cap power then divide so boss power (50-75) cannot dominate to-hit.
+    power_term = min(get_power(attacker), COMBAT_CONFIG.POWER_CAP) // COMBAT_CONFIG.POWER_ATTACK_DIVISOR
+    atk = (d10 + _reflex_mod(attacker) + power_term
            + get_to_hit_bonus(attacker) + wm + level_bonus)
     mod = getattr(attacker, 'combat_attack_modifier', 1.0)
     return d10, int(atk * mod)
@@ -118,8 +120,10 @@ def calculate_defense_value(target: Any) -> int:
     # remains the BASE DV (no skill/level) for test parity — see gotchas.md.
     wm, am, ta = get_skill_bonuses(target)
     level_bonus = get_level(target) * LEVEL_BONUS_PER_LEVEL
+    # CB-001: cap defense then compress so boss defense (30-45) cannot balloon DV.
+    defense_term = int(min(get_defense_stat(target), COMBAT_CONFIG.DEFENSE_CAP) * COMBAT_CONFIG.DEFENSE_COMPRESSION)
     dv = (COMBAT_CONFIG.BASE_DV + _reflex_mod(target)
-          + int(get_defense_stat(target) * COMBAT_CONFIG.DEFENSE_COMPRESSION)
+          + defense_term
           + getattr(target, 'dodge_bonus', 0) + am + ta + level_bonus)
     mod = getattr(target, 'combat_dv_modifier', 1.0)
     return int(dv * mod)

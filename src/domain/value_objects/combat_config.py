@@ -1,17 +1,20 @@
 from dataclasses import dataclass
 
-@dataclass(frozen=True)
+@ dataclass(frozen=True)
 class CombatConfig:
     DIE_SIDES: int = 10
     BASE_DV: int = 6
     MIN_DMG: int = 1
     CRIT_IGNORES_AV: bool = False
-    DEFENSE_COMPRESSION: float = 0.4
+    DEFENSE_COMPRESSION: float = 0.2          # WAS 0.4 — reduces boss DV gap
+    POWER_ATTACK_DIVISOR: int = 4             # WAS implicit //2 — de-emphasizes raw power in to-hit
+    POWER_CAP: int = 40                       # caps LLM-template power so tiers cannot blow past the curve
+    DEFENSE_CAP: int = 30                     # caps LLM-template defense in DV
 
 COMBAT_CONFIG = CombatConfig()
 
 
-@dataclass(frozen=True)
+@ dataclass(frozen=True)
 class FuzionCombatConfig:
     DIE_SIDES: int = 10
     BASE_DV: int = 6

@@ -1036,6 +1036,12 @@ class CombatResolver:
                     damage = clamp_monster_damage(damage, defender.max_hp)
                 elif attacker_is_player:
                     damage = clamp_player_damage(damage, defender.max_hp)
+        # CB-001 FIX A: single source of truth. `result` (from combat_factors)
+        # governs both damage application and logging. Defensively force damage
+        # to 0 whenever the roll did not land as HIT/CRITICAL, so the logged
+        # `damage`/`flavor_text` can never disagree with `result`/`event_type`.
+        if result not in (HitResult.HIT, HitResult.CRITICAL):
+            damage = 0
         return CombatEvent(turn=0, attacker_name=attacker.name, defender_name=defender.name,
                          to_hit_bonus=attacker.to_hit_bonus,
                          target_ac=dv, target_dv=dv,
