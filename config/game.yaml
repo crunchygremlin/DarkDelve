@@ -170,13 +170,16 @@ durability:
 
 dungeon_master:
   enabled: true
-  model: "gpt-oss"
+  model: "qwen2.5-coder:7b-instruct"
   temperature: 0.7
   ollama_endpoint: "http://localhost:11434"
   log_path: "logs/llm_activity.json"
   max_calls_per_turn: 5
   enable_behavior_generation: true
   enable_level_design: false
+  max_prompt_chars: 8000
+  dm_model: "qwen2.5-coder:7b-instruct"
+  dm_temperature: 0.7
 damage:
   critical_multiplier: 1.5
   armor_minimum: 1

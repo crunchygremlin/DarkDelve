@@ -156,6 +156,18 @@ For tasks spanning multiple systems, read these files in order:
 | `tests/test_fuzion_combat.py` | ~80 | 2026-07-09 | New — Tests for Fuzion d10 combat system |
 ---
 
+ | `src/domain/value_objects/dm_memory.py` | ~50 | 2026-07-12 | New — DMGlobalMemory value object for throttled poetic memory |
+ | `src/domain/value_objects/truncation_info.py` | ~10 | 2026-07-12 | New — TruncationInfo dataclass for truncation logging |
+ | `src/domain/services/behavior_library.py` | ~100 | 2026-07-12 | New — BehaviorLibrary for caching and reusing behavior scripts |
+ | `src/domain/services/swarm_template_service.py` | ~250 | 2026-07-12 | New — SwarmTemplateService for group behavior templates |
+ | `src/domain/services/cache_miss_tracker.py` | ~50 | 2026-07-12 | New — CacheMissTracker for telemetry-only cache miss detection |
+ | `tests/test_dm_memory.py` | ~50 | 2026-07-12 | New — Tests for DM memory throttle |
+ | `tests/test_truncation_logging.py` | ~50 | 2026-07-12 | New — Tests for truncation logging |
+ | `tests/test_cache_miss_tracker.py` | ~50 | 2026-07-12 | New — Tests for cache-miss tracker |
+ | `tests/test_behavior_library.py` | ~50 | 2026-07-12 | New — Tests for behavior library |
+ | `tests/test_swarm_template.py` | ~50 | 2026-07-12 | New — Tests for swarm templates |
+ | `tests/test_mcp_playtester.py` | ~50 | 2026-07-12 | New — Tests for MCP playtester |
+
 ## FZ-001 Fuzion System Files
 
 The following files were added or modified as part of the FZ-001 Fuzion RPG redesign:

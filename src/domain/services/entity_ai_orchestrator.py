@@ -6,6 +6,7 @@ from src.domain.services.behavior_script_service import BehaviorScriptService
 from src.domain.services.social_service import SocialService
 from src.domain.services.player_profile_service import PlayerProfileService
 from src.domain.value_objects.llm_logging import LLMLogger
+from src.domain.services.swarm_template_service import SwarmTemplateService
 
 __all__ = ["EntityAIOrchestrator"]
 
@@ -21,6 +22,7 @@ class EntityAIOrchestrator:
         player_profile_service: PlayerProfileService,
         llm_logger: LLMLogger,
         event_bus=None,
+        swarm_template_service=None,
     ):
         self.perception_service = perception_service
         self.behavior_service = behavior_service
@@ -28,6 +30,7 @@ class EntityAIOrchestrator:
         self.player_profile_service = player_profile_service
         self.llm_logger = llm_logger
         self.event_bus = event_bus
+        self._swarm_template_service = swarm_template_service or SwarmTemplateService()
         self._tick = 0
 
     def tick(self, entities, player, game_map, items):
@@ -37,13 +40,43 @@ class EntityAIOrchestrator:
         # 1. Update perception for all entities with perception components
         self._update_perception(entities, player, game_map, items)
 
-        # 2. Evaluate behavior scripts
+        # 2. Assign swarm templates to groups with leaders
+        self._assign_swarm_templates(entities)
+
+        # 3. Evaluate behavior scripts
         actions = self._evaluate_behaviors(entities)
 
-        # 3. Check for desertions/betrayals
+        # 4. Check for desertions/betrayals
         self._check_social_events(entities)
 
         return actions
+
+    def _assign_swarm_templates(self, entities):
+        """Assign swarm templates to groups with leaders."""
+        for entity in entities:
+            social_comp = entity.get_component("social")
+            behavior_comp = entity.get_component("behavior")
+            
+            if not social_comp or not behavior_comp:
+                continue
+            
+            # If this entity is a leader and has no script, assign a template
+            if social_comp.is_leader and behavior_comp.current_script is None:
+                template = self._swarm_template_service.select_template(
+                    mob_type=getattr(entity, 'mob_type', 'default'),
+                    intelligence_tier=entity.intel_tier
+                )
+                script = self._swarm_template_service.build_script(template, entity.id)
+                behavior_comp.set_script(script)
+                
+                # Issue leader command if player detected
+                if self.event_bus:
+                    self._swarm_template_service.issue_leader_command(
+                        leader_id=entity.id,
+                        command="guard",
+                        subordinate_ids=social_comp.subordinate_ids,
+                        event_bus=self.event_bus
+                    )
 
     def _update_perception(self, entities, player, game_map, items):
         """Update perception for all entities with perception components."""

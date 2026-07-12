@@ -1,11 +1,13 @@
 """LLM logging value objects for the Entity AI system."""
 
 from dataclasses import dataclass, field
-from typing import List, Optional, Dict
+from typing import List, Optional, Dict, Tuple
 import time
 import json
 import os
 import threading
+
+from src.domain.value_objects.truncation_info import TruncationInfo
 
 __all__ = [
     "ContextWindowDiagnostics",
@@ -14,6 +16,7 @@ __all__ = [
     "LLMPerformanceMetrics",
     "LLMLogger",
     "estimate_tokens",
+    "TruncationInfo",
 ]
 
 
@@ -294,6 +297,69 @@ class LLMLogger:
         diag.current_prompt_tokens = estimate_tokens(prompt)
         diag.calculate_headroom()
         return diag
+
+    def truncate_prompt(self, prompt: str, max_chars: int = 8000) -> Tuple[str, TruncationInfo]:
+        """Truncate a prompt to fit within max_chars.
+        
+        Drops from the middle, keeping head (system/instructions) + tail (current state).
+        
+        Args:
+            prompt: The prompt to truncate
+            max_chars: Maximum character limit
+            
+        Returns:
+            Tuple of (truncated_prompt, TruncationInfo)
+        """
+        original = len(prompt)
+        if original <= max_chars:
+            return prompt, TruncationInfo(original, original, [], False)
+        # Drop from the middle, keep head (system/instructions) + tail (current state).
+        keep = max_chars
+        head = prompt[: int(keep * 0.7)]
+        tail = prompt[-int(keep * 0.3):]
+        dropped = ["<middle truncated>"]
+        return head + "\n...[truncated]...\n" + tail, TruncationInfo(original, keep, dropped, True)
+
+    def log_truncation(self, call_id: str, context: str, info: TruncationInfo) -> None:
+        """Log truncation event to telemetry file.
+        
+        Args:
+            call_id: The call ID
+            context: The context (e.g., "behavior", "level_design")
+            info: The TruncationInfo
+        """
+        entry = {
+            "event_type": "prompt_truncation",
+            "timestamp": time.time(),
+            "call_id": call_id,
+            "context": context,
+            "original_chars": info.original_chars,
+            "truncated_chars": info.truncated_chars,
+            "dropped_sections": info.dropped_sections
+        }
+        path = os.path.join(self.log_dir, "truncation.jsonl")
+        with open(path, "a") as f:
+            f.write(json.dumps(entry) + "\n")
+
+    def log_memory_refresh(self, level_number: int, summary_chars: int, headroom_tokens: int) -> None:
+        """Log memory refresh event to telemetry file.
+        
+        Args:
+            level_number: The level number
+            summary_chars: Character count of the summary
+            headroom_tokens: Available headroom tokens
+        """
+        entry = {
+            "event_type": "dm_memory_refresh",
+            "timestamp": time.time(),
+            "level_number": level_number,
+            "summary_chars": summary_chars,
+            "headroom_tokens": headroom_tokens,
+            "version": self.metrics.total_calls  # Use total_calls as version proxy
+        }
+        path = os.path.join(self.log_dir, "dm_memory.jsonl")
+        with open(path, "a") as f:
+            f.write(json.dumps(entry) + "\n")
 
     def get_performance_report(self) -> str:
         """Generate a human-readable performance report."""

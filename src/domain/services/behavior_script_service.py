@@ -533,9 +533,14 @@ class BehaviorScriptService:
         for child_data in node_data.get("children", []):
             children.append(self._parse_node_from_json(child_data))
         
+        # Convert node_type to string value if it's an enum
+        node_type_val = node_data.get("node_type", NodeType.ACTION)
+        if isinstance(node_type_val, NodeType):
+            node_type_val = node_type_val.value
+        
         return BehaviorNode(
             node_id=node_data.get("node_id", f"node_{uuid.uuid4().hex[:8]}"),
-            node_type=node_data.get("node_type", NodeType.ACTION),
+            node_type=node_type_val,
             priority=node_data.get("priority", 0),
             conditions=conditions,
             action=action,

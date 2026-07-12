@@ -588,3 +588,81 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+
+
+# MCP Playtester - in-process driver
+class MCPPlaytester:
+    """In-process playtester driving Game via MCPToolkit + Game.process_action (no Ollama)."""
+
+    def __init__(
+        self,
+        game,
+        toolkit=None,
+        agent=None,
+        telemetry_store=None,
+        instruction_bus=None,
+        max_turns=200,
+    ):
+        """Initialize MCP playtester.
+        
+        Args:
+            game: Game instance to drive
+            toolkit: MCPToolkit instance (created if None)
+            agent: MCPPlayerAgent instance (created if None)
+            telemetry_store: TelemetryStore instance
+            instruction_bus: InstructionBus instance
+            max_turns: Maximum turns to run
+        """
+        self.game = game
+        self.toolkit = toolkit
+        self.agent = agent
+        self.telemetry_store = telemetry_store or TelemetryStore()
+        self.instruction_bus = instruction_bus
+        self.max_turns = max_turns
+        self.config_telemetry_path = "playtest/telemetry/playtest_telemetry.json"
+
+    def run(self) -> PlaytestResult:
+        """Run the playtest loop.
+        
+        Returns:
+            PlaytestResult with outcome
+        """
+        turns = 0
+        while turns < self.max_turns and not self.game.state.game_over:
+            frame_text = self._render_frame()
+            decision = self.agent.decide(frame_text, self._stats())
+            self.game.process_action(decision.action)
+            entry = self._turn_entry(turns, frame_text, decision)
+            self.telemetry_store.append(self.config_telemetry_path, entry)
+            turns += 1
+        return PlaytestResult(
+            status="done",
+            returncode=0,
+            turns=turns,
+        )
+
+    def _render_frame(self) -> str:
+        """Render current game frame."""
+        return self.game.render_frame_text()
+
+    def _stats(self) -> Dict[str, Any]:
+        """Get current stats."""
+        return {
+            "health": getattr(self.game.player, 'hp', 0),
+            "turn": self.game.turn,
+        }
+
+    def _turn_entry(
+        self,
+        turn: int,
+        frame_text: str,
+        decision: PlayerDecision,
+    ) -> Dict[str, Any]:
+        """Create a turn telemetry entry."""
+        return {
+            "turn": turn,
+            "frame": frame_text[:500] if frame_text else "",
+            "action": decision.action,
+            "reasoning": decision.reasoning,
+            "timestamp": time.time(),
+        }

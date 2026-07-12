@@ -895,3 +895,57 @@ which EXCLUDES critical hits.
   `CombatEvent.result`.
 - Keep `result` the authoritative hit/miss flag for BOTH damage application
   (`Game.attack`) and logging (`CombatDamageLog`).
+
+## DM Single Model Config
+
+### Problem
+Hardcoding model strings in code instead of reading from config causes inconsistency.
+
+### Root Cause
+The model string was hardcoded as "gpt-oss" in `dungeon_master_agent.py` and `config/game.yaml`.
+
+### Solution
+All model strings now come from `config/game.yaml` under `dungeon_master.model`. The `DungeonMasterAgent` constructor accepts `model_name` and `temperature` parameters.
+
+### Affected Code
+- `src/domain/agents/dungeon_master_agent.py` - Constructor now uses config values
+- `config/game.yaml` - Model changed to "qwen2.5-coder:7b-instruct"
+
+### Prevention
+Never hardcode model strings. Always read from `dungeon_master` config section.
+
+## Global DM Memory is not per-monster
+
+### Problem
+DM memory might accidentally be used per-monster instead of as a single global store.
+
+### Root Cause
+Memory injection happens in `_prepare_prompt()` which is called for all LLM prompts.
+
+### Solution
+`DMGlobalMemory` is instantiated once in `DungeonMasterAgent.__init__` and shared across all LLM calls. Memory is refreshed at level boundaries only.
+
+### Affected Code
+- `src/domain/agents/dungeon_master_agent.py` - Single `_memory` instance
+- `darkdelve.py` - `refresh_memory()` called at level generation
+
+### Prevention
+Memory is GLOBAL (one instance), NOT per-monster. Always use `self._memory` from the agent.
+
+## Cache-Miss Tracker is pre-cache (telemetry only)
+
+### Problem
+Cache-miss tracker might be confused with actual caching implementation.
+
+### Root Cause
+The tracker only logs telemetry; it does NOT serve cached responses.
+
+### Solution
+`CacheMissTracker.track_prompt()` logs similarity metrics to `playtest/telemetry/cache_miss.jsonl`. Actual caching will be implemented in a later phase.
+
+### Affected Code
+- `src/domain/services/cache_miss_tracker.py` - Telemetry-only implementation
+- `src/domain/agents/dungeon_master_agent.py` - Calls `track_prompt()` before LLM calls
+
+### Prevention
+Do NOT return cached responses from `track_prompt()`. It is instrumentation only.

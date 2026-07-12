@@ -11,6 +11,12 @@ from src.domain.value_objects.power_levels import PlayerProfile
 from src.domain.value_objects.llm_logging import (
     LLMLogger, LLMCallLog, ContextWindowDiagnostics, estimate_tokens
 )
+from src.domain.value_objects.truncation_info import TruncationInfo
+from src.domain.value_objects.dm_memory import DMGlobalMemory
+from src.domain.services.behavior_library import BehaviorLibrary
+from src.domain.services.swarm_template_service import SwarmTemplateService
+from src.domain.services.cache_miss_tracker import CacheMissTracker
+from src.domain.services.llm_map_generator import LLMMapGenerator
 from src.domain.services.level_design_service import LevelDesignService
 from src.infrastructure.repositories.content_repository import ContentRepository
 
@@ -32,17 +38,26 @@ class DungeonMasterAgent:
         level_design_service: LevelDesignService,
         llm_logger: LLMLogger,
         social_service=None,
-        content_repository=None,  # NEW: ContentRepository for seed-based generation
+        content_repository=None,
+        model_name: str = "qwen2.5-coder:7b-instruct",
+        temperature: float = 0.7,
+        max_prompt_chars: int = 8000,
     ):
         self.agent_id = "dungeon_master"
         self.ollama = ollama_service
         self.level_design = level_design_service
         self.logger = llm_logger
         self.social_service = social_service
-        self.content_repository = content_repository  # NEW
-        self._level_history: List[Dict[str, Any]] = []  # Track level performance history
-        self._model_name = "gpt-oss"  # Default model
-        self._temperature = 0.7  # Default temperature
+        self.content_repository = content_repository
+        self._level_history: List[Dict[str, Any]] = []
+        self._model_name = model_name
+        self._temperature = temperature
+        self._max_prompt_chars = max_prompt_chars
+        self._llm_map_generator = LLMMapGenerator(ollama_service, llm_logger)
+        self._memory = DMGlobalMemory(max_tokens=llm_logger.metrics.max_context_tokens)
+        self._behavior_library = BehaviorLibrary(content_repository)
+        self._swarm_template_service = SwarmTemplateService()
+        self._cache_miss_tracker = CacheMissTracker(similarity_threshold=0.75)
 
     def set_model(self, model_name: str, temperature: float = 0.7):
         """Set the model to use for generation."""
@@ -62,28 +77,52 @@ class DungeonMasterAgent:
         valid_conditions: List[str],
         valid_actions: List[str],
     ) -> Optional[BehaviorScript]:
-        """Generate a behavior script for an entity via LLM."""
+        """Generate a behavior script for an entity via LLM.
+        
+        Decision order:
+        1. Check behavior library for cached script
+        2. Generate via LLM if not found
+        3. Return fallback if LLM fails
+        """
+        # 1. Check behavior library first
+        template = self._behavior_library.select_script(mob_type, social_context)
+        if template:
+            return template
+        
         prompt = self._build_behavior_prompt(
             entity_id, mob_type, perception, social_context,
             valid_conditions, valid_actions
         )
         
+        call_id = str(uuid.uuid4())
+        
+        # Track prompt for cache miss
+        self._cache_miss_tracker.track_prompt(prompt, "behavior_generation")
+        
+        # Prepare prompt with truncation and memory
+        prepared = self._prepare_prompt(prompt, "behavior_generation", call_id)
+        
         # Estimate tokens and check headroom
-        prompt_tokens = self.logger.estimate_prompt_tokens(prompt)
-        headroom_diag = self.logger.check_headroom(prompt)
+        prompt_tokens = self.logger.estimate_prompt_tokens(prepared)
+        headroom_diag = self.logger.check_headroom(prepared)
         
         start = time.time()
         try:
-            response = self.ollama.generate(prompt)
+            response = self.ollama.generate(prepared)
             latency = (time.time() - start) * 1000
             response_tokens = estimate_tokens(response)
             script = self._parse_behavior_response(entity_id, response, valid_conditions, valid_actions)
+            
+            # Store in library if successful
+            if script:
+                self._behavior_library._entries[mob_type] = script
+                self._behavior_library._persist()
             
             # Calculate context after the call
             context_after = headroom_diag.max_context_tokens - headroom_diag.headroom_tokens + response_tokens
             
             self.logger.log_call(LLMCallLog(
-                call_id=str(uuid.uuid4()),
+                call_id=call_id,
                 timestamp=start,
                 context="behavior_generation",
                 entity_id=entity_id,
@@ -105,7 +144,7 @@ class DungeonMasterAgent:
         except Exception as e:
             latency = (time.time() - start) * 1000
             self.logger.log_call(LLMCallLog(
-                call_id=str(uuid.uuid4()),
+                call_id=call_id,
                 timestamp=start,
                 context="behavior_generation",
                 entity_id=entity_id,
@@ -119,7 +158,8 @@ class DungeonMasterAgent:
                 model=self._model_name,
                 temperature=self._temperature,
             ))
-            return None
+            # 3. Return fallback if LLM fails
+            return self._behavior_library.get_fallback(mob_type)
 
     def design_level(
         self,
@@ -433,3 +473,137 @@ Design level {depth} with appropriate difficulty and theme continuity."""
         """Record level performance data."""
         self.update_context(level_data)
 
+
+    # === New methods for unified DM functionality ===
+
+    def evaluate_player_stats(
+        self,
+        player_stats: Dict[str, int],
+        current_level: int
+    ) -> Dict[str, Any]:
+        """Evaluate player stats and return difficulty adjustment.
+        
+        Moved from LLMWorker - logic identical.
+        
+        Args:
+            player_stats: Dict of stat name to value
+            current_level: Current level number
+            
+        Returns:
+            Dict with difficulty_modifier (defaults to 1.0 on failure)
+        """
+        prompt = self._build_evaluation_prompt(player_stats, current_level)
+        call_id = str(uuid.uuid4())
+        
+        # Track prompt for cache miss
+        self._cache_miss_tracker.track_prompt(prompt, "difficulty_evaluation")
+        
+        # Prepare prompt with truncation and memory
+        prepared = self._prepare_prompt(prompt, "difficulty_evaluation", call_id)
+        
+        start = time.time()
+        try:
+            response = self.ollama.generate(prepared)
+            latency = (time.time() - start) * 1000
+            return self._parse_evaluation_response(response)
+        except Exception:
+            return {"difficulty_modifier": 1.0}
+
+    def _build_evaluation_prompt(
+        self,
+        player_stats: Dict[str, int],
+        current_level: int
+    ) -> str:
+        """Build the player stats evaluation prompt."""
+        stats_str = "\n".join(f"{k}: {v}" for k, v in player_stats.items())
+        return f"""Evaluate player strength for level {current_level}.
+
+Player stats:
+{stats_str}
+
+Return JSON: {{"difficulty_modifier": 1.0}}"""
+
+    def _parse_evaluation_response(self, response: str) -> Dict[str, Any]:
+        """Parse LLM response into difficulty adjustment."""
+        try:
+            start = response.find('{')
+            end = response.rfind('}') + 1
+            if start >= 0 and end > start:
+                return json.loads(response[start:end])
+        except Exception:
+            pass
+        return {"difficulty_modifier": 1.0}
+
+    def generate_map(
+        self,
+        description: str,
+        width: int = 60,
+        height: int = 40,
+        depth: int = 1
+    ) -> Optional[Any]:
+        """Generate a map via LLMMapGenerator.
+        
+        Args:
+            description: Map description
+            width: Map width
+            height: Map height
+            depth: Level depth
+            
+        Returns:
+            MapBuilder if successful, None on failure
+        """
+        return self._llm_map_generator.generate_map(description, width, height, depth)
+
+    def refresh_memory(self, level_number: int, narrative: str) -> None:
+        """Refresh DM memory with new narrative.
+        
+        Args:
+            level_number: Current level number
+            narrative: Narrative text to add
+        """
+        diag = self.logger.check_headroom(narrative, system_prompt=self._memory.summary)
+        headroom = diag.headroom_tokens
+        self._memory.refresh(narrative, headroom)
+        self._memory.last_updated_level = level_number
+        self.logger.log_memory_refresh(level_number, len(self._memory.summary), headroom)
+
+    def get_memory_context(self) -> str:
+        """Get memory context for prompts."""
+        diag = self.logger.check_headroom("", system_prompt=self._memory.summary)
+        return self._memory.truncate_to_headroom(diag.headroom_tokens)
+
+    def _prepare_prompt(self, prompt: str, context: str, call_id: str) -> str:
+        """Prepare prompt with truncation and memory injection.
+        
+        Args:
+            prompt: Original prompt
+            context: Context string for logging
+            call_id: Call ID for logging
+            
+        Returns:
+            Prepared prompt
+        """
+        truncated, info = self.logger.truncate_prompt(prompt, self._max_prompt_chars)
+        if info.was_truncated:
+            self.logger.log_truncation(call_id, context, info)
+        # Inject global memory context at top
+        memory = self.get_memory_context()
+        if memory:
+            truncated = f"DM MEMORY:\n{memory}\n\n{truncated}"
+        return truncated
+
+    def set_swarm_template_service(self, svc) -> None:
+        """Inject swarm template service."""
+        self._swarm_template_service = svc
+
+    def set_behavior_library(self, lib) -> None:
+        """Inject behavior library."""
+        self._behavior_library = lib
+
+    def set_cache_miss_tracker(self, tracker) -> None:
+        """Inject cache miss tracker."""
+        self._cache_miss_tracker = tracker
+
+    def set_memory(self, mem) -> None:
+        """Inject DM memory."""
+        self._memory = mem

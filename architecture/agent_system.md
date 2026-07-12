@@ -223,3 +223,48 @@ This enables:
 - World editing (spawn mobs, modify stats, add items)
 - Map queries for context-limited LLM prompts
 - IDE debugging and playtesting
+## Unified DungeonMasterAgent (DM Improvements)
+
+The DungeonMasterAgent has been enhanced to become a single cohesive "mind" owning:
+- Behavior script generation
+- Level design
+- Map generation (via LLMMapGenerator)
+- Content batches
+- Difficulty evaluation (moved from LLMWorker)
+- Global throttled poetic memory (DMGlobalMemory)
+- Behavior library (BehaviorLibrary)
+- Swarm templates (SwarmTemplateService)
+- Cache-miss tracking (CacheMissTracker)
+
+### Key Changes
+
+1. **Constructor** now accepts:
+   - `model_name: str = "qwen2.5-coder:7b-instruct"` - Single model config
+   - `temperature: float = 0.7`
+   - `max_prompt_chars: int = 8000` - Truncation threshold
+
+2. **Memory System** (`DMGlobalMemory`):
+   - Global poetic memory bounded by headroom tokens
+   - Refreshed at level boundaries via `refresh_memory()`
+   - Injected into all DM prompts via `_prepare_prompt()`
+
+3. **Behavior Library** (`BehaviorLibrary`):
+   - Caches behavior scripts by mob type
+   - Falls back to `create_default_script()` on LLM failure
+   - Persists to `cache/behavior_library.json`
+
+4. **Swarm Templates** (`SwarmTemplateService`):
+   - Templates by intelligence tier (1-5)
+   - Leader commands via event bus
+   - Default templates for surround, flee, ambush behaviors
+
+5. **Cache-Miss Tracker** (`CacheMissTracker`):
+   - Telemetry-only tracking of prompt similarity
+   - Uses difflib for >=75% similarity detection
+   - Logs to `playtest/telemetry/cache_miss.jsonl`
+
+### LLMWorker Changes
+
+- Removed `evaluate_player_stats` methods (moved to DungeonMasterAgent)
+- Added `map_generation` branch in `llm_worker_func`
+- Delegates map generation to `dm_agent.generate_map()`

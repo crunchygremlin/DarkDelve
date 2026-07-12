@@ -8,6 +8,7 @@ from src.domain.agents.dungeon_master_agent import DungeonMasterAgent
 from src.domain.value_objects.perception import PerceptionStatus
 from src.domain.value_objects.llm_logging import LLMLogger, LLMCallLog
 from src.domain.services.level_design_service import LevelDesignService
+from src.domain.services.behavior_library import BehaviorLibrary
 
 
 class TestDungeonMasterAgent:
@@ -64,13 +65,15 @@ class TestDungeonMasterAgent:
         # Use a real LLMLogger with temp directory
         with tempfile.TemporaryDirectory() as tmpdir:
             llm_logger = LLMLogger(log_dir=tmpdir)
-
+            # Use temp directory for behavior library to avoid cache conflicts
             agent = DungeonMasterAgent(
                 ollama_service=ollama,
                 level_design_service=level_design,
                 llm_logger=llm_logger,
-                social_service=None
+                social_service=None,
+                content_repository=None
             )
+            agent._behavior_library = BehaviorLibrary(persist_path=f"{tmpdir}/behavior_library.json")
 
             perception = PerceptionStatus(entity_id="entity_1")
             script = agent.generate_behavior_script(
@@ -88,20 +91,21 @@ class TestDungeonMasterAgent:
             assert llm_logger.metrics.total_calls == 1
 
     def test_generate_behavior_script_failure(self):
-        """Test behavior script generation failure handling."""
+        """Test behavior script generation failure handling returns fallback."""
         ollama = Mock()
         ollama.generate.side_effect = Exception("LLM error")
 
         level_design = Mock()
         with tempfile.TemporaryDirectory() as tmpdir:
             llm_logger = LLMLogger(log_dir=tmpdir)
-
             agent = DungeonMasterAgent(
                 ollama_service=ollama,
                 level_design_service=level_design,
                 llm_logger=llm_logger,
-                social_service=None
+                social_service=None,
+                content_repository=None
             )
+            agent._behavior_library = BehaviorLibrary(persist_path=f"{tmpdir}/behavior_library.json")
 
             perception = PerceptionStatus(entity_id="entity_1")
             script = agent.generate_behavior_script(
@@ -113,7 +117,9 @@ class TestDungeonMasterAgent:
                 valid_actions=["attack"]
             )
 
-            assert script is None
+            # On failure, fallback script is returned (never None per design)
+            assert script is not None
+            assert script.entity_id == "goblin_fallback"
             assert llm_logger.metrics.total_calls == 1
             assert llm_logger.metrics.error_count == 1
 

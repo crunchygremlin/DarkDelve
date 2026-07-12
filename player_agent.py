@@ -571,3 +571,72 @@ def append_note(base: str, note: str) -> str:
     if note in base:
         return base
     return f"{base}; {note}"
+
+
+# MCP Player Agent - decides via MCPToolkit, no LLM
+SAFE_FALLBACK_ACTION = "e"  # Wait action
+
+VALID_ACTIONS = ("w", "a", "s", "d", "e", "i", "m", "up", "down", "enter", "escape")
+
+
+class MCPPlayerAgent(PlayerAgent):
+    """Decides player actions via MCPToolkit state reads (no Ollama/LLM)."""
+
+    def __init__(
+        self,
+        toolkit=None,
+        game=None,
+        safe_action: str = "e",
+    ):
+        """Initialize MCP player agent.
+        
+        Args:
+            toolkit: MCPToolkit instance for game state inspection
+            game: Game instance for in-process playtesting
+            safe_action: Default safe action to use
+        """
+        super().__init__()
+        self.toolkit = toolkit
+        self.game = game
+        self.safe_action = safe_action
+        self.history = []
+
+    def decide(
+        self,
+        map_text="",
+        stats=None,
+        history=None,
+        instruction_text=None,
+    ) -> PlayerDecision:
+        """Decide player action via MCP toolkit.
+        
+        Args:
+            map_text: Current map view (unused)
+            stats: Current stats (unused)
+            history: Action history (unused)
+            instruction_text: Instructions (unused)
+            
+        Returns:
+            PlayerDecision with action
+        """
+        # Inspect world via MCP toolkit (no LLM)
+        if self.toolkit:
+            ents = self.toolkit.list_entities()
+        else:
+            ents = []
+        
+        # Deterministic safe policy
+        action = self._safe_policy(ents)
+        
+        decision = PlayerDecision(
+            macro_goal="MCP auto-play",
+            reasoning="MCP toolkit policy",
+            action=action,
+            telemetry_notes="no-LLM",
+        )
+        self.record_turn(decision)
+        return decision
+
+    def _safe_policy(self, entities) -> str:
+        """Simple safe policy - return safe action by default."""
+        return self.safe_action

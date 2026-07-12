@@ -2357,7 +2357,12 @@ class Game:
         if self.dm_enabled:
             ollama_service = OllamaService(base_url=dm_config.get('ollama_endpoint', 'http://localhost:11434'))
             level_design = LevelDesignService(self.llm_logger, ollama_service)
-            self.dm_agent = DungeonMasterAgent(ollama_service, level_design, self.llm_logger)
+            self.dm_agent = DungeonMasterAgent(
+                ollama_service, level_design, self.llm_logger,
+                model_name=dm_config.get('model', 'qwen2.5-coder:7b-instruct'),
+                temperature=dm_config.get('temperature', 0.7),
+                max_prompt_chars=dm_config.get('max_prompt_chars', 8000),
+            )
             self.llm_worker = threading.Thread(target=llm_worker_func, args=(
                 self.llm_request_queue, self.llm_response_queue,
                 self.dm_agent, self.llm_logger, self.llm_max_calls
@@ -2542,6 +2547,11 @@ class Game:
         self.explored = self.fov_system.explored.copy()
         
         self.add_message("You enter the dungeon entrance. The air smells of damp stone and something rotten.")
+
+        # Refresh DM memory at level boundary
+        if self.dm_enabled:
+            narrative = f"Floor 1: Dungeon Entrance - {len(self.entities) - 1} entities spawned"
+            self.dm_agent.refresh_memory(1, narrative)
     
     def _generate_standard_level(self, depth: int, branch: str):
         """Generate standard dungeon level (depth > 1)."""
@@ -2692,6 +2702,11 @@ class Game:
         self.fov_system.explored = None
         self.fov = self.fov_system.compute(self.dungeon_map, self.player.x, self.player.y)
         self.explored = self.fov_system.explored.copy()
+
+        # Refresh DM memory at level boundary
+        if self.dm_enabled:
+            narrative = f"Level {depth}: {self.current_theme.name} - {len(self.entities) - 1} entities spawned"
+            self.dm_agent.refresh_memory(depth, narrative)
     
     def _tier_value(self, tier: MobTier) -> int:
         return {"minion": 1, "soldier": 2, "elite": 3, "boss": 4}.get(tier.value, 1)
