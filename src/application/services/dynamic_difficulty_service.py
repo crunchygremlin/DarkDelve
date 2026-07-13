@@ -87,7 +87,7 @@ class ApplicationDynamicDifficultyService:
         if player_entity is None:
             return
 
-        # Evaluate and adjust difficulty
+        # Evaluate and adjust difficulty using 50% of player stats
         adjustment = self.domain_service.evaluate_and_adjust_difficulty(
             player_entity=player_entity,
             current_level=new_level
@@ -95,20 +95,3 @@ class ApplicationDynamicDifficultyService:
 
         # Apply adjustment to level generation services
         self._apply_difficulty_adjustment(adjustment, new_level)
-
-    def _apply_difficulty_adjustment(
-        self,
-        adjustment: DifficultyAdjustment,
-        level_number: int
-    ):
-        """Apply difficulty adjustment to level generation services."""
-        # Notify level generators of the adjustment
-        event = Event(
-            event_type="difficulty_adjusted",
-            source="dynamic_difficulty_service",
-            data={
-                "level_number": level_number,
-                "adjustment": adjustment
-            }
-        )
-        self.event_bus.publish_event(event)
