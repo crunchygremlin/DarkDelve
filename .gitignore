@@ -19,3 +19,5 @@ playtest/telemetry_inventory_use_key.json
 playtest/telemetry*.json
 cache/content.db
 logs/llm_activity.json
+logs/llm_activity.json
+playtest/playtest_telemetry.json
