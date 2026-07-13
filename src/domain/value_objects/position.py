@@ -2,7 +2,7 @@ from typing import Tuple, Optional
 from dataclasses import dataclass
 
 
-@dataclass
+@dataclass(frozen=True)
 class Position:
     """Position value object representing coordinates in 2D space"""
     x: int
@@ -47,11 +47,6 @@ class Position:
     def move(self, dx: int, dy: int) -> 'Position':
         """Create new position by moving by given deltas"""
         return Position(self.x + dx, self.y + dy)
-        
-    def translate(self, dx: int, dy: int) -> None:
-        """Move position by given deltas"""
-        self.x += dx
-        self.y += dy
         
     def __eq__(self, other: object) -> bool:
         """Check if positions are equal"""

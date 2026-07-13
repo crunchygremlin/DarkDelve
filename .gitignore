@@ -15,3 +15,7 @@ darkdelve.py.backup4
 src/application/game_commands/drop_command.py.backup
 playtest/playtest_telemetry.json
 cache/content.db
+playtest/telemetry_inventory_use_key.json
+playtest/telemetry*.json
+cache/content.db
+logs/llm_activity.json
